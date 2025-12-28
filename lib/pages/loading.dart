@@ -50,7 +50,7 @@ class LoadingScreenState extends State<LoadingScreen> {
 
         if (success) {
           print('[LOADING][9] Download successful, saving flag');
-          await prefs.setBool('31assetsDownloaded1', true);
+          await prefs.setBool('assetsDownloaded1', true);
         } else {
           print('[LOADING][10] Download failed');
           if (mounted) {

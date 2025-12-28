@@ -1,5 +1,5 @@
 class PageMapper {
-  static const int mushafPages = 851;
+  static const int totalPages = 851;
 
   static int displayFromPdf(int pdfPage, bool isPortrait) {
     return isPortrait
@@ -17,5 +17,11 @@ class PageMapper {
     return isPortrait
         ? (currentPage * 2).toInt()
         : (currentPage ~/ 2);
+  }
+
+  static int bookmarkMapper(int currentPage, bool isPortrait) {
+    return isPortrait
+        ? (totalPages - currentPage)
+        : (totalPages - currentPage) * 2 - 1;
   }
 }

@@ -40,18 +40,21 @@ class MyPDFViewer extends StatefulWidget {
 class _MyPDFViewerState extends State<MyPDFViewer> {
   PDFViewController? _pdfController;
 
-  int _totalPages = 0;     // PDF pages
-  int _currentPdfPage = 0;
+  int _totalPages = 0; // PDF pages
+  int _currentPage = 0;
 
   bool _isPortrait = true;
   bool _isScrollbarVisible = true;
   Timer? _hideScrollbarTimer;
 
+
   bool isOptimizedPortrait = true;
   bool isOptimizedLandscape = false;
 
-  bool _isRestoringPage = true;
+  bool _isPdfChanging = false;
+  bool _isOrientationChanging = false;
   bool _pdfReady = false;
+  int _pdfVersion = 0;
 
   FitPolicy fitPolicy = FitPolicy.BOTH;
 
@@ -72,10 +75,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   Future<void> _initialize() async {
-    _isRestoringPage = true;
-
-    isOptimizedPortrait = await StorageManager.getOptimizedPortrait();
-    isOptimizedLandscape = await StorageManager.getOptimizedLandscape();
+    _isOrientationChanging = false;
+    _isPdfChanging = false;
+    _pdfVersion = 0;
 
     await _loadPdfPaths();
     await _loadBookmarks();
@@ -87,6 +89,29 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     setState(() => _pdfReady = true);
   }
 
+  void _addBookmark() {
+    int pageNumber = PageMapper.bookmarkMapper(_currentPage, _isPortrait);
+
+    if (_bookmarks.any((b) => b.pageNumber == pageNumber)) {
+      print('[DEBUG] Page $pageNumber already bookmarked');
+      return;
+    }
+
+    setState(() {
+      _bookmarks.add(Bookmark(pageNumber: pageNumber));
+    });
+    StorageManager.saveBookmarks(_bookmarks);
+    print('[DEBUG] Added bookmark: $pageNumber');
+  }
+
+  void _removeBookmark(Bookmark bookmark) {
+    setState(() {
+      _bookmarks.remove(bookmark);
+    });
+    StorageManager.saveBookmarks(_bookmarks);
+    print('[DEBUG] Removed bookmark: ${bookmark.pageNumber}');
+  }
+
   @override
   void dispose() {
     _hideScrollbarTimer?.cancel();
@@ -96,8 +121,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   // -------------------------
   // Loading
   // -------------------------
-
   Future<void> _loadPdfPaths() async {
+    isOptimizedPortrait = await StorageManager.getOptimizedPortrait();
+    isOptimizedLandscape = await StorageManager.getOptimizedLandscape();
+
     final dir = await getApplicationDocumentsDirectory();
 
     final portraitName =
@@ -116,7 +143,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   Future<void> _loadCurrentPage() async {
-    _currentPdfPage = await StorageManager.getCurrentPage();
+    _currentPage = await StorageManager.getCurrentPage();
   }
 
   FitPolicy _calculateFitPolicy() {
@@ -124,8 +151,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
         ? FitPolicy.WIDTH
         : FitPolicy.BOTH;
   }
-
-  int get totalDisplayPages => PageMapper.mushafPages;
 
   // -------------------------
   // UI helpers
@@ -157,7 +182,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
           if (_isPortrait != portraitNow) {
             _isPortrait = portraitNow;
             fitPolicy = _calculateFitPolicy();
-            _isRestoringPage = true;
+            _isOrientationChanging = true;
           }
 
           if (!_pdfReady) {
@@ -165,15 +190,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
           }
 
           final pdfPath = _isPortrait ? _portraitPath! : _landscapePath!;
-          final currentDisplayPage = PageMapper.displayFromPdf(
-            _currentPdfPage,
-            _isPortrait,
-          );
 
           return Stack(
             children: [
               PDFView(
-                key: ValueKey(pdfPath),
+                key: ValueKey('$pdfPath-$_pdfVersion'),
                 filePath: pdfPath,
                 swipeHorizontal: true,
                 fitPolicy: fitPolicy,
@@ -183,27 +204,32 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 },
                 onRender: (pages) async {
                   _totalPages = pages ?? 0;
-                  _currentPdfPage = PageMapper.orientationMapper(_currentPdfPage, _isPortrait);
 
                   //if orientation is changing
-                  if (_isRestoringPage) {
+                  if (_isOrientationChanging) {
+                    _currentPage = PageMapper.orientationMapper(_currentPage, _isPortrait);
+
                     print('[ORIENTATION] changing Portait $_isPortrait');
-                    await _pdfController?.setPage(_currentPdfPage);
                   }
-                  print('[ORIENTATION] didnt count as changing $_isPortrait');
+                  await _pdfController?.setPage(_currentPage);
+
                   Future.delayed(const Duration(milliseconds: 200), () {
-                    _isRestoringPage = false;
+                    _isOrientationChanging = false;
                   });
-                  print('[ONRENDER2] onrender current page is now $_currentPdfPage');
+                  print(
+                      '[ONRENDER2] onrender current page is now $_currentPage');
 
                   setState(() {});
                 },
                 onPageChanged: (page, _) {
                   if (page == null) return;
-                  if (_isRestoringPage) return;
-                  print('[ONPAGECHANGE] current page is now $_currentPdfPage');
+                  if (_isOrientationChanging || _isPdfChanging) {
+                    _isPdfChanging = false;
+                    return;
+                  };
+                  print('[ONPAGECHANGE] current page is now $_currentPage');
 
-                  setState(() => _currentPdfPage = page);
+                  setState(() => _currentPage = page);
                   StorageManager.saveCurrentPage(page);
                 },
               ),
@@ -223,7 +249,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   child: Row(
                     children: [
                       Text(
-                        '${MediaQuery.of(context).orientation == Orientation.landscape ? ((_totalPages - _currentPdfPage) * 2 - 1) : (_totalPages - _currentPdfPage)}/${MediaQuery.of(context).orientation == Orientation.landscape ? (_totalPages * 2 - 1) : _totalPages}',
+                        '${MediaQuery
+                            .of(context)
+                            .orientation == Orientation.landscape
+                            ? ((_totalPages - _currentPage) * 2 - 1)
+                            : (_totalPages - _currentPage)}/${MediaQuery
+                            .of(context)
+                            .orientation == Orientation.landscape
+                            ? (_totalPages * 2 - 1)
+                            : _totalPages}',
                         style: const TextStyle(
                           color: Color(0xFF025C32),
                           fontWeight: FontWeight.w600,
@@ -232,11 +266,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                       ),
                       Expanded(
                         child: Slider(
-                          activeColor: const Color(0xFF025C32),
+                          activeColor: const Color.fromARGB(255, 2, 92, 50),
+                          thumbColor: const Color.fromARGB(255, 175, 132, 4),
                           inactiveColor: const Color(0xFFD9B44A),
-                          thumbColor:
-                          const Color.fromARGB(255, 175, 132, 4),
-                          value: _currentPdfPage.toDouble(),
+                          value: _currentPage.toDouble(),
                           min: 0,
                           max: (_totalPages - 1).toDouble(),
                           onChanged: (v) {
@@ -259,10 +292,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           print('[DEBUG] Settings tapped');
                           await Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const Settings()),
+                            MaterialPageRoute(
+                                builder: (context) => const Settings()),
                           );
                           print('[DEBUG] Returned from Settings');
-                          //await _initializeViewer(); // Reload settings after returning
+                          _isPdfChanging = true;
+                          await _loadPdfPaths();
+                          fitPolicy = _calculateFitPolicy();
+                          _pdfVersion++;
+                          setState(() {});
                         },
                       ),
                     ],
@@ -278,30 +316,69 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   // -------------------------
   // Bookmarks
   // -------------------------
-
   void _showBookmarksModal() {
     showModalBottomSheet(
       backgroundColor: const Color.fromARGB(255, 235, 243, 236),
       context: context,
-      builder: (_) {
-        return ListView.builder(
-          itemCount: _bookmarks.length,
-          itemBuilder: (context, i) {
-            final bookmark = _bookmarks[i];
-            return BookmarkWidget(
-              bookmark: bookmark,
-              onBookmarkToggled: (b) {
-                setState(() => _bookmarks.remove(b));
-                StorageManager.saveBookmarks(_bookmarks);
-              },
-              onPagePressed: (b) {
-                final pdfPage = PageMapper.pdfFromDisplay(
-                  b.pageNumber,
-                  _isPortrait,
-                );
-                _pdfController?.setPage(pdfPage);
-                setState(() => _currentPdfPage = pdfPage);
-              },
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Bookmark button
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _addBookmark();
+                        setModalState(() {}); // refresh modal
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFBFBFB),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Bookmark This Page',
+                        style: TextStyle(fontSize: 18, color: Color(
+                            0xFF2A6767)),
+                      ),
+                    ),
+                  ),
+                  // Bookmark list
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _bookmarks.length,
+                      itemBuilder: (context, i) {
+                        final bookmark = _bookmarks[i];
+                        return BookmarkWidget(
+                          bookmark: bookmark,
+                          onBookmarkToggled: (b) {
+                            setState(() => _bookmarks.remove(b));
+                            StorageManager.saveBookmarks(_bookmarks);
+                            setModalState(() {}); // refresh modal
+                          },
+                          onPagePressed: (b) {
+                            final pdfPage = PageMapper.orientationMapper(
+                              b.pageNumber,
+                              _isPortrait,
+                            );
+                            print(
+                                "[BOOKMARK LOAD] Current bookmark page to retrieve $pdfPage");
+                            _pdfController?.setPage(pdfPage);
+                            setState(() => _currentPage = pdfPage);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         );
