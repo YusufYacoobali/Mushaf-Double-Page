@@ -90,7 +90,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _addBookmark() {
-    int pageNumber = PageMapper.bookmarkMapper(_currentPage, _isPortrait);
+    int pageNumber = PageMapper.bookmarkAddMapper(_currentPage, _isPortrait);
 
     if (_bookmarks.any((b) => b.pageNumber == pageNumber)) {
       print('[DEBUG] Page $pageNumber already bookmarked');
@@ -208,8 +208,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   //if orientation is changing
                   if (_isOrientationChanging) {
                     _currentPage = PageMapper.orientationMapper(_currentPage, _isPortrait);
-
-                    print('[ORIENTATION] changing Portait $_isPortrait');
                   }
                   await _pdfController?.setPage(_currentPage);
 
@@ -289,13 +287,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           color: Color(0xFF025C32),
                         ),
                         onPressed: () async {
-                          print('[DEBUG] Settings tapped');
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
                                 builder: (context) => const Settings()),
                           );
                           print('[DEBUG] Returned from Settings');
+                          //Going into settings can change pdf so incrementing version causes rebuild of widget
+                          //Change to correct values before rebuilding
                           _isPdfChanging = true;
                           await _loadPdfPaths();
                           fitPolicy = _calculateFitPolicy();
@@ -364,7 +363,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                             setModalState(() {}); // refresh modal
                           },
                           onPagePressed: (b) {
-                            final pdfPage = PageMapper.orientationMapper(
+                            final pdfPage = PageMapper.bookmarkGoToMapper(
                               b.pageNumber,
                               _isPortrait,
                             );

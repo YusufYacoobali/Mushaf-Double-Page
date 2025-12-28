@@ -1,17 +1,6 @@
 class PageMapper {
   static const int totalPages = 851;
-
-  static int displayFromPdf(int pdfPage, bool isPortrait) {
-    return isPortrait
-        ? pdfPage + 1
-        : pdfPage * 2 + 1;
-  }
-
-  static int pdfFromDisplay(int displayPage, bool isPortrait) {
-    return isPortrait
-        ? displayPage - 1
-        : (displayPage - 1) ~/ 2;
-  }
+  static const int totalPagesHorizontal = 426;
 
   static int orientationMapper(int currentPage, bool isPortrait) {
     return isPortrait
@@ -19,9 +8,15 @@ class PageMapper {
         : (currentPage ~/ 2);
   }
 
-  static int bookmarkMapper(int currentPage, bool isPortrait) {
+  static int bookmarkGoToMapper(int currentPage, bool isPortrait) {
     return isPortrait
         ? (totalPages - currentPage)
-        : (totalPages - currentPage) * 2 - 1;
+        : ((totalPages - currentPage) ~/ 2);
+  }
+
+  static int bookmarkAddMapper(int currentPage, bool isPortrait) {
+    return isPortrait
+        ? (totalPages - currentPage)
+        : (totalPagesHorizontal - currentPage) * 2 - 1;
   }
 }
