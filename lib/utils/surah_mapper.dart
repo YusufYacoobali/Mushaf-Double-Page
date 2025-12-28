@@ -1,108 +1,124 @@
 String surahNameFromPage(int pageNumber) {
-if (pageNumber >= 0 && pageNumber <= 3) return "Start";
-if (pageNumber == 4) return "Al-Fatiha";
-if (pageNumber >= 5 && pageNumber <= 69) return "Al-Baqarah";
-if (pageNumber >= 70 && pageNumber <= 107) return "Aal-E-Imran";
-if (pageNumber >= 108 && pageNumber <= 148) return "An-Nisa";
-if (pageNumber >= 149 && pageNumber <= 178) return "Al-Maidah";
-if (pageNumber >= 179 && pageNumber <= 210) return "Al-Anam";
-if (pageNumber >= 211 && pageNumber <= 247) return "Al-Araf";
-if (pageNumber >= 248 && pageNumber <= 261) return "Al-Anfal";
-if (pageNumber >= 261 && pageNumber <= 289) return "At-Tawbah";
-if (pageNumber >= 290 && pageNumber <= 309) return "Yunus";
-if (pageNumber >= 310 && pageNumber <= 329) return "Hud";
-if (pageNumber >= 330 && pageNumber <= 347) return "Yusuf";
-if (pageNumber >= 348 && pageNumber <= 356) return "Ar-Rad";
-if (pageNumber >= 357 && pageNumber <= 365) return "Ibrahim";
-if (pageNumber >= 366 && pageNumber <= 373) return "Al-Hijr";
-if (pageNumber >= 374 && pageNumber <= 394) return "An-Nahl";
-if (pageNumber >= 395 && pageNumber <= 409) return "Al-Isra";
-if (pageNumber >= 410 && pageNumber <= 426) return "Al-Kahf";
-if (pageNumber >= 427 && pageNumber <= 436) return "Maryam";
-if (pageNumber >= 437 && pageNumber <= 450) return "Taha";
-if (pageNumber >= 451 && pageNumber <= 463) return "Al-Anbiya";
-if (pageNumber >= 464 && pageNumber <= 478) return "Al-Hajj";
-if (pageNumber >= 479 && pageNumber <= 488) return "Al-Muminun";
-if (pageNumber >= 489 && pageNumber <= 502) return "An-Nur";
-if (pageNumber >= 503 && pageNumber <= 512) return "Al-Furqan";
-if (pageNumber >= 513 && pageNumber <= 526) return "Ash-Shuara";
-if (pageNumber >= 527 && pageNumber <= 538) return "An-Naml";
-if (pageNumber >= 539 && pageNumber <= 553) return "Al-Qasas";
-if (pageNumber >= 554 && pageNumber <= 563) return "Al-Ankabut";
-if (pageNumber >= 564 && pageNumber <= 572) return "Ar-Rum";
-if (pageNumber >= 573 && pageNumber <= 578) return "Luqman";
-if (pageNumber >= 579 && pageNumber <= 582) return "As-Sajda";
-if (pageNumber >= 583 && pageNumber <= 596) return "Al-Ahzab";
-if (pageNumber >= 597 && pageNumber <= 604) return "Saba";
-if (pageNumber >= 605 && pageNumber <= 612) return "Fatir";
-if (pageNumber >= 613 && pageNumber <= 619) return "Ya-Sin";
-if (pageNumber >= 620 && pageNumber <= 629) return "As-Saffat";
-if (pageNumber >= 630 && pageNumber <= 636) return "Sad";
-if (pageNumber >= 637 && pageNumber <= 648) return "Az-Zumar";
-if (pageNumber >= 649 && pageNumber <= 660) return "Mu'min";
-if (pageNumber >= 661 && pageNumber <= 669) return "Fussilat";
-if (pageNumber >= 670 && pageNumber <= 678) return "Ash-Shura";
-if (pageNumber >= 679 && pageNumber <= 687) return "Az-Zukhruf";
-if (pageNumber >= 688 && pageNumber <= 692) return "Ad-Dukhan";
-if (pageNumber >= 693 && pageNumber <= 698) return "Al-Jathiya";
-if (pageNumber >= 699 && pageNumber <= 705) return "Al-Ahqaf";
-if (pageNumber >= 706 && pageNumber <= 711) return "Muhammad";
-if (pageNumber >= 712 && pageNumber <= 717) return "Al-Fath";
-if (pageNumber >= 718 && pageNumber <= 722) return "Al-Hujurat";
-if (pageNumber >= 723 && pageNumber <= 726) return "Qaf";
-if (pageNumber >= 727 && pageNumber <= 730) return "Adh-Dhariyat";
-if (pageNumber >= 731 && pageNumber <= 733) return "At-Tur";
-if (pageNumber >= 734 && pageNumber <= 737) return "An-Najm";
-if (pageNumber >= 738 && pageNumber <= 741) return "Al-Qamar";
-if (pageNumber >= 742 && pageNumber <= 746) return "Ar-Rahman";
-if (pageNumber >= 747 && pageNumber <= 751) return "Al-Waqia";
-if (pageNumber >= 752 && pageNumber <= 758) return "Al-Hadid";
-if (pageNumber >= 759 && pageNumber <= 762) return "Al-Mujadila";
-if (pageNumber >= 763 && pageNumber <= 767) return "Al-Hashr";
-if (pageNumber >= 768 && pageNumber <= 771) return "Al-Mumtahina";
-if (pageNumber >= 772 && pageNumber <= 774) return "As-Saff";
-if (pageNumber >= 775 && pageNumber <= 776) return "Al-Jumuah";
-if (pageNumber >= 777 && pageNumber <= 778) return "Al-Munafiqun";
-if (pageNumber >= 779 && pageNumber <= 781) return "At-Taghabun";
-if (pageNumber >= 782 && pageNumber <= 784) return "At-Talaq";
-if (pageNumber >= 785 && pageNumber <= 788) return "At-Tahrim";
-if (pageNumber >= 789 && pageNumber <= 791) return "Al-Mulk";
-if (pageNumber >= 792 && pageNumber <= 795) return "Al-Qalam";
-if (pageNumber >= 796 && pageNumber <= 798) return "Al-Haaqqa";
-if (pageNumber >= 799 && pageNumber <= 801) return "Al-Maarij";
-if (pageNumber >= 802 && pageNumber <= 804) return "Nuh";
-if (pageNumber >= 805 && pageNumber <= 807) return "Al-Jinn";
-if (pageNumber >= 808 && pageNumber <= 809) return "Al-Muzzammil";
-if (pageNumber >= 810 && pageNumber <= 812) return "Al-Muddathir";
-if (pageNumber >= 813 && pageNumber <= 814) return "Al-Qiyama";
-if (pageNumber >= 815 && pageNumber <= 817) return "Al-Insan";
-if (pageNumber >= 818 && pageNumber <= 820) return "Al-Mursalat";
-if (pageNumber == 821) return "An-Naba";
-if (pageNumber >= 822 && pageNumber <= 823) return "An-Nazi'at";
-if (pageNumber >= 824 && pageNumber <= 825) return "Abasa";
-if (pageNumber == 826) return "At-Takwir";
-if (pageNumber == 827) return "Al-Infitar";
-if (pageNumber >= 828 && pageNumber <= 829) return "Al-Mutaffifin";
-if (pageNumber == 830) return "Al-Inshiqaq";
-if (pageNumber == 831) return "Al-Buruj";
-if (pageNumber == 832) return "At-Tariq";
-if (pageNumber == 833) return "Al-Ala";
-if (pageNumber == 834) return "Al-Ghashiya";
-if (pageNumber >= 835 && pageNumber <= 836) return "Al-Fajr";
-if (pageNumber == 837) return "Al-Balad";
-if (pageNumber == 838) return "Ash-Shams";
-if (pageNumber == 839) return "Al-Layl";
-if (pageNumber == 840) return "Adh-Dhuha";
-if (pageNumber == 841) return "At-Tin";
-if (pageNumber == 842) return "Al-Qadr";
-if (pageNumber == 843) return "Az-Zalzalah";
-if (pageNumber == 844) return "Al-Adiyat";
-if (pageNumber == 845) return "Al-Qaria";
-if (pageNumber == 846) return "Al-Asr";
-if (pageNumber == 847) return "Quraish";
-if (pageNumber == 848) return "Al-Kawthar";
-if (pageNumber == 849) return "Al-Masad";
-if (pageNumber == 850) return "An-Nas";
-if (pageNumber == 851) return "Dua";
-return "Surah";
+  for (final entry in _surahRanges) {
+    if (pageNumber >= entry.start && pageNumber <= entry.end) {
+      return entry.name;
+    }
+  }
+  return "Surah";
 }
+
+class _SurahRange {
+  final int start;
+  final int end;
+  final String name;
+
+  const _SurahRange(this.start, this.end, this.name);
+}
+
+const List<_SurahRange> _surahRanges = [
+  _SurahRange(0, 3, "Start"),
+  _SurahRange(4, 4, "Al-Fatiha"),
+  _SurahRange(5, 69, "Al-Baqarah"),
+  _SurahRange(70, 107, "Aal-E-Imran"),
+  _SurahRange(108, 148, "An-Nisa"),
+  _SurahRange(149, 178, "Al-Maidah"),
+  _SurahRange(179, 210, "Al-Anam"),
+  _SurahRange(211, 247, "Al-Araf"),
+  _SurahRange(248, 261, "Al-Anfal"),
+  _SurahRange(261, 289, "At-Tawbah"),
+  _SurahRange(290, 309, "Yunus"),
+  _SurahRange(310, 329, "Hud"),
+  _SurahRange(330, 347, "Yusuf"),
+  _SurahRange(348, 356, "Ar-Rad"),
+  _SurahRange(357, 365, "Ibrahim"),
+  _SurahRange(366, 373, "Al-Hijr"),
+  _SurahRange(374, 394, "An-Nahl"),
+  _SurahRange(395, 409, "Al-Isra"),
+  _SurahRange(410, 426, "Al-Kahf"),
+  _SurahRange(427, 436, "Maryam"),
+  _SurahRange(437, 450, "Taha"),
+  _SurahRange(451, 463, "Al-Anbiya"),
+  _SurahRange(464, 478, "Al-Hajj"),
+  _SurahRange(479, 488, "Al-Muminun"),
+  _SurahRange(489, 502, "An-Nur"),
+  _SurahRange(503, 512, "Al-Furqan"),
+  _SurahRange(513, 526, "Ash-Shuara"),
+  _SurahRange(527, 538, "An-Naml"),
+  _SurahRange(539, 553, "Al-Qasas"),
+  _SurahRange(554, 563, "Al-Ankabut"),
+  _SurahRange(564, 572, "Ar-Rum"),
+  _SurahRange(573, 578, "Luqman"),
+  _SurahRange(579, 582, "As-Sajda"),
+  _SurahRange(583, 596, "Al-Ahzab"),
+  _SurahRange(597, 604, "Saba"),
+  _SurahRange(605, 612, "Fatir"),
+  _SurahRange(613, 619, "Ya-Sin"),
+  _SurahRange(620, 629, "As-Saffat"),
+  _SurahRange(630, 636, "Sad"),
+  _SurahRange(637, 648, "Az-Zumar"),
+  _SurahRange(649, 660, "Mu'min"),
+  _SurahRange(661, 669, "Fussilat"),
+  _SurahRange(670, 678, "Ash-Shura"),
+  _SurahRange(679, 687, "Az-Zukhruf"),
+  _SurahRange(688, 692, "Ad-Dukhan"),
+  _SurahRange(693, 698, "Al-Jathiya"),
+  _SurahRange(699, 705, "Al-Ahqaf"),
+  _SurahRange(706, 711, "Muhammad"),
+  _SurahRange(712, 717, "Al-Fath"),
+  _SurahRange(718, 722, "Al-Hujurat"),
+  _SurahRange(723, 726, "Qaf"),
+  _SurahRange(727, 730, "Adh-Dhariyat"),
+  _SurahRange(731, 733, "At-Tur"),
+  _SurahRange(734, 737, "An-Najm"),
+  _SurahRange(738, 741, "Al-Qamar"),
+  _SurahRange(742, 746, "Ar-Rahman"),
+  _SurahRange(747, 751, "Al-Waqia"),
+  _SurahRange(752, 758, "Al-Hadid"),
+  _SurahRange(759, 762, "Al-Mujadila"),
+  _SurahRange(763, 767, "Al-Hashr"),
+  _SurahRange(768, 771, "Al-Mumtahina"),
+  _SurahRange(772, 774, "As-Saff"),
+  _SurahRange(775, 776, "Al-Jumuah"),
+  _SurahRange(777, 778, "Al-Munafiqun"),
+  _SurahRange(779, 781, "At-Taghabun"),
+  _SurahRange(782, 784, "At-Talaq"),
+  _SurahRange(785, 788, "At-Tahrim"),
+  _SurahRange(789, 791, "Al-Mulk"),
+  _SurahRange(792, 795, "Al-Qalam"),
+  _SurahRange(796, 798, "Al-Haaqqa"),
+  _SurahRange(799, 801, "Al-Maarij"),
+  _SurahRange(802, 804, "Nuh"),
+  _SurahRange(805, 807, "Al-Jinn"),
+  _SurahRange(808, 809, "Al-Muzzammil"),
+  _SurahRange(810, 812, "Al-Muddathir"),
+  _SurahRange(813, 814, "Al-Qiyama"),
+  _SurahRange(815, 817, "Al-Insan"),
+  _SurahRange(818, 820, "Al-Mursalat"),
+  _SurahRange(821, 821, "An-Naba"),
+  _SurahRange(822, 823, "An-Nazi'at"),
+  _SurahRange(824, 825, "Abasa"),
+  _SurahRange(826, 826, "At-Takwir"),
+  _SurahRange(827, 827, "Al-Infitar"),
+  _SurahRange(828, 829, "Al-Mutaffifin"),
+  _SurahRange(830, 830, "Al-Inshiqaq"),
+  _SurahRange(831, 831, "Al-Buruj"),
+  _SurahRange(832, 832, "At-Tariq"),
+  _SurahRange(833, 833, "Al-Ala"),
+  _SurahRange(834, 834, "Al-Ghashiya"),
+  _SurahRange(835, 836, "Al-Fajr"),
+  _SurahRange(837, 837, "Al-Balad"),
+  _SurahRange(838, 838, "Ash-Shams"),
+  _SurahRange(839, 839, "Al-Layl"),
+  _SurahRange(840, 840, "Adh-Dhuha"),
+  _SurahRange(841, 841, "At-Tin"),
+  _SurahRange(842, 842, "Al-Qadr"),
+  _SurahRange(843, 843, "Az-Zalzalah"),
+  _SurahRange(844, 844, "Al-Adiyat"),
+  _SurahRange(845, 845, "Al-Qaria"),
+  _SurahRange(846, 846, "Al-Asr"),
+  _SurahRange(847, 847, "Quraish"),
+  _SurahRange(848, 848, "Al-Kawthar"),
+  _SurahRange(849, 849, "Al-Masad"),
+  _SurahRange(850, 850, "An-Nas"),
+  _SurahRange(851, 851, "Dua"),
+];
