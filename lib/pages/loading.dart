@@ -36,7 +36,7 @@ class LoadingScreenState extends State<LoadingScreen> {
       final prefs = await SharedPreferences.getInstance();
 
       final assetsDownloaded =
-          prefs.getBool('31assetsDownloaded1') ?? false;
+          prefs.getBool('assetsDownloaded2') ?? false;
       print('[LOADING][5] assetsDownloaded flag = $assetsDownloaded');
 
       final filesExist = await _checkFilesExist();
@@ -48,7 +48,7 @@ class LoadingScreenState extends State<LoadingScreen> {
 
         if (success) {
           print('[LOADING][9] Download successful, saving flag');
-          await prefs.setBool('assetsDownloaded1', true);
+          await prefs.setBool('assetsDownloaded2', true);
         } else {
           print('[LOADING][10] Download failed');
           if (mounted) {

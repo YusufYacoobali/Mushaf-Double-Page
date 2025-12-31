@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "mushaf_two_page" "\0"
+            VALUE "CompanyName", "com.quran" "\0"
+            VALUE "FileDescription", "quran_double_page" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "mushaf_two_page" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "mushaf_two_page.exe" "\0"
-            VALUE "ProductName", "mushaf_two_page" "\0"
+            VALUE "InternalName", "quran_double_page" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 com.quran. All rights reserved." "\0"
+            VALUE "OriginalFilename", "quran_double_page.exe" "\0"
+            VALUE "ProductName", "quran_double_page" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
