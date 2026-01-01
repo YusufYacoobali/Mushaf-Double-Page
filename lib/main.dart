@@ -104,6 +104,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   /// Initialize PDF controller with current path
   Future<void> _initializePdfController() async {
+    isOptimizedPortrait = await StorageManager.getOptimizedPortrait();
+    isOptimizedLandscape = await StorageManager.getOptimizedLandscape();
+
+    if (_portraitPath == null || _landscapePath == null) {
+      print('[INIT][] Paths not ready yet, skipping');
+      return;
+    }
+    print("[INIT][] $_isPortrait, $_portraitPath, $_landscapePath");
     final pdfPath = _isPortrait ? _portraitPath! : _landscapePath!;
 
     _pdfController = PdfController(
@@ -224,6 +232,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
             _isPortrait = portraitNow;
             _isOrientationChanging = true;
 
+            if (!_pdfReady || _pdfController == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
             // Reinitialize controller with new orientation
             _reinitializePdfController().then((_) {
               _currentPage = PageMapper.orientationMapper(_currentPage, _isPortrait);
@@ -242,14 +254,55 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          final pdfPath = _isPortrait ? _portraitPath! : _landscapePath!;
+
           return Stack(
             children: [
               PdfView(
-                key: ValueKey('${_isPortrait ? _portraitPath : _landscapePath}-$_pdfVersion'),
+                key: ValueKey('$pdfPath-$_pdfVersion'),
                 controller: _pdfController!,
                 scrollDirection: Axis.horizontal,
                 pageSnapping: true,
                 physics: const PageScrollPhysics(),
+                renderer: (PdfPage page) {
+                  print("[DEBUG] isoptimised landscape $isOptimizedLandscape");
+                  print("[DEBUG] isoptimised portrait $isOptimizedPortrait");
+                  print("[DEBUG] is portrait $_isPortrait");
+                  if (isOptimizedPortrait && _isPortrait) {
+                    final pixelRatio = MediaQuery.of(context).devicePixelRatio + 3;
+                    print("[DEBUG INSIDE 1] isoptimised portrait $isOptimizedPortrait");
+                    return page.render(
+                      width: page.width * pixelRatio,
+                      height: page.height * pixelRatio,
+                      format: PdfPageImageFormat.png,
+                      backgroundColor: '#FFFFFF',
+                      quality: 100,
+                    );
+                  }
+                  else if (isOptimizedLandscape && !_isPortrait) {
+                    final mediaQuery = MediaQuery.of(context);
+                    final screenWidth = mediaQuery.size.width;
+                    final dpr = mediaQuery.devicePixelRatio;
+
+                    final targetWidthPx = screenWidth * dpr;
+                    final scale = targetWidthPx / page.width;
+                    print("[DEBUG INSIDE 2] isoptimised landscape $isOptimizedLandscape");
+                    return page.render(
+                      width: page.width * 4,
+                      height: page.height *10, //Doesnt work, cant do nested scrolling or fit page to width
+                      format: PdfPageImageFormat.png,
+                      backgroundColor: '#FFFFFF',
+                    );
+                  }
+
+                  // Default rendering when optimisedPortrait is false
+                  return page.render(
+                    width: page.width,
+                    height: page.height,
+                    format: PdfPageImageFormat.png,
+                    backgroundColor: '#FFFFFF',
+                  );
+                },
                 onDocumentLoaded: (document) {
                   _totalPages = document.pagesCount;
                   print('[ONLOAD] Total pages: $_totalPages');
@@ -329,7 +382,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           /// Going into settings can change pdf
                           _isPdfChanging = true;
                           await _loadPdfPaths();
-                          await _reinitializePdfController();
+                          // await _reinitializePdfController();
+                          // _pdfVersion++;
+                          // setState(() {});
+                          _pdfController?.dispose();
+                          _pdfController = null;
+
+                          await Future.delayed(const Duration(milliseconds: 50));
+
+                          await _initializePdfController();
                           _pdfVersion++;
                           setState(() {});
                         },
