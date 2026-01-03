@@ -13,6 +13,8 @@ import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/utils/page_mapper.dart';
 import 'package:mushaf_two_page/pages/loading.dart';
 
+//debug version
+
 void main() {
   runApp(const MyApp());
 }
