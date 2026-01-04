@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,9 +13,13 @@ import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/utils/page_mapper.dart';
 import 'package:mushaf_two_page/pages/loading.dart';
 
-void main() {
+import 'firebase_options.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  debugPrint('[APP] start');
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
