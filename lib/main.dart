@@ -196,8 +196,25 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
     return Row(
       children: [
-        Expanded(child: _image(left)),
-        if (right < TOTAL_PAGES) Expanded(child: _image(right)),
+        // Left page → stick to RIGHT side
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: _image(left),
+          ),
+        ),
+
+        // Optional gutter
+        const SizedBox(width: 4),
+
+        // Right page → stick to LEFT side
+        if (right < TOTAL_PAGES)
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _image(right),
+            ),
+          ),
       ],
     );
   }
