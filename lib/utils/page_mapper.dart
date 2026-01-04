@@ -36,8 +36,6 @@ class PageMapper {
 
   /// Maps the page number when adding a new bookmark
   static int bookmarkAddMapper(int currentPage, bool isPortrait) {
-    return isPortrait
-        ? (totalPages - currentPage)
-        : (totalPagesHorizontal - currentPage) * 2 - 1;
+    return totalPages - currentPage;
   }
 }

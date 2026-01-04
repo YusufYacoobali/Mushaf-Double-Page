@@ -306,8 +306,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     '[PAGE] changed index=$index',
                   );
 
-                  _logicalPage =
-                      _logicalFromPageIndex(index, _isPortrait);
+                  setState(() {
+                    _logicalPage =
+                        _logicalFromPageIndex(index, _isPortrait);
+                  });
 
                   debugPrint(
                     '[PAGE] logical now=$_logicalPage',
@@ -337,11 +339,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   child: Row(
                     children: [
                       Text(
-                        '${_logicalPage + 1}/$TOTAL_PAGES',
+                        '${TOTAL_PAGES - _logicalPage}/$TOTAL_PAGES',
                         style: const TextStyle(
                           color: Color(0xFF025C32),
                           fontWeight: FontWeight.w600,
                         ),
+
                       ),
                       Expanded(
                         child: Slider(
@@ -354,6 +357,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                             debugPrint(
                               '[SLIDER] jump index=${v.toInt()}',
                             );
+                            setState(() {
+                              _logicalPage =
+                                  _logicalFromPageIndex(v.toInt(), _isPortrait);
+                            });
                             _pageController
                                 .jumpToPage(v.toInt());
                           },
@@ -396,61 +403,131 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   // -------------------------
   // Bookmarks modal
   // -------------------------
-
   void _showBookmarksModal() {
-    debugPrint('[BOOKMARK] open modal');
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) {
-        return SafeArea(
-          child: Column(
-            children: [
-              ElevatedButton(
-                onPressed: _addBookmark,
-                child: const Text('Bookmark this page'),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _bookmarks.length,
-                  itemBuilder: (context, i) {
-                    final b = _bookmarks[i];
-                    return BookmarkWidget(
-                      bookmark: b,
-                      onBookmarkToggled: (bk) {
-                        debugPrint(
-                          '[BOOKMARK] remove ${bk.pageNumber}',
-                        );
-                        setState(() => _bookmarks.remove(bk));
-                        StorageManager.saveBookmarks(_bookmarks);
-                      },
-                      onPagePressed: (bk) {
-                        final logical =
-                        PageMapper.bookmarkGoToMapper(
-                          bk.pageNumber,
-                          _isPortrait,
-                        );
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Container(
+                height: isLandscape ? screenHeight * 0.85 : screenHeight * 0.65,
+                decoration: const BoxDecoration(
+                  color: Color.fromARGB(255, 235, 243, 236),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 14,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Drag handle
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, bottom: 6),
+                      child: Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.black26,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
 
-                        final index =
-                        _pageIndexFromLogical(
-                          logical,
-                          _isPortrait,
-                        );
+                    // Fancy bookmark button
+                    Container(
+                      margin: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: const Color(0xFFFBFBFB),
+                        borderRadius: BorderRadius.circular(14),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () {
+                            _addBookmark();  // your existing function
+                            setModalState(() {}); // refresh modal
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 18,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(
+                                  Icons.bookmark_add_rounded,
+                                  color: Color(0xFF2A6767),
+                                  size: 26,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Bookmark this page',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2A6767),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
 
-                        debugPrint(
-                          '[BOOKMARK] goto page=$logical index=$index',
-                        );
-
-                        _logicalPage = logical;
-                        _pageController.jumpToPage(index);
-                      },
-                    );
-                  },
+                    // Bookmark list
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        itemCount: _bookmarks.length,
+                        itemBuilder: (context, i) {
+                          final bookmark = _bookmarks[i];
+                          return BookmarkWidget(
+                            bookmark: bookmark,
+                            onBookmarkToggled: (b) {
+                              setState(() => _bookmarks.remove(b));
+                              StorageManager.saveBookmarks(_bookmarks);
+                              setModalState(() {}); // refresh modal UI
+                            },
+                            onPagePressed: (b) {
+                              final page = PageMapper.bookmarkGoToMapper(
+                                b.pageNumber,
+                                _isPortrait,
+                              );
+                              _pageController.jumpToPage(page); // your existing controller
+                              setState(() => _logicalPage = page);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
