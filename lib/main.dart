@@ -168,13 +168,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       panEnabled: false,
       minScale: 1,
       maxScale: 3,
-      child: Image.file(
-        File(imagePath(logicalPage)),
-        fit: isOptimizedPortrait ? BoxFit.fill : BoxFit.contain,
-        width: double.infinity,
-        height: double.infinity,
+      child: FractionallySizedBox(
+        heightFactor: isOptimizedPortrait ? 0.9 : 1.0,
+        child: Image.file(
+          File(imagePath(logicalPage)),
+          fit: isOptimizedPortrait ? BoxFit.fill : BoxFit.contain,
+        ),
       ),
     );
+
   }
 
   Widget _doublePage(int spreadIndex) {
@@ -339,7 +341,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   child: Row(
                     children: [
                       Text(
-                        '${TOTAL_PAGES - _logicalPage}/$TOTAL_PAGES',
+                        '${PageMapper.sliderMapper(_logicalPage, _isPortrait)}/$TOTAL_PAGES',
                         style: const TextStyle(
                           color: Color(0xFF025C32),
                           fontWeight: FontWeight.w600,
@@ -368,10 +370,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.bookmarks_rounded),
+                        color: Color(0xFF025C32),
                         onPressed: _showBookmarksModal,
                       ),
                       IconButton(
                         icon: const Icon(Icons.settings),
+                        color: Color(0xFF025C32),
                         onPressed: () async {
                           debugPrint('[SETTINGS] open');
                           final changed =
@@ -517,7 +521,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 _isPortrait,
                               );
                               _pageController.jumpToPage(page); // your existing controller
-                              setState(() => _logicalPage = page);
+
+                              final logical = _logicalFromPageIndex(page, _isPortrait);
+
+                              setState(() {
+                                _logicalPage = logical;
+                              });
                             },
                           );
                         },

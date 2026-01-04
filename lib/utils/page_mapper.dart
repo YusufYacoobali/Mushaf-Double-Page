@@ -20,8 +20,8 @@ class PageMapper {
 
   static int sliderMapper(int currentPage, bool isPortrait) {
     return isPortrait
-        ? (currentPage)
-        : (currentPage * 2) - 1;
+        ? (totalPages - currentPage )
+        : (totalPages - currentPage );
   }
 
   /// Maps a bookmarked page when navigating to it
