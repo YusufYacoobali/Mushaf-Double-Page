@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -78,119 +80,96 @@ class LoadingScreenState extends State<LoadingScreen> {
   }
 
   Future<bool> _checkFilesExist() async {
-
     final dir = await getApplicationDocumentsDirectory();
-    print('[FILES][2] App directory = ${dir.path}');
+    final quranDir = Directory('${dir.path}/quran/13line');
 
-    final files = [
-      'quran_source_double_close.pdf',
-      'quran_source_v_l_s.pdf',
-      'quran_source_v.pdf',
-    ];
+    if (!await quranDir.exists()) return false;
 
-    for (final fileName in files) {
-      final filePath = '${dir.path}/$fileName';
-      final exists = await File(filePath).exists();
+    final files = quranDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.webp'))
+        .toList();
 
-      if (!exists) return false;
-    }
-
-    return true;
+    return files.length >= 850; // safety check
   }
 
   Future<bool> _downloadAssets() async {
-    print('[DOWNLOAD][1] _downloadAssets start');
-
-    final files = [
-      {
-        'url':
-        'https://firebasestorage.googleapis.com/v0/b/quran-pdfs.firebasestorage.app/o/qurans%2Fquran_source_double_close.pdf?alt=media',
-        'name': 'quran_source_double_close.pdf',
-      },
-      {
-        'url':
-        'https://firebasestorage.googleapis.com/v0/b/quran-pdfs.firebasestorage.app/o/qurans%2Fquran_source_v_l_s.pdf?alt=media',
-        'name': 'quran_source_v_l_s.pdf',
-      },
-      {
-        'url':
-        'https://firebasestorage.googleapis.com/v0/b/quran-pdfs.firebasestorage.app/o/qurans%2Fquran_source_v.pdf?alt=media',
-        'name': 'quran_source_v.pdf',
-      },
-    ];
-
-    final dir = await getApplicationDocumentsDirectory();
-    final client = http.Client();
+    print('[DOWNLOAD] Quran images download start');
 
     try {
+      final storage = FirebaseStorage.instance;
+      final ref =
+      storage.ref('Quran-images/Quran-13-line-tajweed');
+
+      final dir = await getApplicationDocumentsDirectory();
+      final localDir = Directory('${dir.path}/quran/13line');
+
+      if (!await localDir.exists()) {
+        await localDir.create(recursive: true);
+      }
+
+      final result = await ref.listAll();
+
       int totalBytes = 0;
       int downloadedBytes = 0;
 
-      // 🔹 HEAD pass to get total size
-      for (final file in files) {
-        final req = http.Request('HEAD', Uri.parse(file['url']!));
-        final res = await client.send(req);
-        totalBytes += res.contentLength ?? 0;
+      // 🔹 First pass: calculate total size
+      for (final item in result.items) {
+        final meta = await item.getMetadata();
+        totalBytes += meta.size ?? 0;
       }
 
       if (mounted) {
         setState(() {
           _totalMB = totalBytes / (1024 * 1024);
+          _downloadedMB = 0;
+          _progress = 0;
         });
       }
 
-      print('[DOWNLOAD] Total bytes = $totalBytes');
+      print('Found ${result.items.length} pages in Firebase');
 
-      Future<void> downloadFile(Map<String, String> file) async {
-        print('[DOWNLOAD] Starting ${file['name']}');
+      // 🔹 Download files one by one (Firebase native)
+      for (final item in result.items) {
+        final filePath = '${localDir.path}/${item.name}';
+        final file = File(filePath);
 
-        final request = http.Request('GET', Uri.parse(file['url']!));
-        final response = await client.send(request);
-
-        if (response.statusCode != 200) {
-          throw Exception('HTTP ${response.statusCode}');
+        // Skip already downloaded files
+        if (await file.exists()) {
+          downloadedBytes += await file.length();
+          continue;
         }
 
-        final filePath = '${dir.path}/${file['name']}';
-        final fileSink = File(filePath).openWrite();
+        final task = item.writeToFile(file);
 
-        await response.stream.listen(
-              (chunk) {
-            fileSink.add(chunk);
-            downloadedBytes += chunk.length;
+        task.snapshotEvents.listen((snapshot) {
+          if (!mounted || snapshot.totalBytes <= 0) return;
 
-            if (mounted && totalBytes > 0) {
-              setState(() {
-                _progress = downloadedBytes / totalBytes;
-                _downloadedMB = downloadedBytes / (1024 * 1024);
-              });
-            }
-          },
-          onError: (e) {
-            throw e;
-          },
-          onDone: () async {
-            await fileSink.close();
-            print('[DOWNLOAD] Finished ${file['name']}');
-          },
-          cancelOnError: true,
-        ).asFuture();
+          setState(() {
+            _downloadedMB =
+                (downloadedBytes + snapshot.bytesTransferred) /
+                    (1024 * 1024);
+            _progress =
+                (downloadedBytes + snapshot.bytesTransferred) /
+                    totalBytes;
+          });
+        });
+
+        await task;
+        downloadedBytes += await file.length();
       }
 
-      // 🔥 Parallel downloads
-      await Future.wait(files.map(downloadFile));
-
-      print('[DOWNLOAD] All downloads complete');
+      print('[DOWNLOAD] Quran images download complete');
       return true;
     } catch (e, stack) {
       print('[DOWNLOAD][ERROR]');
       print(e);
       print(stack);
       return false;
-    } finally {
-      client.close();
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
