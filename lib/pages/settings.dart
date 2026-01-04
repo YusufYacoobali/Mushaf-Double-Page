@@ -127,7 +127,7 @@ class _SettingsState extends State<Settings> {
             size: 20,
             color: Color(0xFF1F4F4F),
           ),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, true),
         ),
       ),
       body: Container(

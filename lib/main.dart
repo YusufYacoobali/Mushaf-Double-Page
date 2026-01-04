@@ -49,6 +49,8 @@ class MyPDFViewer extends StatefulWidget {
 
 class _MyPDFViewerState extends State<MyPDFViewer> {
   static const int TOTAL_PAGES = 851;
+  bool isOptimizedPortrait = false;
+  bool isOptimizedLandscape = false;
 
   late Directory _docDir;
   PageController? _pageController;
@@ -81,6 +83,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     _docDir = await getApplicationDocumentsDirectory();
     debugPrint('[INIT] Documents dir: ${_docDir.path}');
 
+    await _loadOptimizationSettings();
     await _loadBookmarks();
     await _loadCurrentPage();
 
@@ -92,6 +95,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     setState(() => _ready = true);
 
     debugPrint('[INIT] Viewer ready');
+  }
+
+  Future<void> _loadOptimizationSettings() async {
+    isOptimizedPortrait = await StorageManager.getOptimizedPortrait();
+    isOptimizedLandscape = await StorageManager.getOptimizedLandscape();
+
+    debugPrint(
+      '[SETTINGS] optimizedPortrait=$isOptimizedPortrait optimizedLandscape=$isOptimizedLandscape',
+    );
   }
 
   Future<void> _loadBookmarks() async {
@@ -175,11 +187,19 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   // -------------------------
 
   Widget _singlePage(int index) {
-    debugPrint('[BUILD] Single page build index=$index');
+    debugPrint(
+      '[BUILD] Single page index=$index optimized=$isOptimizedPortrait',
+    );
+
     return InteractiveViewer(
+      panEnabled: false,
+      minScale: 1,
+      maxScale: 3,
       child: Image.file(
         File(imagePath(index)),
-        fit: BoxFit.contain,
+        fit: isOptimizedPortrait ? BoxFit.fill : BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
         errorBuilder: (_, __, ___) {
           debugPrint('[ERROR] Failed to load image index=$index');
           return const Center(child: Text('Image missing'));
@@ -194,41 +214,80 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
     debugPrint('[BUILD] Double page index=$index left=$left right=$right');
 
-    return Row(
-      children: [
-        // Left page → stick to RIGHT side
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: _image(left),
+    if (!isOptimizedLandscape) {
+      // Normal landscape → snug pages, allow zoom
+      return InteractiveViewer(
+        panEnabled: false,
+        minScale: 1,
+        maxScale: 3,
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.file(
+                File(imagePath(left)),
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(width: 2), // tiny gutter
+              if (right < TOTAL_PAGES)
+                Image.file(
+                  File(imagePath(right)),
+                  fit: BoxFit.contain,
+                ),
+            ],
           ),
         ),
+      );
+    }
 
-        // Optional gutter
-        const SizedBox(width: 4),
-
-        // Right page → stick to LEFT side
-        if (right < TOTAL_PAGES)
+    // Optimised landscape → scroll both pages together, fit width
+    return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _image(right),
+            child: Image.file(
+              File(imagePath(left)),
+              fit: BoxFit.fitWidth,
+              width: double.infinity,
             ),
           ),
-      ],
+          const SizedBox(width: 4),
+          if (right < TOTAL_PAGES)
+            Expanded(
+              child: Image.file(
+                File(imagePath(right)),
+                fit: BoxFit.fitWidth,
+                width: double.infinity,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _image(int page) {
-    debugPrint('[BUILD] Image page=$page');
+
+
+
+  Widget _landscapePage(int page) {
+    final optimized = isOptimizedLandscape;
+
     return InteractiveViewer(
-      child: Image.file(
+      panEnabled: false, // CRITICAL: don’t steal page swipes
+      minScale: 1,
+      maxScale: optimized ? 1 : 3,
+      child: optimized
+          ? SingleChildScrollView(
+        child: Image.file(
+          File(imagePath(page)),
+          fit: BoxFit.fitWidth,
+          width: double.infinity,
+        ),
+      )
+          : Image.file(
         File(imagePath(page)),
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) {
-          debugPrint('[ERROR] Image load failed page=$page');
-          return const Center(child: Text('Image missing'));
-        },
       ),
     );
   }
@@ -271,6 +330,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
             children: [
               PageView.builder(
                 controller: _pageController,
+                physics: const PageScrollPhysics(),
                 itemCount: pageCount,
                 onPageChanged: (page) {
                   debugPrint('[PAGE] Changed -> $page');
@@ -287,7 +347,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
               Positioned.fill(
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
-                  onTap: _onScreenTap,
+                  onTapUp: (_) => _onScreenTap(),
                 ),
               ),
 
@@ -324,15 +384,22 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                       IconButton(
                         icon: const Icon(Icons.settings),
                         onPressed: () async {
-                          debugPrint('[NAV] Open settings');
-                          await Navigator.push(
+                          final changed = await Navigator.push<bool>(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => const Settings(),
-                            ),
+                            MaterialPageRoute(builder: (_) => const Settings()),
                           );
-                          debugPrint('[NAV] Returned from settings');
+
+                          if (changed == true) {
+                            debugPrint('[SETTINGS] Changed, reloading layout flags');
+
+                            await _loadOptimizationSettings();
+
+                            setState(() {
+                              // force full rebuild using new flags
+                            });
+                          }
                         },
+
                       ),
                     ],
                   ),
