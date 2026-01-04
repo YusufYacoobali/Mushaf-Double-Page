@@ -267,31 +267,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     );
   }
 
-
-
-
-  Widget _landscapePage(int page) {
-    final optimized = isOptimizedLandscape;
-
-    return InteractiveViewer(
-      panEnabled: false, // CRITICAL: don’t steal page swipes
-      minScale: 1,
-      maxScale: optimized ? 1 : 3,
-      child: optimized
-          ? SingleChildScrollView(
-        child: Image.file(
-          File(imagePath(page)),
-          fit: BoxFit.fitWidth,
-          width: double.infinity,
-        ),
-      )
-          : Image.file(
-        File(imagePath(page)),
-        fit: BoxFit.contain,
-      ),
-    );
-  }
-
   // -------------------------
   // Build
   // -------------------------
@@ -359,7 +334,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   child: Row(
                     children: [
                       Text(
-                        '${pageCount - _currentPage}/$pageCount',
+                        '${PageMapper.sliderMapper(pageCount - _currentPage, _isPortrait)}/${PageMapper.sliderMapper(pageCount, _isPortrait)}',
                         style: const TextStyle(
                           color: Color(0xFF025C32),
                           fontWeight: FontWeight.w600,

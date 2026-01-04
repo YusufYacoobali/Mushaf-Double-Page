@@ -79,7 +79,7 @@ class LoadingScreenState extends State<LoadingScreen> {
     }
   }
 
-  Future<bool> _checkFilesExist() async {
+  Future<bool> _checkFilesExist({int threshold = 400}) async {
     final dir = await getApplicationDocumentsDirectory();
     final quranDir = Directory('${dir.path}/quran/13line');
 
@@ -88,10 +88,15 @@ class LoadingScreenState extends State<LoadingScreen> {
     final files = quranDir
         .listSync()
         .whereType<File>()
-        .where((f) => f.path.endsWith('.webp'))
-        .toList();
+        .where((f) => f.path.endsWith('.webp'));
 
-    return files.length >= 850; // safety check
+    int count = 0;
+    for (final file in files) {
+      count++;
+      if (count >= threshold) return true; // early exit
+    }
+
+    return false;
   }
 
   Future<bool> _downloadAssets() async {

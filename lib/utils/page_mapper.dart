@@ -18,6 +18,12 @@ class PageMapper {
         : (currentPage ~/ 2);
   }
 
+  static int sliderMapper(int currentPage, bool isPortrait) {
+    return isPortrait
+        ? (currentPage)
+        : (currentPage * 2) - 1;
+  }
+
   /// Maps a bookmarked page when navigating to it
   ///
   /// Pages are stored inverted (from the end of the Mushaf),
