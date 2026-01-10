@@ -14,8 +14,6 @@ class LoadingScreen extends StatefulWidget {
 
 class LoadingScreenState extends State<LoadingScreen> {
   double _progress = 0.0;
-  double _totalMB = 0;
-  double _downloadedMB = 0;
   bool _downloadFailed = false;
 
   @override
@@ -113,54 +111,45 @@ class LoadingScreenState extends State<LoadingScreen> {
       }
 
       final result = await ref.listAll();
+      final items = result.items;
 
-      int totalBytes = 0;
-      int downloadedBytes = 0;
+      print('Found ${items.length} pages in Firebase');
 
-      // 🔹 First pass: calculate total size
-      for (final item in result.items) {
-        final meta = await item.getMetadata();
-        totalBytes += meta.size ?? 0;
-      }
+      const int maxConcurrent = 6;
+
+      int completedFiles = 0;
+      final int totalFiles = items.length;
 
       if (mounted) {
         setState(() {
-          _totalMB = totalBytes / (1024 * 1024);
-          _downloadedMB = 0;
           _progress = 0;
         });
       }
 
-      print('Found ${result.items.length} pages in Firebase');
+      for (int i = 0; i < items.length; i += maxConcurrent) {
+        final batch = items.skip(i).take(maxConcurrent);
 
-      // 🔹 Download files one by one (Firebase native)
-      for (final item in result.items) {
-        final filePath = '${localDir.path}/${item.name}';
-        final file = File(filePath);
+        await Future.wait(
+          batch.map((item) async {
+            final filePath = '${localDir.path}/${item.name}';
+            final file = File(filePath);
 
-        // Skip already downloaded files
-        if (await file.exists()) {
-          downloadedBytes += await file.length();
-          continue;
-        }
+            // Skip already downloaded files
+            if (await file.exists()) {
+              completedFiles++;
+              return;
+            }
 
-        final task = item.writeToFile(file);
+            await item.writeToFile(file);
+            completedFiles++;
 
-        task.snapshotEvents.listen((snapshot) {
-          if (!mounted || snapshot.totalBytes <= 0) return;
+            if (!mounted) return;
 
-          setState(() {
-            _downloadedMB =
-                (downloadedBytes + snapshot.bytesTransferred) /
-                    (1024 * 1024);
-            _progress =
-                (downloadedBytes + snapshot.bytesTransferred) /
-                    totalBytes;
-          });
-        });
-
-        await task;
-        downloadedBytes += await file.length();
+            setState(() {
+              _progress = completedFiles / totalFiles;
+            });
+          }),
+        );
       }
 
       print('[DOWNLOAD] Quran images download complete');
@@ -172,7 +161,6 @@ class LoadingScreenState extends State<LoadingScreen> {
       return false;
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -237,9 +225,7 @@ class LoadingScreenState extends State<LoadingScreen> {
                         ),
                       ),
                       Text(
-                        _progress > 0
-                            ? '${_downloadedMB.toStringAsFixed(0)} / ${_totalMB.toStringAsFixed(0)} MB'
-                            : '',
+                        _progress > 0 ? '${(_progress * 100).toInt()}%' : '',
                         style: const TextStyle(
                           color: Colors.white60,
                           fontSize: 13,
