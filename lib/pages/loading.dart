@@ -14,8 +14,6 @@ class LoadingScreen extends StatefulWidget {
 
 class LoadingScreenState extends State<LoadingScreen> {
   double _progress = 0.0;
-  double _totalMB = 0;
-  double _downloadedMB = 0;
   bool _downloadFailed = false;
 
   @override
@@ -125,8 +123,6 @@ class LoadingScreenState extends State<LoadingScreen> {
       if (mounted) {
         setState(() {
           _progress = 0;
-          _downloadedMB = 0;
-          _totalMB = 0; // not used anymore
         });
       }
 
@@ -229,9 +225,7 @@ class LoadingScreenState extends State<LoadingScreen> {
                         ),
                       ),
                       Text(
-                        _progress > 0
-                            ? '${_downloadedMB.toStringAsFixed(0)} / ${_totalMB.toStringAsFixed(0)} MB'
-                            : '',
+                        _progress > 0 ? '${(_progress * 100).toInt()}%' : '',
                         style: const TextStyle(
                           color: Colors.white60,
                           fontSize: 13,
