@@ -25,14 +25,44 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  static _MyAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyAppState>();
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _darkMode = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    _darkMode = await StorageManager.getDarkMode();
+    setState(() => _loaded = true);
+  }
+
+  Future<void> reloadTheme() async {
+    final dark = await StorageManager.getDarkMode();
+    setState(() => _darkMode = dark);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    if (!_loaded) return const SizedBox();
+
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: LoadingScreen(),
+      theme: _darkMode ? ThemeData.dark() : ThemeData.light(),
+      home: const LoadingScreen(),
     );
   }
 }
@@ -106,6 +136,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     debugPrint(
       '[SETTINGS] portraitOpt=$isOptimizedPortrait landscapeOpt=$isOptimizedLandscape',
     );
+    setState(() {});
   }
 
   Future<void> _loadBookmarks() async {
@@ -346,20 +377,17 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                         color: Color(0xFF025C32),
                         onPressed: () async {
                           debugPrint('[SETTINGS] open');
-                          final changed =
-                          await Navigator.push<bool>(
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => const Settings(),
                             ),
                           );
-                          if (changed == true) {
-                            debugPrint(
-                              '[SETTINGS] changed, reloading flags',
-                            );
-                            await _loadOptimizationSettings();
-                            setState(() {});
-                          }
+                          debugPrint(
+                            '[SETTINGS] changed, reloading flags',
+                          );
+                          await _loadOptimizationSettings();
+                          await MyApp.of(context)?.reloadTheme();
                         },
                       ),
                     ],

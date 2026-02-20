@@ -11,6 +11,7 @@ class Settings extends StatefulWidget {
 class _SettingsState extends State<Settings> {
   bool isOptimizedPortrait = true;
   bool isOptimizedLandscape = true;
+  bool isDarkMode = false;
   // Prevents UI rendering before async values load
   bool _loaded = false;
 
@@ -26,10 +27,12 @@ class _SettingsState extends State<Settings> {
   Future<void> _loadSwitchStates() async {
     final portrait = await StorageManager.getOptimizedPortrait();
     final landscape = await StorageManager.getOptimizedLandscape();
+    final dark = await StorageManager.getDarkMode();
 
     setState(() {
       isOptimizedPortrait = portrait;
       isOptimizedLandscape = landscape;
+      isDarkMode = dark;
       _loaded = true;
     });
   }
@@ -40,9 +43,12 @@ class _SettingsState extends State<Settings> {
     if (type == 'portrait') {
       await StorageManager.saveOptimizedPortrait(value);
       setState(() => isOptimizedPortrait = value);
-    } else {
+    } else if (type == 'landscape') {
       await StorageManager.saveOptimizedLandscape(value);
       setState(() => isOptimizedLandscape = value);
+    } else if (type == 'dark') {
+    await StorageManager.saveDarkMode(value);
+    setState(() => isDarkMode = value);
     }
   }
 
@@ -211,6 +217,12 @@ class _SettingsState extends State<Settings> {
                       'Optimized Landscape Quran',
                       isOptimizedLandscape,
                       'landscape',
+                    ),
+                    const Divider(height: 1),
+                    _buildSwitch(
+                      'Dark Mode',
+                      isDarkMode,
+                      'dark',
                     ),
                   ],
                 ),

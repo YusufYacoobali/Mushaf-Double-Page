@@ -11,6 +11,7 @@ class StorageManager {
   static const _kBookmarkKey = 'bookmarks1';
   static const _kOptimizedPortraitKey = 'optimizedPortrait';
   static const _kOptimizedLandscapeKey = 'optimizedLandscape';
+  static const _darkModeKey = 'dark_mode';
 
   /// Saves the current page number
   /// Skips saving for page 0 (start) and page 851 (dua/end)
@@ -76,5 +77,15 @@ class StorageManager {
   static Future<bool> getOptimizedLandscape() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_kOptimizedLandscapeKey) ?? false;
+  }
+
+  static Future<bool> getDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_darkModeKey) ?? false;
+  }
+
+  static Future<void> saveDarkMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_darkModeKey, value);
   }
 }
