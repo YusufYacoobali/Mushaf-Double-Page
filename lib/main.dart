@@ -340,9 +340,26 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     borderRadius: BorderRadius.circular(16),
                     elevation: 4,
                     child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                     child: Row(
                     children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove),
+                        color: Color(0xFF025C32),
+                        onPressed: _pageScale <= QuranPageView.minPageScale ? null : _decreaseScale,
+                      ),
+                      Text(
+                        "${(_pageScale * 100).round()}%",
+                        style: const TextStyle(
+                          color: Color(0xFF025C32),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        color: Color(0xFF025C32),
+                        onPressed: _pageScale >= QuranPageView.maxPageScale ? null : _increaseScale,
+                      ),
                       Text(
                         '${PageMapper.sliderMapper(_logicalPage, _isPortrait)}/$TOTAL_PAGES',
                         style: const TextStyle(
@@ -351,6 +368,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                         ),
 
                       ),
+
                       Expanded(
                         child: Slider(
                           value: _pageIndexFromLogical(
@@ -372,47 +390,30 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.bookmarks_rounded),
-                        color: Color(0xFF025C32),
-                        onPressed: (){ BookmarksModal.show(
-                          context: context,
-                          bookmarks: _bookmarks,
-                          isPortrait: _isPortrait,
-                          onAddBookmark: _addBookmark,
-                          onRemoveBookmark: (b) {
-                            setState(() => _bookmarks.remove(b));
-                            StorageManager.saveBookmarks(_bookmarks);
-                          },
-                          onJumpToBookmark: (b) {
-                            final page = PageMapper.bookmarkGoToMapper(
-                              b.pageNumber,
-                              _isPortrait,
-                            );
-
-                            _pageController.jumpToPage(page);
-
-                            final logical =
-                            _logicalFromPageIndex(page, _isPortrait);
-
-                            setState(() => _logicalPage = logical);
-                          });}
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.remove),
-                        color: Color(0xFF025C32),
-                        onPressed: _pageScale <= QuranPageView.minPageScale ? null : _decreaseScale,
-                      ),
-                      Text(
-                        "${(_pageScale * 100).round()}%",
-                        style: const TextStyle(
+                          icon: const Icon(Icons.bookmarks_rounded),
                           color: Color(0xFF025C32),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add),
-                        color: Color(0xFF025C32),
-                        onPressed: _pageScale >= QuranPageView.maxPageScale ? null : _increaseScale,
+                          onPressed: (){ BookmarksModal.show(
+                              context: context,
+                              bookmarks: _bookmarks,
+                              isPortrait: _isPortrait,
+                              onAddBookmark: _addBookmark,
+                              onRemoveBookmark: (b) {
+                                setState(() => _bookmarks.remove(b));
+                                StorageManager.saveBookmarks(_bookmarks);
+                              },
+                              onJumpToBookmark: (b) {
+                                final page = PageMapper.bookmarkGoToMapper(
+                                  b.pageNumber,
+                                  _isPortrait,
+                                );
+
+                                _pageController.jumpToPage(page);
+
+                                final logical =
+                                _logicalFromPageIndex(page, _isPortrait);
+
+                                setState(() => _logicalPage = logical);
+                              });}
                       ),
                       IconButton(
                         icon: const Icon(Icons.settings),
