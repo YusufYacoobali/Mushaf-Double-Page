@@ -83,7 +83,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   bool _ready = false;
   bool _isPortrait = true;
 
-  double _pageScale = 0.8;
+  double _pageScalePortrait = 0.8;
+  double _pageScaleLandscape = 0.7; // slightly smaller to fit side-by-side
 
   /// 🔑 single source of truth
   int _logicalPage = 0; // 0-based mushaf page
@@ -115,7 +116,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     await _loadOptimizationSettings();
     await _loadBookmarks();
 
-    _pageScale = await StorageManager.getPageScale();
+    _pageScalePortrait = await StorageManager.getPageScalePortrait();
+    _pageScaleLandscape = await StorageManager.getPageScaleLandscape();
+
     _logicalPage = await StorageManager.getCurrentPage();
     debugPrint('[STATE] restored logicalPage=$_logicalPage');
 
@@ -152,19 +155,31 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _increaseScale() {
-    final newScale = (_pageScale + 0.05)
-        .clamp(QuranPageView.minPageScale, QuranPageView.maxPageScale);
-
-    setState(() => _pageScale = newScale);
-    StorageManager.savePageScale(newScale); // ✅ ADD
+    setState(() {
+      if (_isPortrait) {
+        _pageScalePortrait = (_pageScalePortrait + 0.05)
+            .clamp(QuranPageView.minPageScalePortrait, QuranPageView.maxPageScalePortrait);
+        StorageManager.savePageScalePortrait(_pageScalePortrait);
+      } else {
+        _pageScaleLandscape = (_pageScaleLandscape + 0.05)
+            .clamp(QuranPageView.minPageScaleLandscape, QuranPageView.maxPageScaleLandscape);
+        StorageManager.savePageScaleLandscape(_pageScaleLandscape);
+      }
+    });
   }
 
   void _decreaseScale() {
-    final newScale = (_pageScale - 0.05)
-        .clamp(QuranPageView.minPageScale, QuranPageView.maxPageScale);
-
-    setState(() => _pageScale = newScale);
-    StorageManager.savePageScale(newScale); // ✅ ADD
+    setState(() {
+      if (_isPortrait) {
+        _pageScalePortrait = (_pageScalePortrait - 0.05)
+            .clamp(QuranPageView.minPageScalePortrait, QuranPageView.maxPageScalePortrait);
+        StorageManager.savePageScalePortrait(_pageScalePortrait);
+      } else {
+        _pageScaleLandscape = (_pageScaleLandscape - 0.05)
+            .clamp(QuranPageView.minPageScaleLandscape, QuranPageView.maxPageScaleLandscape);
+        StorageManager.savePageScaleLandscape(_pageScaleLandscape);
+      }
+    });
   }
 
   // -------------------------
@@ -311,12 +326,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   return _isPortrait
                       ? QuranPageView.singlePage(
                     logicalPage: index,
-                    pageScale: _pageScale,
+                    pageScale: _pageScalePortrait,
                     imagePath: imagePath,
                   )
                       : QuranPageView.doublePage(
                     spreadIndex: index,
-                    pageScale: _pageScale,
+                    pageScale: _pageScaleLandscape,
                     imagePath: imagePath,
                     totalPages: TOTAL_PAGES,
                   );
@@ -347,10 +362,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                       IconButton(
                         icon: const Icon(Icons.remove),
                         color: Color(0xFF025C32),
-                        onPressed: _pageScale <= QuranPageView.minPageScale ? null : _decreaseScale,
+                        onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) <=
+                            (_isPortrait ? QuranPageView.minPageScalePortrait : QuranPageView.minPageScaleLandscape)
+                            ? null
+                            : _decreaseScale,
                       ),
                       Text(
-                        "${(_pageScale * 100).round()}%",
+                      "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
                         style: const TextStyle(
                           color: Color(0xFF025C32),
                           fontWeight: FontWeight.w600,
@@ -359,7 +377,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                       IconButton(
                         icon: const Icon(Icons.add),
                         color: Color(0xFF025C32),
-                        onPressed: _pageScale >= QuranPageView.maxPageScale ? null : _increaseScale,
+                        onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) >=
+                            (_isPortrait ? QuranPageView.maxPageScalePortrait : QuranPageView.maxPageScaleLandscape)
+                            ? null
+                            : _increaseScale,
                       ),
                       Text(
                         '${PageMapper.sliderMapper(_logicalPage, _isPortrait)}/$TOTAL_PAGES',

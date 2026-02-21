@@ -171,6 +171,7 @@ class _SettingsState extends State<Settings> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: Colors.black
                           ),
                         ),
                       ],
@@ -190,6 +191,7 @@ class _SettingsState extends State<Settings> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                              color: Colors.black
                           ),
                         ),
                       ],
@@ -207,18 +209,6 @@ class _SettingsState extends State<Settings> {
               _buildCard(
                 Column(
                   children: [
-                    _buildSwitch(
-                      'Optimized Portrait Quran',
-                      isOptimizedPortrait,
-                      'portrait',
-                    ),
-                    const Divider(height: 1),
-                    _buildSwitch(
-                      'Optimized Landscape Quran',
-                      isOptimizedLandscape,
-                      'landscape',
-                    ),
-                    const Divider(height: 1),
                     _buildSwitch(
                       'Dark Mode',
                       isDarkMode,

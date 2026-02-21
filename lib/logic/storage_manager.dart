@@ -90,13 +90,23 @@ class StorageManager {
     await prefs.setBool(_darkModeKey, value);
   }
 
-  static Future<void> savePageScale(double value) async {
+  static Future<void> savePageScalePortrait(double value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_pageScaleKey, value);
   }
 
-  static Future<double> getPageScale() async {
+  static Future<double> getPageScalePortrait() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(_pageScaleKey) ?? 0.8; // default
+  }
+
+  static Future<void> savePageScaleLandscape(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_pageScaleKey, value);
+  }
+
+  static Future<double> getPageScaleLandscape() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_pageScaleKey) ?? 0.9; // default
   }
 }

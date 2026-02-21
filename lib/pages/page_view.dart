@@ -3,18 +3,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 class QuranPageView {
-  static const double minPageScale = 0.7;
-  static const double maxPageScale = 0.8;
+  static const double minPageScalePortrait = 0.7;
+  static const double maxPageScalePortrait = 0.8;
 
-  static const double minDoublePageScale = 0.65;
-  static const double maxDoublePageScale = 0.95;
+  static const double minPageScaleLandscape = 0.65;
+  static const double maxPageScaleLandscape = 0.95;
 
   static Widget singlePage({
     required int logicalPage,
-    required double pageScale, // from slider / buttons
+    required double pageScale,
     required String Function(int) imagePath,
   }) {
-    final clamped = pageScale.clamp(minPageScale, maxPageScale);
+    final clamped = pageScale.clamp(minPageScalePortrait, maxPageScalePortrait);
 
     return InteractiveViewer(
       panEnabled: false,
@@ -42,7 +42,7 @@ class QuranPageView {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Max width per page considering zoom
-        final pageWidth = (constraints.maxWidth / 2 * 0.9).clamp(0.0, constraints.maxWidth / 2);
+        final pageWidth = (constraints.maxWidth / 2 * pageScale).clamp(0.0, constraints.maxWidth / 2);
         return SingleChildScrollView(
           scrollDirection: Axis.vertical,
           child:  Row(
