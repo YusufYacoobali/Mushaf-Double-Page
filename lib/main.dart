@@ -83,6 +83,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   bool _ready = false;
   bool _isPortrait = true;
 
+  double _pageScale = 0.8;
+
   /// 🔑 single source of truth
   int _logicalPage = 0; // 0-based mushaf page
 
@@ -113,6 +115,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     await _loadOptimizationSettings();
     await _loadBookmarks();
 
+    _pageScale = await StorageManager.getPageScale();
     _logicalPage = await StorageManager.getCurrentPage();
     debugPrint('[STATE] restored logicalPage=$_logicalPage');
 
@@ -146,6 +149,22 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       ..addAll(data);
 
     debugPrint('[BOOKMARK] loaded ${_bookmarks.length}');
+  }
+
+  void _increaseScale() {
+    final newScale = (_pageScale + 0.05)
+        .clamp(QuranPageView.minPageScale, QuranPageView.maxPageScale);
+
+    setState(() => _pageScale = newScale);
+    StorageManager.savePageScale(newScale); // ✅ ADD
+  }
+
+  void _decreaseScale() {
+    final newScale = (_pageScale - 0.05)
+        .clamp(QuranPageView.minPageScale, QuranPageView.maxPageScale);
+
+    setState(() => _pageScale = newScale);
+    StorageManager.savePageScale(newScale); // ✅ ADD
   }
 
   // -------------------------
@@ -290,12 +309,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 },
                 itemBuilder: (context, index) {
                   return _isPortrait
-                      ? QuranPageView.single(
+                      ? QuranPageView.singlePage(
                     logicalPage: index,
-                    optimizedPortrait: isOptimizedPortrait,
+                    pageScale: _pageScale,
                     imagePath: imagePath,
                   )
-                      : QuranPageView.double(
+                      : QuranPageView.doublePage(
                     spreadIndex: index,
                     optimizedLandscape: isOptimizedLandscape,
                     imagePath: imagePath,
@@ -313,10 +332,16 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
               if (_isScrollbarVisible)
                 Positioned(
-                  bottom: 10,
+                  bottom: 24,
                   left: 10,
                   right: 10,
-                  child: Row(
+                  child:  Material(
+                    color: const Color.fromARGB(255, 235, 243, 236),
+                    borderRadius: BorderRadius.circular(16),
+                    elevation: 4,
+                    child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Row(
                     children: [
                       Text(
                         '${PageMapper.sliderMapper(_logicalPage, _isPortrait)}/$TOTAL_PAGES',
@@ -373,6 +398,23 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           });}
                       ),
                       IconButton(
+                        icon: const Icon(Icons.remove),
+                        color: Color(0xFF025C32),
+                        onPressed: _pageScale <= QuranPageView.minPageScale ? null : _decreaseScale,
+                      ),
+                      Text(
+                        "${(_pageScale * 100).round()}%",
+                        style: const TextStyle(
+                          color: Color(0xFF025C32),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        color: Color(0xFF025C32),
+                        onPressed: _pageScale >= QuranPageView.maxPageScale ? null : _increaseScale,
+                      ),
+                      IconButton(
                         icon: const Icon(Icons.settings),
                         color: Color(0xFF025C32),
                         onPressed: () async {
@@ -393,6 +435,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     ],
                   ),
                 ),
+                  ),
+                )
             ],
           );
         },
