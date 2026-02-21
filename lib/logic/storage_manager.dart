@@ -9,8 +9,6 @@ class StorageManager {
   /// Preference keys
   static const _kCurrentPageKey = 'CurrentPage1';
   static const _kBookmarkKey = 'bookmarks1';
-  static const _kOptimizedPortraitKey = 'optimizedPortrait';
-  static const _kOptimizedLandscapeKey = 'optimizedLandscape';
   static const _darkModeKey = 'dark_mode';
   static const _pageScaleKey = 'quran_single_page_scale';
 
@@ -54,30 +52,6 @@ class StorageManager {
       bookmark.surah ??= surahNameFromPage(bookmark.pageNumber);
       return bookmark;
     }).toList();
-  }
-
-  /// Saves the optimized portrait mode setting
-  static Future<void> saveOptimizedPortrait(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kOptimizedPortraitKey, value);
-  }
-
-  /// Retrieves the optimized portrait mode setting
-  static Future<bool> getOptimizedPortrait() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_kOptimizedPortraitKey) ?? false;
-  }
-
-  /// Saves the optimized landscape mode setting
-  static Future<void> saveOptimizedLandscape(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kOptimizedLandscapeKey, value);
-  }
-
-  /// Retrieves the optimized landscape mode setting
-  static Future<bool> getOptimizedLandscape() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_kOptimizedLandscapeKey) ?? false;
   }
 
   static Future<bool> getDarkMode() async {

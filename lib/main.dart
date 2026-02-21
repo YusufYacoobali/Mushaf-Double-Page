@@ -89,9 +89,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   /// 🔑 single source of truth
   int _logicalPage = 0; // 0-based mushaf page
 
-  bool isOptimizedPortrait = false;
-  bool isOptimizedLandscape = false;
-
   bool _isScrollbarVisible = true;
   Timer? _hideScrollbarTimer;
 
@@ -113,7 +110,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     debugPrint('[INIT] loading dirs / settings / state');
 
     _docDir = await getApplicationDocumentsDirectory();
-    await _loadOptimizationSettings();
     await _loadBookmarks();
 
     _pageScalePortrait = await StorageManager.getPageScalePortrait();
@@ -133,16 +129,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
     _startHideScrollbarTimer();
     setState(() => _ready = true);
-  }
-
-  Future<void> _loadOptimizationSettings() async {
-    isOptimizedPortrait = await StorageManager.getOptimizedPortrait();
-    isOptimizedLandscape = await StorageManager.getOptimizedLandscape();
-
-    debugPrint(
-      '[SETTINGS] portraitOpt=$isOptimizedPortrait landscapeOpt=$isOptimizedLandscape',
-    );
-    setState(() {});
   }
 
   Future<void> _loadBookmarks() async {
@@ -449,7 +435,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           debugPrint(
                             '[SETTINGS] changed, reloading flags',
                           );
-                          await _loadOptimizationSettings();
                           await MyApp.of(context)?.reloadTheme();
                         },
                       ),

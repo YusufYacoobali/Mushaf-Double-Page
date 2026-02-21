@@ -25,13 +25,9 @@ class _SettingsState extends State<Settings> {
   /// Reads saved preferences from StorageManager
   /// and updates local state once loaded
   Future<void> _loadSwitchStates() async {
-    final portrait = await StorageManager.getOptimizedPortrait();
-    final landscape = await StorageManager.getOptimizedLandscape();
     final dark = await StorageManager.getDarkMode();
 
     setState(() {
-      isOptimizedPortrait = portrait;
-      isOptimizedLandscape = landscape;
       isDarkMode = dark;
       _loaded = true;
     });
@@ -40,13 +36,7 @@ class _SettingsState extends State<Settings> {
   /// Handles switch changes and persists them
   /// `type` determines which setting is being updated
   Future<void> _updateSwitch(String type, bool value) async {
-    if (type == 'portrait') {
-      await StorageManager.saveOptimizedPortrait(value);
-      setState(() => isOptimizedPortrait = value);
-    } else if (type == 'landscape') {
-      await StorageManager.saveOptimizedLandscape(value);
-      setState(() => isOptimizedLandscape = value);
-    } else if (type == 'dark') {
+    if (type == 'dark') {
     await StorageManager.saveDarkMode(value);
     setState(() => isDarkMode = value);
     }
