@@ -316,7 +316,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   )
                       : QuranPageView.doublePage(
                     spreadIndex: index,
-                    optimizedLandscape: isOptimizedLandscape,
+                    pageScale: _pageScale,
                     imagePath: imagePath,
                     totalPages: TOTAL_PAGES,
                   );
@@ -341,7 +341,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     elevation: 4,
                     child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                    child: Row(
+                    child: IntrinsicHeight(
+          child: Row(
                     children: [
                       IconButton(
                         icon: const Icon(Icons.remove),
@@ -366,9 +367,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           color: Color(0xFF025C32),
                           fontWeight: FontWeight.w600,
                         ),
-
                       ),
-
                       Expanded(
                         child: Slider(
                           value: _pageIndexFromLogical(
@@ -434,7 +433,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                         },
                       ),
                     ],
-                  ),
+                  ),),
                 ),
                   ),
                 )
