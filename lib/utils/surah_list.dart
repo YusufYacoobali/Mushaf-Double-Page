@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mushaf_two_page/utils/surah_mapper.dart';
 
 class SurahList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
@@ -7,27 +8,20 @@ class SurahList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surahs = List.generate(
-      114,
-          (i) => "Surah ${i + 1}",
-    );
+    final surahs = surahRanges.where((s) => s.surah > 0).toList();
 
     return ListView.builder(
       itemCount: surahs.length,
       itemBuilder: (_, i) {
+        final surah = surahs[i];
         return ListTile(
-          title: Text(surahs[i]),
+          title: Text("${surah.surah}. ${surah.name}"),
           onTap: () {
             Navigator.pop(context);
-            onJump(_surahToPage(i + 1));
+            onJump(pageFromSurah(surah.surah));
           },
         );
       },
     );
-  }
-
-  int _surahToPage(int surah) {
-    // TODO: map surah → mushaf page
-    return 0;
   }
 }
