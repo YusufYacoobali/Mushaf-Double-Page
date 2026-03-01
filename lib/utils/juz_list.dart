@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'juz_mapper.dart';
 
 class JuzList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
@@ -8,21 +9,18 @@ class JuzList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      itemCount: 30,
+      itemCount: juzRanges.length,
       itemBuilder: (_, i) {
+        final juz = juzRanges[i];
+
         return ListTile(
-          title: Text("Juz ${i + 1}"),
+          title: Text("Juz ${juz.juz}"),
           onTap: () {
             Navigator.pop(context);
-            onJump(_juzToPage(i + 1));
+            onJump(pageFromJuz(juz.juz));
           },
         );
       },
     );
-  }
-
-  int _juzToPage(int juz) {
-    // TODO: map juz → mushaf page
-    return 0;
   }
 }
