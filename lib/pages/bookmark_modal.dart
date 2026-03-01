@@ -24,11 +24,12 @@ class BookmarksModal {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return SafeArea(
-              child: Container(
-                height: isLandscape
+            final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+            return Container(
+                height: (isLandscape
                     ? screenHeight * 0.85
-                    : screenHeight * 0.65,
+                    : screenHeight * 0.65) +
+                    bottomInset,
                 decoration: const BoxDecoration(
                   color: Color.fromARGB(255, 235, 243, 236),
                   borderRadius:
@@ -85,7 +86,6 @@ class BookmarksModal {
                   ),
                   ],
                 ),
-              ),
             );
           },
         );
