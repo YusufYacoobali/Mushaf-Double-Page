@@ -298,6 +298,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
               PageView.builder(
                 key: ValueKey(_isPortrait),
                 controller: _pageController,
+                physics: const ClampingScrollPhysics(),
                 itemCount: pageCount,
                 onPageChanged: (index) {
                   debugPrint(
