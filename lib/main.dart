@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mushaf_two_page/pages/bookmark_modal.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
+import 'package:mushaf_two_page/utils/navigator.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:mushaf_two_page/pages/settings.dart';
@@ -402,6 +403,27 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 .jumpToPage(v.toInt());
                           },
                         ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.menu_book_rounded),
+                        color: Color(0xFF025C32),
+                        onPressed: () {
+                          SurahJuzNavigator.show(
+                            context: context,
+                            onJumpToPage: (page) {
+                              _pageController.animateToPage(
+                                page,
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                              );
+
+                              final logical =
+                              _logicalFromPageIndex(page, _isPortrait);
+
+                              setState(() => _logicalPage = logical);
+                            },
+                          );
+                        },
                       ),
                       IconButton(
                           icon: const Icon(Icons.bookmarks_rounded),
