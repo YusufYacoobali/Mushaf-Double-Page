@@ -9,7 +9,6 @@ import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:mushaf_two_page/pages/settings.dart';
-import 'package:mushaf_two_page/pages/bookmark.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/utils/page_mapper.dart';
@@ -229,8 +228,16 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   void _onScreenTap() {
     debugPrint('[UI] screen tap');
-    setState(() => _isScrollbarVisible = true);
-    _startHideScrollbarTimer();
+
+    setState(() {
+      _isScrollbarVisible = !_isScrollbarVisible;
+    });
+
+    if (_isScrollbarVisible) {
+      _startHideScrollbarTimer();
+    } else {
+      _hideScrollbarTimer?.cancel();
+    }
   }
 
   void _addBookmark() {
