@@ -45,21 +45,41 @@ class BookmarksModal {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 10),
-
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 8, bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).dividerColor.withOpacity(.4),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
                     // Add bookmark button
                     Container(
                       margin: const EdgeInsets.all(12),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          onAddBookmark();
-                          setModalState(() {});
-                        },
-                        icon: const Icon(Icons.bookmark_add_rounded),
-                        label: const Text('Bookmark this page'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 14),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            onAddBookmark();
+                            setModalState(() {});
+                          },
+                          icon: const Icon(Icons.bookmark_add_rounded),
+                          label: const Text('Bookmark this page'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.surface,
+                            foregroundColor: Theme.of(context).colorScheme.onSurface,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
                         ),
                       ),
                     ),
