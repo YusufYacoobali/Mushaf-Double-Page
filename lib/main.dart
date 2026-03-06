@@ -353,59 +353,43 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
                     child: IntrinsicHeight(
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.remove),
-                        color: Color(0xFF025C32),
-                        onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) <=
-                            (_isPortrait ? QuranPageView.minPageScalePortrait : QuranPageView.minPageScaleLandscape)
-                            ? null
-                            : _decreaseScale,
-                      ),
-                      Text(
-                      "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
-                        style: const TextStyle(
-                          color: Color(0xFF025C32),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add),
-                        color: Color(0xFF025C32),
-                        onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) >=
-                            (_isPortrait ? QuranPageView.maxPageScalePortrait : QuranPageView.maxPageScaleLandscape)
-                            ? null
-                            : _increaseScale,
-                      ),
-                      Text(
-                        '${PageMapper.sliderMapper(_logicalPage, _isPortrait)}/$TOTAL_PAGES',
-                        style: const TextStyle(
-                          color: Color(0xFF025C32),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Expanded(
-                        child: Slider(
-                          value: _pageIndexFromLogical(
-                              _logicalPage, _isPortrait)
-                              .toDouble(),
-                          min: 0,
-                          max: (pageCount - 1).toDouble(),
-                          onChanged: (v) {
-                            debugPrint(
-                              '[SLIDER] jump index=${v.toInt()}',
-                            );
-                            setState(() {
-                              _logicalPage =
-                                  _logicalFromPageIndex(v.toInt(), _isPortrait);
-                            });
-                            _pageController
-                                .jumpToPage(v.toInt());
-                          },
-                        ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove),
+                            color: const Color(0xFF025C32),
+                            onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) <=
+                                (_isPortrait
+                                    ? QuranPageView.minPageScalePortrait
+                                    : QuranPageView.minPageScaleLandscape)
+                                ? null
+                                : _decreaseScale,
+                          ),
+
+                          Text(
+                            "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
+                            style: const TextStyle(
+                              color: Color(0xFF025C32),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+
+                          IconButton(
+                            icon: const Icon(Icons.add),
+                            color: const Color(0xFF025C32),
+                            onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) >=
+                                (_isPortrait
+                                    ? QuranPageView.maxPageScalePortrait
+                                    : QuranPageView.maxPageScaleLandscape)
+                                ? null
+                                : _increaseScale,
+                          ),
+                        ],
                       ),
                       IconButton(
-                        icon: const Icon(Icons.menu_book_rounded),
+                        icon: const Icon(Icons.menu_book_outlined),
                         color: Color(0xFF025C32),
                         onPressed: () {
                           SurahJuzNavigator.show(
