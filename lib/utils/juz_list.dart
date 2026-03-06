@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../components/nav_tile.dart';
 import 'juz_mapper.dart';
 
 class JuzList extends StatelessWidget {
@@ -13,8 +14,16 @@ class JuzList extends StatelessWidget {
       itemBuilder: (_, i) {
         final juz = juzRanges[i];
 
-        return ListTile(
-          title: Text("Juz ${juz.juz}"),
+        // return ListTile(
+        //   title: Text("Juz ${juz.juz}"),
+        //   onTap: () {
+        //     Navigator.pop(context);
+        //     onJump(pageFromJuz(juz.juz));
+        //   },
+        // );
+        return NavTile(
+          number: juz.juz,
+          title: "Juz ${juz.juz}",
           onTap: () {
             Navigator.pop(context);
             onJump(pageFromJuz(juz.juz));
