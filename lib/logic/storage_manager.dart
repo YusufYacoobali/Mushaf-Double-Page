@@ -9,8 +9,8 @@ class StorageManager {
   /// Preference keys
   static const _kCurrentPageKey = 'CurrentPage1';
   static const _kBookmarkKey = 'bookmarks1';
-  static const _kOptimizedPortraitKey = 'optimizedPortrait';
-  static const _kOptimizedLandscapeKey = 'optimizedLandscape';
+  static const _darkModeKey = 'dark_mode';
+  static const _pageScaleKey = 'quran_single_page_scale';
 
   /// Saves the current page number
   /// Skips saving for page 0 (start) and page 851 (dua/end)
@@ -54,27 +54,33 @@ class StorageManager {
     }).toList();
   }
 
-  /// Saves the optimized portrait mode setting
-  static Future<void> saveOptimizedPortrait(bool value) async {
+  static Future<bool> getDarkMode() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kOptimizedPortraitKey, value);
+    return prefs.getBool(_darkModeKey) ?? false;
   }
 
-  /// Retrieves the optimized portrait mode setting
-  static Future<bool> getOptimizedPortrait() async {
+  static Future<void> saveDarkMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_kOptimizedPortraitKey) ?? false;
+    await prefs.setBool(_darkModeKey, value);
   }
 
-  /// Saves the optimized landscape mode setting
-  static Future<void> saveOptimizedLandscape(bool value) async {
+  static Future<void> savePageScalePortrait(double value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kOptimizedLandscapeKey, value);
+    await prefs.setDouble(_pageScaleKey, value);
   }
 
-  /// Retrieves the optimized landscape mode setting
-  static Future<bool> getOptimizedLandscape() async {
+  static Future<double> getPageScalePortrait() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_kOptimizedLandscapeKey) ?? false;
+    return prefs.getDouble(_pageScaleKey) ?? 0.8; // default
+  }
+
+  static Future<void> savePageScaleLandscape(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_pageScaleKey, value);
+  }
+
+  static Future<double> getPageScaleLandscape() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_pageScaleKey) ?? 0.9; // default
   }
 }

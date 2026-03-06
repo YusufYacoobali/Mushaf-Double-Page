@@ -15,6 +15,22 @@ class LoadingScreen extends StatefulWidget {
 class LoadingScreenState extends State<LoadingScreen> {
   double _progress = 0.0;
   bool _downloadFailed = false;
+  final List<DownloadTask> _activeTasks = [];
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+
+    for (final task in _activeTasks) {
+      try {
+        task.cancel();
+      } catch (_) {}
+    }
+
+    _activeTasks.clear();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -110,12 +126,19 @@ class LoadingScreenState extends State<LoadingScreen> {
         await localDir.create(recursive: true);
       }
 
+      // preload existing filenames once
+      final existingFiles = localDir
+          .listSync()
+          .whereType<File>()
+          .map((f) => f.uri.pathSegments.last)
+          .toSet();
+
       final result = await ref.listAll();
       final items = result.items;
 
       print('Found ${items.length} pages in Firebase');
 
-      const int maxConcurrent = 6;
+      const int maxConcurrent = 16;
 
       int completedFiles = 0;
       final int totalFiles = items.length;
@@ -128,26 +151,42 @@ class LoadingScreenState extends State<LoadingScreen> {
 
       for (int i = 0; i < items.length; i += maxConcurrent) {
         final batch = items.skip(i).take(maxConcurrent);
+        if (_disposed) return false;
 
         await Future.wait(
           batch.map((item) async {
-            final filePath = '${localDir.path}/${item.name}';
-            final file = File(filePath);
-
-            // Skip already downloaded files
-            if (await file.exists()) {
+            if (existingFiles.contains(item.name)) {
+              if (_disposed) return;
               completedFiles++;
               return;
             }
 
-            await item.writeToFile(file);
+            final filePath = '${localDir.path}/${item.name}';
+            final file = File(filePath);
+
+            if (_disposed) return;
+
+            final task = item.writeToFile(file);
+            _activeTasks.add(task);
+
+            try {
+              await task;
+              existingFiles.add(item.name);
+            } finally {
+              _activeTasks.remove(task);
+            }
+
+            if (_disposed) return;
+
             completedFiles++;
 
             if (!mounted) return;
 
-            setState(() {
-              _progress = completedFiles / totalFiles;
-            });
+            if (completedFiles % 10 == 0 || completedFiles == totalFiles) {
+              setState(() {
+                _progress = completedFiles / totalFiles;
+              });
+            }
           }),
         );
       }

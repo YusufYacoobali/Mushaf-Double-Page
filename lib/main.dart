@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mushaf_two_page/pages/bookmark_modal.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
+import 'package:mushaf_two_page/utils/navigator.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:mushaf_two_page/pages/settings.dart';
-import 'package:mushaf_two_page/pages/bookmark.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/utils/page_mapper.dart';
@@ -25,14 +25,44 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  static _MyAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyAppState>();
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _darkMode = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    _darkMode = await StorageManager.getDarkMode();
+    setState(() => _loaded = true);
+  }
+
+  Future<void> reloadTheme() async {
+    final dark = await StorageManager.getDarkMode();
+    setState(() => _darkMode = dark);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    if (!_loaded) return const SizedBox();
+
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: LoadingScreen(),
+      theme: _darkMode ? ThemeData.dark() : ThemeData.light(),
+      home: const LoadingScreen(),
     );
   }
 }
@@ -53,11 +83,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   bool _ready = false;
   bool _isPortrait = true;
 
+  double _pageScalePortrait = 0.8;
+  double _pageScaleLandscape = 0.7; // slightly smaller to fit side-by-side
+
   /// 🔑 single source of truth
   int _logicalPage = 0; // 0-based mushaf page
-
-  bool isOptimizedPortrait = false;
-  bool isOptimizedLandscape = false;
 
   bool _isScrollbarVisible = true;
   Timer? _hideScrollbarTimer;
@@ -80,8 +110,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     debugPrint('[INIT] loading dirs / settings / state');
 
     _docDir = await getApplicationDocumentsDirectory();
-    await _loadOptimizationSettings();
     await _loadBookmarks();
+
+    _pageScalePortrait = await StorageManager.getPageScalePortrait();
+    _pageScaleLandscape = await StorageManager.getPageScaleLandscape();
 
     _logicalPage = await StorageManager.getCurrentPage();
     debugPrint('[STATE] restored logicalPage=$_logicalPage');
@@ -99,15 +131,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     setState(() => _ready = true);
   }
 
-  Future<void> _loadOptimizationSettings() async {
-    isOptimizedPortrait = await StorageManager.getOptimizedPortrait();
-    isOptimizedLandscape = await StorageManager.getOptimizedLandscape();
-
-    debugPrint(
-      '[SETTINGS] portraitOpt=$isOptimizedPortrait landscapeOpt=$isOptimizedLandscape',
-    );
-  }
-
   Future<void> _loadBookmarks() async {
     final data = await StorageManager.getBookmarks();
     _bookmarks
@@ -115,6 +138,34 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       ..addAll(data);
 
     debugPrint('[BOOKMARK] loaded ${_bookmarks.length}');
+  }
+
+  void _increaseScale() {
+    setState(() {
+      if (_isPortrait) {
+        _pageScalePortrait = (_pageScalePortrait + 0.05)
+            .clamp(QuranPageView.minPageScalePortrait, QuranPageView.maxPageScalePortrait);
+        StorageManager.savePageScalePortrait(_pageScalePortrait);
+      } else {
+        _pageScaleLandscape = (_pageScaleLandscape + 0.05)
+            .clamp(QuranPageView.minPageScaleLandscape, QuranPageView.maxPageScaleLandscape);
+        StorageManager.savePageScaleLandscape(_pageScaleLandscape);
+      }
+    });
+  }
+
+  void _decreaseScale() {
+    setState(() {
+      if (_isPortrait) {
+        _pageScalePortrait = (_pageScalePortrait - 0.05)
+            .clamp(QuranPageView.minPageScalePortrait, QuranPageView.maxPageScalePortrait);
+        StorageManager.savePageScalePortrait(_pageScalePortrait);
+      } else {
+        _pageScaleLandscape = (_pageScaleLandscape - 0.05)
+            .clamp(QuranPageView.minPageScaleLandscape, QuranPageView.maxPageScaleLandscape);
+        StorageManager.savePageScaleLandscape(_pageScaleLandscape);
+      }
+    });
   }
 
   // -------------------------
@@ -178,8 +229,16 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   void _onScreenTap() {
     debugPrint('[UI] screen tap');
-    setState(() => _isScrollbarVisible = true);
-    _startHideScrollbarTimer();
+
+    setState(() {
+      _isScrollbarVisible = !_isScrollbarVisible;
+    });
+
+    if (_isScrollbarVisible) {
+      _startHideScrollbarTimer();
+    } else {
+      _hideScrollbarTimer?.cancel();
+    }
   }
 
   void _addBookmark() {
@@ -240,6 +299,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
               PageView.builder(
                 key: ValueKey(_isPortrait),
                 controller: _pageController,
+                physics: const ClampingScrollPhysics(),
                 itemCount: pageCount,
                 onPageChanged: (index) {
                   debugPrint(
@@ -259,14 +319,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 },
                 itemBuilder: (context, index) {
                   return _isPortrait
-                      ? QuranPageView.single(
+                      ? QuranPageView.singlePage(
                     logicalPage: index,
-                    optimizedPortrait: isOptimizedPortrait,
+                    pageScale: _pageScalePortrait,
                     imagePath: imagePath,
                   )
-                      : QuranPageView.double(
+                      : QuranPageView.doublePage(
                     spreadIndex: index,
-                    optimizedLandscape: isOptimizedLandscape,
+                    pageScale: _pageScaleLandscape,
                     imagePath: imagePath,
                     totalPages: TOTAL_PAGES,
                   );
@@ -282,89 +342,121 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
               if (_isScrollbarVisible)
                 Positioned(
-                  bottom: 10,
+                  bottom: 24,
                   left: 10,
                   right: 10,
-                  child: Row(
+                  child:  Material(
+                    color: const Color.fromARGB(255, 235, 243, 236),
+                    borderRadius: BorderRadius.circular(16),
+                    elevation: 4,
+                    child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                    child: IntrinsicHeight(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${PageMapper.sliderMapper(_logicalPage, _isPortrait)}/$TOTAL_PAGES',
-                        style: const TextStyle(
-                          color: Color(0xFF025C32),
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove),
+                            color: const Color(0xFF025C32),
+                            onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) <=
+                                (_isPortrait
+                                    ? QuranPageView.minPageScalePortrait
+                                    : QuranPageView.minPageScaleLandscape)
+                                ? null
+                                : _decreaseScale,
+                          ),
 
-                      ),
-                      Expanded(
-                        child: Slider(
-                          value: _pageIndexFromLogical(
-                              _logicalPage, _isPortrait)
-                              .toDouble(),
-                          min: 0,
-                          max: (pageCount - 1).toDouble(),
-                          onChanged: (v) {
-                            debugPrint(
-                              '[SLIDER] jump index=${v.toInt()}',
-                            );
-                            setState(() {
-                              _logicalPage =
-                                  _logicalFromPageIndex(v.toInt(), _isPortrait);
-                            });
-                            _pageController
-                                .jumpToPage(v.toInt());
-                          },
-                        ),
+                          Text(
+                            "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
+                            style: const TextStyle(
+                              color: Color(0xFF025C32),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+
+                          IconButton(
+                            icon: const Icon(Icons.add),
+                            color: const Color(0xFF025C32),
+                            onPressed: (_isPortrait ? _pageScalePortrait : _pageScaleLandscape) >=
+                                (_isPortrait
+                                    ? QuranPageView.maxPageScalePortrait
+                                    : QuranPageView.maxPageScaleLandscape)
+                                ? null
+                                : _increaseScale,
+                          ),
+                        ],
                       ),
                       IconButton(
-                        icon: const Icon(Icons.bookmarks_rounded),
+                        icon: const Icon(Icons.menu_book_outlined),
                         color: Color(0xFF025C32),
-                        onPressed: (){ BookmarksModal.show(
-                          context: context,
-                          bookmarks: _bookmarks,
-                          isPortrait: _isPortrait,
-                          onAddBookmark: _addBookmark,
-                          onRemoveBookmark: (b) {
-                            setState(() => _bookmarks.remove(b));
-                            StorageManager.saveBookmarks(_bookmarks);
-                          },
-                          onJumpToBookmark: (b) {
-                            final page = PageMapper.bookmarkGoToMapper(
-                              b.pageNumber,
-                              _isPortrait,
-                            );
+                        onPressed: () {
+                          SurahJuzNavigator.show(
+                            context: context,
+                            onJumpToPage: (page) {
+                              _pageController.animateToPage(
+                                page,
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                              );
 
-                            _pageController.jumpToPage(page);
+                              final logical =
+                              _logicalFromPageIndex(page, _isPortrait);
 
-                            final logical =
-                            _logicalFromPageIndex(page, _isPortrait);
+                              setState(() => _logicalPage = logical);
+                            },
+                          );
+                        },
+                      ),
+                      IconButton(
+                          icon: const Icon(Icons.bookmarks_rounded),
+                          color: Color(0xFF025C32),
+                          onPressed: (){ BookmarksModal.show(
+                              context: context,
+                              bookmarks: _bookmarks,
+                              isPortrait: _isPortrait,
+                              onAddBookmark: _addBookmark,
+                              onRemoveBookmark: (b) {
+                                setState(() => _bookmarks.remove(b));
+                                StorageManager.saveBookmarks(_bookmarks);
+                              },
+                              onJumpToBookmark: (b) {
+                                final page = PageMapper.bookmarkGoToMapper(
+                                  b.pageNumber,
+                                  _isPortrait,
+                                );
 
-                            setState(() => _logicalPage = logical);
-                          });}
+                                _pageController.jumpToPage(page);
+
+                                final logical =
+                                _logicalFromPageIndex(page, _isPortrait);
+
+                                setState(() => _logicalPage = logical);
+                              });}
                       ),
                       IconButton(
                         icon: const Icon(Icons.settings),
                         color: Color(0xFF025C32),
                         onPressed: () async {
                           debugPrint('[SETTINGS] open');
-                          final changed =
-                          await Navigator.push<bool>(
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => const Settings(),
                             ),
                           );
-                          if (changed == true) {
-                            debugPrint(
-                              '[SETTINGS] changed, reloading flags',
-                            );
-                            await _loadOptimizationSettings();
-                            setState(() {});
-                          }
+                          debugPrint(
+                            '[SETTINGS] changed, reloading flags',
+                          );
+                          await MyApp.of(context)?.reloadTheme();
                         },
                       ),
                     ],
-                  ),
+                  ),),
                 ),
+                  ),
+                )
             ],
           );
         },

@@ -33,70 +33,86 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
   }
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () => widget.onPagePressed(widget.bookmark),
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFBFBFB),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: const Color(0xFFD6D6D6),
-              width: 0.8,
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+      child: Material(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => widget.onPagePressed(widget.bookmark),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.dividerColor.withOpacity(.15),
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.bookmark.surah ?? 'Unknown Surah',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF2A6767),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Page ${widget.bookmark.pageNumber}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: _toggleBookmark,
-                child: const Padding(
-                  padding: EdgeInsets.all(6),
-                  child: Icon(
+            ),
+            child: Row(
+              children: [
+                /// Bookmark icon badge
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF025C32).withOpacity(.15),
+                  ),
+                  child: const Icon(
                     Icons.bookmark_rounded,
-                    size: 22,
-                    color: Color(0xFFD9B44A),
+                    color: Color(0xFF025C32),
                   ),
                 ),
-              ),
-            ],
+
+                const SizedBox(width: 16),
+
+                /// Text
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.bookmark.surah ?? 'Unknown Surah',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Page ${widget.bookmark.pageNumber}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                /// Remove bookmark
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: _toggleBookmark,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: theme.colorScheme.onSurface.withOpacity(.45),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

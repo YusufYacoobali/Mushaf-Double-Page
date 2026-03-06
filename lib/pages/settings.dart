@@ -9,48 +9,55 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
-  bool isOptimizedPortrait = true;
-  bool isOptimizedLandscape = true;
-  // Prevents UI rendering before async values load
+  bool isDarkMode = false;
+
+  /// Selected Mushaf
+  String selectedMushaf = 'madani';
+
+  /// Prevent UI rendering before async values load
   bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    // Load saved switch values from storage on screen start
-    _loadSwitchStates();
+    _loadStates();
   }
 
-  /// Reads saved preferences from StorageManager
-  /// and updates local state once loaded
-  Future<void> _loadSwitchStates() async {
-    final portrait = await StorageManager.getOptimizedPortrait();
-    final landscape = await StorageManager.getOptimizedLandscape();
+  /// Load saved settings
+  Future<void> _loadStates() async {
+    final dark = await StorageManager.getDarkMode();
+    final mushaf = "Indopak"; //await StorageManager.getMushaf();
 
     setState(() {
-      isOptimizedPortrait = portrait;
-      isOptimizedLandscape = landscape;
+      isDarkMode = dark;
+      selectedMushaf = mushaf;
       _loaded = true;
     });
   }
 
-  /// Handles switch changes and persists them
-  /// `type` determines which setting is being updated
-  Future<void> _updateSwitch(String type, bool value) async {
-    if (type == 'portrait') {
-      await StorageManager.saveOptimizedPortrait(value);
-      setState(() => isOptimizedPortrait = value);
-    } else {
-      await StorageManager.saveOptimizedLandscape(value);
-      setState(() => isOptimizedLandscape = value);
-    }
+  /// Update dark mode
+  Future<void> _updateDarkMode(bool value) async {
+    await StorageManager.saveDarkMode(value);
+
+    setState(() {
+      isDarkMode = value;
+    });
   }
 
-  /// Reusable switch row widget (now feels like a row, not just text)
-  Widget _buildSwitch(String title, bool value, String type) {
+  /// Update mushaf
+  // Future<void> _updateMushaf(String mushaf) async {
+  //   await StorageManager.saveMushaf(mushaf);
+  //
+  //   setState(() {
+  //     selectedMushaf = mushaf;
+  //   });
+  // }
+
+  /// Switch row widget
+  Widget _buildSwitch(String title, bool value) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => _updateSwitch(type, !value),
+      onTap: () => _updateDarkMode(!value),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
@@ -67,7 +74,7 @@ class _SettingsState extends State<Settings> {
             ),
             Switch(
               value: value,
-              onChanged: (v) => _updateSwitch(type, v),
+              onChanged: _updateDarkMode,
               activeColor: const Color.fromARGB(255, 2, 92, 50),
             ),
           ],
@@ -76,7 +83,65 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  /// Card-style container (noticeably different)
+  /// Mushaf selector option
+  Widget _buildMushafOption({
+    required String title,
+    required String value,
+    required String previewImage,
+  }) {
+    final bool isSelected = selectedMushaf == value;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      //onTap: () => _updateMushaf(value),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? const Color.fromARGB(255, 2, 92, 50)
+                : Colors.grey.shade300,
+            width: 2,
+          ),
+          color: isSelected
+              ? const Color.fromARGB(255, 2, 92, 50).withOpacity(0.06)
+              : Colors.white,
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                previewImage,
+                width: 60,
+                height: 80,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle,
+                color: Color.fromARGB(255, 2, 92, 50),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Card container
   Widget _buildCard(Widget child) {
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
@@ -107,7 +172,7 @@ class _SettingsState extends State<Settings> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 235, 243, 236),
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 235, 243, 236), // soft green
+        backgroundColor: const Color.fromARGB(255, 235, 243, 236),
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
@@ -130,93 +195,93 @@ class _SettingsState extends State<Settings> {
           onPressed: () => Navigator.pop(context, true),
         ),
       ),
-      body: Container(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              /// Info card
-              _buildCard(
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Text(
-                        'السلام عليكم ورحمة الله وبركاته',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontFamily: 'Amiri',
-                          fontWeight: FontWeight.bold,
-                          color: Color.fromARGB(255, 2, 92, 50),
-                        ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            /// Info card
+            _buildCard(
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Text(
+                      'السلام عليكم ورحمة الله وبركاته',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontFamily: 'Amiri',
+                        fontWeight: FontWeight.bold,
+                        color: Color.fromARGB(255, 2, 92, 50),
                       ),
                     ),
-                    SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.bookmark_rounded,
-                          size: 28,
-                          color: Color.fromARGB(255, 2, 92, 50),
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          'Using bookmarks',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Save pages while reading and jump back to them later using the bookmarks icon.',
-                      style: TextStyle(fontSize: 16, color: Colors.black54),
-                    ),
-                    SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Icon(Icons.star_rounded, size: 28, color: Color(0xFFD9B44A)),
-                        SizedBox(width: 10),
-                        Text(
-                          'Support the app',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Leaving a positive review helps us continue improving the app.',
-                      style: TextStyle(fontSize: 16, color: Colors.black54),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                  SizedBox(height: 24),
 
-              /// Settings card
-              _buildCard(
-                Column(
-                  children: [
-                    _buildSwitch(
-                      'Optimized Portrait Quran',
-                      isOptimizedPortrait,
-                      'portrait',
-                    ),
-                    const Divider(height: 1),
-                    _buildSwitch(
-                      'Optimized Landscape Quran',
-                      isOptimizedLandscape,
-                      'landscape',
-                    ),
-                  ],
-                ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.bookmark_rounded,
+                        size: 28,
+                        color: Color.fromARGB(255, 2, 92, 50),
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Using bookmarks',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 12),
+
+                  Text(
+                    'Save pages while reading and jump back to them later using the bookmarks icon.',
+                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                  ),
+
+                  SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      Icon(Icons.star_rounded, size: 28, color: Color(0xFFD9B44A)),
+                      SizedBox(width: 10),
+                      Text(
+                        'Support the app',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 12),
+
+                  Text(
+                    'Leaving a positive review helps us continue improving the app.',
+                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+
+            /// Appearance
+            _buildCard(
+              Column(
+                children: [
+                  _buildSwitch(
+                    'Dark Mode',
+                    isDarkMode,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
