@@ -119,7 +119,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     debugPrint('[STATE] restored logicalPage=$_logicalPage');
 
     final initialIndex =
-    _pageIndexFromLogical(_logicalPage, _isPortrait);
+    PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
 
     debugPrint(
       '[PAGECTRL] initial index=$initialIndex portrait=$_isPortrait',
@@ -171,33 +171,33 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   // -------------------------
   // Page mapping (CRITICAL)
   // -------------------------
-
-  int _pageIndexFromLogical(int logical, bool portrait) {
-    if (portrait) {
-      debugPrint('[MAP] logical $logical -> index $logical (portrait)');
-      return logical;
-    }
-
-    // left page must be odd (1-based)
-    final left = logical.isOdd ? logical - 1 : logical;
-    final index = left ~/ 2;
-
-    debugPrint(
-      '[MAP] logical $logical -> left=$left -> spreadIndex=$index (landscape)',
-    );
-
-    return index;
-  }
-
-  int _logicalFromPageIndex(int index, bool portrait) {
-    final logical = portrait ? index : index * 2;
-
-    debugPrint(
-      '[MAP] index $index -> logical=$logical (portrait=$portrait)',
-    );
-
-    return logical;
-  }
+  //
+  // int _pageIndexFromLogical(int logical, bool portrait) {
+  //   if (portrait) {
+  //     debugPrint('[MAP] logical $logical -> index $logical (portrait)');
+  //     return logical;
+  //   }
+  //
+  //   // left page must be odd (1-based)
+  //   final left = logical.isOdd ? logical - 1 : logical;
+  //   final index = left ~/ 2;
+  //
+  //   debugPrint(
+  //     '[MAP] logical $logical -> left=$left -> spreadIndex=$index (landscape)',
+  //   );
+  //
+  //   return index;
+  // }
+  //
+  // int _logicalFromPageIndex(int index, bool portrait) {
+  //   final logical = portrait ? index : index * 2;
+  //
+  //   debugPrint(
+  //     '[MAP] index $index -> logical=$logical (portrait=$portrait)',
+  //   );
+  //
+  //   return logical;
+  // }
 
   int _pageCount(bool portrait) {
     final count =
@@ -281,7 +281,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
             _isPortrait = portraitNow;
 
             final newIndex =
-            _pageIndexFromLogical(_logicalPage, _isPortrait);
+            PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
 
             debugPrint(
               '[ORIENTATION] logical=$_logicalPage -> newIndex=$newIndex',
@@ -308,7 +308,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
                   setState(() {
                     _logicalPage =
-                        _logicalFromPageIndex(index, _isPortrait);
+                        PageMapper.logicalFromPageIndex(index, _isPortrait);
                   });
 
                   debugPrint(
@@ -388,6 +388,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           ),
                         ],
                       ),
+          Row(
+          children: [
                       IconButton(
                         icon: const Icon(Icons.menu_book_outlined),
                         color: Color(0xFF025C32),
@@ -395,20 +397,29 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           SurahJuzNavigator.show(
                             context: context,
                             onJumpToPage: (page) {
-                              _pageController.animateToPage(
+                              // _pageController.animateToPage(
+                              //   page,
+                              //   duration: const Duration(milliseconds: 350),
+                              //   curve: Curves.easeOutCubic,
+                              // );
+                              final actualPage = PageMapper.bookmarkGoToMapper(
                                 page,
-                                duration: const Duration(milliseconds: 350),
-                                curve: Curves.easeOutCubic,
+                                _isPortrait,
                               );
+                              _pageController.jumpToPage(actualPage);
 
                               final logical =
-                              _logicalFromPageIndex(page, _isPortrait);
+                              PageMapper.logicalFromPageIndex(actualPage, _isPortrait);
+
+                              debugPrint('[NAV] page returned $actualPage');
+                              debugPrint('[NAV] logical page returned $logical');
 
                               setState(() => _logicalPage = logical);
                             },
                           );
                         },
                       ),
+                      const SizedBox(width: 30),
                       IconButton(
                           icon: const Icon(Icons.bookmarks_rounded),
                           color: Color(0xFF025C32),
@@ -430,11 +441,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 _pageController.jumpToPage(page);
 
                                 final logical =
-                                _logicalFromPageIndex(page, _isPortrait);
+                                PageMapper.logicalFromPageIndex(page, _isPortrait);
+
+                                debugPrint('[BOOKMAKR] page returned $page');
+                                debugPrint('[BOOKMAKR] logical page returned $logical');
 
                                 setState(() => _logicalPage = logical);
                               });}
                       ),
+                      const SizedBox(width: 30),
                       IconButton(
                         icon: const Icon(Icons.settings),
                         color: Color(0xFF025C32),
@@ -452,6 +467,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           await MyApp.of(context)?.reloadTheme();
                         },
                       ),
+                    ],
+                    ),
                     ],
                   ),),
                 ),

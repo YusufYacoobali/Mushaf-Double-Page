@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+
 /// Utility class responsible for mapping page numbers
 /// between portrait (single page) and landscape (two-page) modes
 class PageMapper {
@@ -38,4 +40,32 @@ class PageMapper {
   static int bookmarkAddMapper(int currentPage, bool isPortrait) {
     return totalPages - currentPage;
   }
+
+  static int pageIndexFromLogical(int logical, bool portrait) {
+    if (portrait) {
+      debugPrint('[MAP] logical $logical -> index $logical (portrait)');
+      return logical;
+    }
+
+    // left page must be odd (1-based)
+    final left = logical.isOdd ? logical - 1 : logical;
+    final index = left ~/ 2;
+
+    debugPrint(
+      '[MAP] logical $logical -> left=$left -> spreadIndex=$index (landscape)',
+    );
+
+    return index;
+  }
+
+  static int logicalFromPageIndex(int index, bool portrait) {
+    final logical = portrait ? index : index * 2;
+
+    debugPrint(
+      '[MAP] index $index -> logical=$logical (portrait=$portrait)',
+    );
+
+    return logical;
+  }
+
 }

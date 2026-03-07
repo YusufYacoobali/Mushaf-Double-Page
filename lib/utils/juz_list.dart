@@ -14,13 +14,6 @@ class JuzList extends StatelessWidget {
       itemBuilder: (_, i) {
         final juz = juzRanges[i];
 
-        // return ListTile(
-        //   title: Text("Juz ${juz.juz}"),
-        //   onTap: () {
-        //     Navigator.pop(context);
-        //     onJump(pageFromJuz(juz.juz));
-        //   },
-        // );
         return NavTile(
           number: juz.juz,
           title: "Juz ${juz.juz}",

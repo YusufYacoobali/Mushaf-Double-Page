@@ -1,3 +1,5 @@
+import 'package:mushaf_two_page/utils/page_mapper.dart';
+
 String surahNameFromPage(int pageNumber) {
   for (final entry in surahRanges) {
     if (pageNumber >= entry.start && pageNumber <= entry.end) {
@@ -12,7 +14,7 @@ int pageFromSurah(int surah) {
         (e) => e.surah == surah,
     orElse: () => surahRanges[0],
   );
-  return 851 - entry.start;
+  return entry.start;
 }
 
 class _SurahRange {
