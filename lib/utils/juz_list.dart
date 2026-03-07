@@ -10,6 +10,7 @@ class JuzList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
+      padding: const EdgeInsets.all(12),
       itemCount: juzRanges.length,
       itemBuilder: (_, i) {
         final juz = juzRanges[i];

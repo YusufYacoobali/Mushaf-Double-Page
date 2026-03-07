@@ -3,7 +3,7 @@ int pageFromJuz(int juz) {
         (e) => e.juz == juz,
     orElse: () => juzRanges.first,
   );
-  return 851 - entry.start;
+  return entry.start;
 }
 
 class JuzRange {
