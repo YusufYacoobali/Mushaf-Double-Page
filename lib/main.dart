@@ -433,6 +433,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 StorageManager.saveBookmarks(_bookmarks);
                               },
                               onJumpToBookmark: (b) {
+                                Navigator.pop(context);
+
                                 final page = PageMapper.bookmarkGoToMapper(
                                   b.pageNumber,
                                   _isPortrait,

@@ -25,6 +25,8 @@ class BookmarksModal {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+            final sortedBookmarks = [...bookmarks]
+              ..sort((a, b) => a.pageNumber.compareTo(b.pageNumber));
             return Container(
                 height: (isLandscape
                     ? screenHeight * 0.85
@@ -88,9 +90,9 @@ class BookmarksModal {
                   Expanded(
                     child: ListView.builder(
                       padding: const EdgeInsets.only(bottom: 12),
-                      itemCount: bookmarks.length,
+                      itemCount: sortedBookmarks.length,
                       itemBuilder: (context, i) {
-                        final bookmark = bookmarks[i];
+                        final bookmark = sortedBookmarks[i];
                         return BookmarkWidget(
                           bookmark: bookmark,
                           onBookmarkToggled: (b) {
