@@ -83,4 +83,14 @@ class StorageManager {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(_pageScaleKey) ?? 0.9; // default
   }
+
+  static Future<void> saveMushaf(String mushaf) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('mushaf', mushaf);
+  }
+
+  static Future<String> getMushaf() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('mushaf') ?? 'indopak_tajweed';
+  }
 }

@@ -26,7 +26,7 @@ class _SettingsState extends State<Settings> {
   /// Load saved settings
   Future<void> _loadStates() async {
     final dark = await StorageManager.getDarkMode();
-    final mushaf = "Indopak"; //await StorageManager.getMushaf();
+    final mushaf = await StorageManager.getMushaf();
 
     setState(() {
       isDarkMode = dark;
@@ -45,13 +45,13 @@ class _SettingsState extends State<Settings> {
   }
 
   /// Update mushaf
-  // Future<void> _updateMushaf(String mushaf) async {
-  //   await StorageManager.saveMushaf(mushaf);
-  //
-  //   setState(() {
-  //     selectedMushaf = mushaf;
-  //   });
-  // }
+  Future<void> _updateMushaf(String mushaf) async {
+    await StorageManager.saveMushaf(mushaf);
+
+    setState(() {
+      selectedMushaf = mushaf;
+    });
+  }
 
   /// Switch row widget
   Widget _buildSwitch(String title, bool value) {
@@ -93,7 +93,7 @@ class _SettingsState extends State<Settings> {
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      //onTap: () => _updateMushaf(value),
+      onTap: () => _updateMushaf(value),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
@@ -277,6 +277,36 @@ class _SettingsState extends State<Settings> {
                   _buildSwitch(
                     'Dark Mode',
                     isDarkMode,
+                  ),
+                ],
+              ),
+            ),
+
+            /// Mushaf selector
+            _buildCard(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Mushaf',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _buildMushafOption(
+                    title: 'Madani (15 lines)',
+                    value: 'madani',
+                    previewImage: 'assets/mushaf/madani_preview.jpeg',
+                  ),
+
+                  _buildMushafOption(
+                    title: 'Indo-Pak (15 lines)',
+                    value: 'indopak',
+                    previewImage: 'assets/mushaf/indopak_tajweed_preview.png',
                   ),
                 ],
               ),
