@@ -304,7 +304,7 @@ class _SettingsState extends State<Settings> {
                   ),
 
                   _buildMushafOption(
-                    title: 'Indo-Pak (15 lines)',
+                    title: 'Indo-Pak Tajweed (13 lines)',
                     value: 'indopak',
                     previewImage: 'assets/mushaf/indopak_tajweed_preview.png',
                   ),
