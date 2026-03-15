@@ -21,13 +21,6 @@ class LoadingScreenState extends State<LoadingScreen> {
   @override
   void dispose() {
     _disposed = true;
-
-    for (final task in _activeTasks) {
-      try {
-        task.cancel();
-      } catch (_) {}
-    }
-
     _activeTasks.clear();
     super.dispose();
   }
@@ -138,7 +131,7 @@ class LoadingScreenState extends State<LoadingScreen> {
 
       print('Found ${items.length} pages in Firebase');
 
-      const int maxConcurrent = 16;
+      const int maxConcurrent = 8;
 
       int completedFiles = 0;
       final int totalFiles = items.length;
