@@ -164,7 +164,9 @@ class LoadingScreenState extends State<LoadingScreen> {
 
             try {
               await task;
-              existingFiles.add(item.name);
+              if (!_disposed) existingFiles.add(item.name);
+            } catch (e) {
+              print("Task failed or cancelled: $e");
             } finally {
               _activeTasks.remove(task);
             }
