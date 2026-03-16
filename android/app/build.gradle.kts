@@ -25,7 +25,7 @@ android {
         applicationId = "com.quran.quran_double_page"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 8
+        versionCode = 10
         versionName = "1.0"
     }
 
