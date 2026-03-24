@@ -12,7 +12,7 @@ class _SettingsState extends State<Settings> {
   bool isDarkMode = false;
 
   /// Selected Mushaf
-  String selectedMushaf = 'madani';
+  String selectedMushaf = 'indopak';
 
   /// Prevent UI rendering before async values load
   bool _loaded = false;
@@ -46,11 +46,39 @@ class _SettingsState extends State<Settings> {
 
   /// Update mushaf
   Future<void> _updateMushaf(String mushaf) async {
+    if (mushaf == selectedMushaf) return;
+
+    if (mushaf == 'madani') {
+      _showDownloadingDialog();
+      await StorageManager.ensureMadaniDownloaded();
+      Navigator.pop(context);
+    }
+
     await StorageManager.saveMushaf(mushaf);
 
     setState(() {
       selectedMushaf = mushaf;
     });
+  }
+
+  void _showDownloadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(
+                child: Text('Downloading Mushaf...'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   /// Switch row widget
@@ -83,7 +111,6 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  /// Mushaf selector option
   Widget _buildMushafOption({
     required String title,
     required String value,
@@ -91,50 +118,78 @@ class _SettingsState extends State<Settings> {
   }) {
     final bool isSelected = selectedMushaf == value;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
+    return GestureDetector(
       onTap: () => _updateMushaf(value),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 220,
+        margin: const EdgeInsets.only(right: 14),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
                 ? const Color.fromARGB(255, 2, 92, 50)
-                : Colors.grey.shade300,
-            width: 2,
+                : Colors.grey.withOpacity(0.2),
+            width: isSelected ? 2 : 1,
           ),
-          color: isSelected
-              ? const Color.fromARGB(255, 2, 92, 50).withOpacity(0.06)
-              : Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-        child: Row(
+        child: Column(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.asset(
-                previewImage,
-                width: 60,
-                height: 80,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    color: const Color(0xFFF5F5F5),
+                    child: Image.asset(
+                      previewImage,
+                      height: 170,
+                      width: double.infinity,
+                      fit: BoxFit.fill,
+                    ),
+                  ),
                 ),
+
+                if (isSelected)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Color.fromARGB(255, 2, 92, 50),
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: const Icon(
+                        Icons.check,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
             ),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle,
-                color: Color.fromARGB(255, 2, 92, 50),
-              ),
           ],
         ),
       ),
@@ -283,30 +338,49 @@ class _SettingsState extends State<Settings> {
             ),
 
             /// Mushaf selector
+            /// Mushaf selector
             _buildCard(
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Mushaf',
+                    'Mushaf Choice',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
 
-                  _buildMushafOption(
-                    title: 'Madani (15 lines)',
-                    value: 'madani',
-                    previewImage: 'assets/mushaf/madani_preview.jpeg',
+                  const Text(
+                    'Choose the Qur’an layout you prefer.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                    ),
                   ),
 
-                  _buildMushafOption(
-                    title: 'Indo-Pak Tajweed (13 lines)',
-                    value: 'indopak',
-                    previewImage: 'assets/mushaf/indopak_tajweed_preview.png',
+                  const SizedBox(height: 14),
+
+                  SizedBox(
+                    height: 250,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildMushafOption(
+                          title: 'Indo-Pak Tajweed (13 lines)',
+                          value: 'indopak',
+                          previewImage: 'assets/mushaf/indopak_tajweed_preview.png',
+                        ),
+                        _buildMushafOption(
+                          title: 'Madani (15 lines)',
+                          value: 'madani',
+                          previewImage: 'assets/mushaf/madani_preview.jpeg',
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

@@ -1,4 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:archive/archive.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
 import 'package:mushaf_two_page/utils/surah_mapper.dart';
@@ -92,5 +96,66 @@ class StorageManager {
   static Future<String> getMushaf() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('mushaf') ?? 'indopak_tajweed';
+  }
+
+  static Future<void> ensureMadaniDownloaded() async {
+    bool exists = await isMadaniDownloaded();
+
+    if (exists) return;
+
+    final zipFile = await downloadMadaniZip();
+
+    await unzipMadani(zipFile);
+
+    await markMadaniDownloaded();
+  }
+
+  static Future<bool> isMadaniDownloaded() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('madani_downloaded') ?? false;
+  }
+
+  static Future<void> downloadMadani() async {
+    /// download images / zip / assets etc
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('madani_downloaded', true);
+  }
+
+  static Future<File> downloadMadaniZip() async {
+    final ref = FirebaseStorage.instance.ref().child('Quran-images/quran_madani.zip');
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/quran_madani.zip');
+
+    await ref.writeToFile(file);
+
+    return file;
+  }
+
+  static Future<void> unzipMadani(File zipFile) async {
+    final bytes = await zipFile.readAsBytes();
+    final archive = ZipDecoder().decodeBytes(bytes);
+
+    final dir = await getApplicationDocumentsDirectory();
+    final outputDir = Directory('${dir.path}/madani');
+
+    if (!outputDir.existsSync()) {
+      outputDir.createSync(recursive: true);
+    }
+
+    for (final file in archive) {
+      final filename = '${outputDir.path}/${file.name}';
+
+      if (file.isFile) {
+        final outFile = File(filename);
+        await outFile.create(recursive: true);
+        await outFile.writeAsBytes(file.content);
+      }
+    }
+  }
+
+  static Future<void> markMadaniDownloaded() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('madani_downloaded', true);
   }
 }

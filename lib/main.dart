@@ -76,6 +76,7 @@ class MyPDFViewer extends StatefulWidget {
 
 class _MyPDFViewerState extends State<MyPDFViewer> {
   static const int TOTAL_PAGES = 851;
+  String _mushaf = 'indopak';
 
   late Directory _docDir;
   late PageController _pageController;
@@ -110,6 +111,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     debugPrint('[INIT] loading dirs / settings / state');
 
     _docDir = await getApplicationDocumentsDirectory();
+    _mushaf = await StorageManager.getMushaf();
     await _loadBookmarks();
 
     _pageScalePortrait = await StorageManager.getPageScalePortrait();
@@ -168,37 +170,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     });
   }
 
-  // -------------------------
-  // Page mapping (CRITICAL)
-  // -------------------------
-  //
-  // int _pageIndexFromLogical(int logical, bool portrait) {
-  //   if (portrait) {
-  //     debugPrint('[MAP] logical $logical -> index $logical (portrait)');
-  //     return logical;
-  //   }
-  //
-  //   // left page must be odd (1-based)
-  //   final left = logical.isOdd ? logical - 1 : logical;
-  //   final index = left ~/ 2;
-  //
-  //   debugPrint(
-  //     '[MAP] logical $logical -> left=$left -> spreadIndex=$index (landscape)',
-  //   );
-  //
-  //   return index;
-  // }
-  //
-  // int _logicalFromPageIndex(int index, bool portrait) {
-  //   final logical = portrait ? index : index * 2;
-  //
-  //   debugPrint(
-  //     '[MAP] index $index -> logical=$logical (portrait=$portrait)',
-  //   );
-  //
-  //   return logical;
-  // }
-
   int _pageCount(bool portrait) {
     final count =
     portrait ? TOTAL_PAGES : (TOTAL_PAGES / 2).ceil();
@@ -211,6 +182,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   String imagePath(int logicalPage) {
+    if (_mushaf == 'madani') {
+      return '${_docDir.path}/madani/${logicalPage + 1}.jpg';
+    }
+
     return '${_docDir.path}/quran/13line/'
         'quran_13line_tajweed-${logicalPage + 1}.webp';
   }
@@ -467,6 +442,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                             '[SETTINGS] changed, reloading flags',
                           );
                           await MyApp.of(context)?.reloadTheme();
+                          final mushaf = await StorageManager.getMushaf();
+
+                          if (mushaf != _mushaf) {
+                            setState(() {
+                              _mushaf = mushaf;
+                            });
+                          }
                         },
                       ),
                     ],
