@@ -14,16 +14,24 @@ class PageMapper {
   ///
   /// Landscape:
   ///   Each spread represents two pages, so divide by 2 if coming from portrait
-  static int orientationMapper(int currentPage, bool isPortrait) {
-    return isPortrait
-        ? (currentPage * 2).toInt()
-        : (currentPage ~/ 2);
+  // static int orientationMapper(int currentPage, bool isPortrait) {
+  //   return isPortrait
+  //       ? (currentPage * 2).toInt()
+  //       : (currentPage ~/ 2);
+  // }
+
+  // static int sliderMapper(int currentPage, bool isPortrait) {
+  //   return isPortrait
+  //       ? (currentPage )
+  //       : (currentPage );
+  // }
+
+  static int indoPakToMadani(int page) {
+    return ((page / 851) * 624).round();
   }
 
-  static int sliderMapper(int currentPage, bool isPortrait) {
-    return isPortrait
-        ? (currentPage )
-        : (currentPage );
+  static int madaniToIndoPak(int page) {
+    return ((page / 624) * 851).round();
   }
 
   /// Maps a bookmarked page when navigating to it

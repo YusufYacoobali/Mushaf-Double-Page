@@ -170,9 +170,17 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     });
   }
 
+  int get totalPages {
+    if (_mushaf == 'madani') return 625;
+    return 852; // indopak_tajweed
+  }
+
   int _pageCount(bool portrait) {
-    final count =
-    portrait ? TOTAL_PAGES : (TOTAL_PAGES / 2).ceil();
+    final pages = totalPages;
+
+    final count = portrait
+        ? pages
+        : (pages / 2).ceil();
 
     debugPrint(
       '[LAYOUT] pageCount=$count portrait=$portrait',
@@ -300,7 +308,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     spreadIndex: index,
                     pageScale: _pageScaleLandscape,
                     imagePath: imagePath,
-                    totalPages: TOTAL_PAGES,
+                    totalPages: totalPages,
                   );
                 },
               ),
@@ -369,11 +377,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           SurahJuzNavigator.show(
                             context: context,
                             onJumpToPage: (page) {
-                              // _pageController.animateToPage(
-                              //   page,
-                              //   duration: const Duration(milliseconds: 350),
-                              //   curve: Curves.easeOutCubic,
-                              // );
                               final actualPage = PageMapper.bookmarkGoToMapper(
                                 page,
                                 _isPortrait,
@@ -387,7 +390,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                               debugPrint('[NAV] logical page returned $logical');
 
                               setState(() => _logicalPage = logical);
-                            },
+                            }, mushaf: _mushaf,
                           );
                         },
                       ),
@@ -441,11 +444,27 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           await MyApp.of(context)?.reloadTheme();
                           final mushaf = await StorageManager.getMushaf();
                           debugPrint('[MUSHAF] Current mushaf $_mushaf');
+
                           if (mushaf != _mushaf) {
-                            debugPrint('[MUSHAF] Current mushaf changed to $_mushaf');
+
+                            debugPrint('[MUSHAF] Mushaf changed: $_mushaf -> $mushaf');
+
+                            // convert page BEFORE switching mushaf
+                            if (_mushaf == 'indopak_tajweed' && mushaf == 'madani') {
+                              _logicalPage = ((_logicalPage / 851) * 624).round();
+                            }
+
+                            if (_mushaf == 'madani' && mushaf == 'indopak_tajweed') {
+                              _logicalPage = ((_logicalPage / 624) * 851).round();
+                            }
+
+                            final newIndex = PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
+
                             setState(() {
                               _mushaf = mushaf;
                             });
+
+                            _pageController.jumpToPage(newIndex);
                           }
                         },
                       ),
