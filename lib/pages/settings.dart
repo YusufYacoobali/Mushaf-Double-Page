@@ -50,7 +50,7 @@ class _SettingsState extends State<Settings> {
 
     if (mushaf == 'madani') {
       _showDownloadingDialog();
-      await StorageManager.ensureMadaniDownloaded();
+      await StorageManager.ensureMushafDownloaded("madani", 2,);
       Navigator.pop(context);
     }
 
@@ -371,7 +371,7 @@ class _SettingsState extends State<Settings> {
                       children: [
                         _buildMushafOption(
                           title: 'Indo-Pak Tajweed (13 lines)',
-                          value: 'indopak',
+                          value: 'indopak_tajweed',
                           previewImage: 'assets/mushaf/indopak_tajweed_preview.png',
                         ),
                         _buildMushafOption(

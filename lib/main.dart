@@ -182,12 +182,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   String imagePath(int logicalPage) {
-    if (_mushaf == 'madani') {
-      return '${_docDir.path}/madani/${logicalPage + 1}.jpg';
-    }
-
-    return '${_docDir.path}/quran/13line/'
-        'quran_13line_tajweed-${logicalPage + 1}.webp';
+    debugPrint('[MUSHAF] Current mushaf $_mushaf');
+    return '${_docDir.path}/$_mushaf/${logicalPage}.webp';
   }
 
   // -------------------------
@@ -274,6 +270,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
               PageView.builder(
                 key: ValueKey(_isPortrait),
                 controller: _pageController,
+                reverse: true,
                 physics: const ClampingScrollPhysics(),
                 itemCount: pageCount,
                 onPageChanged: (index) {
@@ -443,8 +440,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           );
                           await MyApp.of(context)?.reloadTheme();
                           final mushaf = await StorageManager.getMushaf();
-
+                          debugPrint('[MUSHAF] Current mushaf $_mushaf');
                           if (mushaf != _mushaf) {
+                            debugPrint('[MUSHAF] Current mushaf changed to $_mushaf');
                             setState(() {
                               _mushaf = mushaf;
                             });

@@ -22,8 +22,8 @@ class PageMapper {
 
   static int sliderMapper(int currentPage, bool isPortrait) {
     return isPortrait
-        ? (totalPages - currentPage )
-        : (totalPages - currentPage );
+        ? (currentPage )
+        : (currentPage );
   }
 
   /// Maps a bookmarked page when navigating to it
@@ -32,13 +32,13 @@ class PageMapper {
   /// so we subtract from totalPages before applying orientation logic
   static int bookmarkGoToMapper(int currentPage, bool isPortrait) {
     return isPortrait
-        ? (totalPages - currentPage)
-        : ((totalPages - currentPage) ~/ 2);
+        ? (currentPage)
+        : ((currentPage) ~/ 2);
   }
 
   /// Maps the page number when adding a new bookmark
   static int bookmarkAddMapper(int currentPage, bool isPortrait) {
-    return totalPages - currentPage;
+    return currentPage;
   }
 
   static int pageIndexFromLogical(int logical, bool portrait) {
