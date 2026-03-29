@@ -83,10 +83,10 @@ class QuranPageView {
         Widget? rightPage;
 
         if (leftIndex < totalPages) {
-          leftPage = SizedBox(width: pageWidth, child: buildPage(leftIndex));
+          leftPage = SizedBox(width: pageWidth, child: buildPage(rightIndex));
         }
         if (rightIndex < totalPages) {
-          rightPage = SizedBox(width: pageWidth, child: buildPage(rightIndex));
+          rightPage = SizedBox(width: pageWidth, child: buildPage(leftIndex));
         }
 
         return SingleChildScrollView(
