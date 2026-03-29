@@ -22,15 +22,6 @@ String surahNameFromPage(int pageNumber, String mushaf) {
   return "Surah";
 }
 
-// String surahNameFromPage(int pageNumber) {
-//   for (final entry in surahRanges) {
-//     if (pageNumber >= entry.start && pageNumber <= entry.end) {
-//       return entry.name;
-//     }
-//   }
-//   return "Surah";
-// }
-
 int pageFromSurah(int surah, String mushaf) {
   final ranges = getSurahRanges(mushaf);
   final entry = ranges.firstWhere(
@@ -173,9 +164,9 @@ const List<_SurahRange> madaniSurahRanges = [
   _SurahRange(0, 0, 3, "Start", "Start"),
   _SurahRange(1, 4, 4, "Al-Fatiha", "The Opening"),
   _SurahRange(2, 5, 69, "Al-Baqarah", "The Cow"),
-  _SurahRange(3, 70, 107, "Aal-E-Imran", "Family of Imran"),
-  _SurahRange(4, 108, 148, "An-Nisa", "The Women"),
-  _SurahRange(5, 149, 178, "Al-Maidah", "The Table Spread"),
+  _SurahRange(3, 53, 79, "Aal-E-Imran", "Family of Imran"),
+  _SurahRange(4, 80, 130, "An-Nisa", "The Women"),
+  _SurahRange(5, 131, 178, "Al-Maidah", "The Table Spread"),
   _SurahRange(6, 179, 210, "Al-Anam", "The Cattle"),
   _SurahRange(7, 211, 247, "Al-Araf", "The Heights"),
   _SurahRange(8, 248, 261, "Al-Anfal", "The Spoils of War"),

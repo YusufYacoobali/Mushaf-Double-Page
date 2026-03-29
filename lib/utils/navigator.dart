@@ -92,6 +92,7 @@ class _PanelState extends State<_Panel>
                 child: _tabs.index == 0
                     ? SurahList(
                   key: const ValueKey("surah"),
+                  widget.onJumpToPage,
                   mushaf: widget.mushaf,
                   onJump: widget.onJumpToPage,
                 )
@@ -99,6 +100,7 @@ class _PanelState extends State<_Panel>
                   key: const ValueKey("juz"),
                   widget.onJumpToPage,
                   onJump: widget.onJumpToPage,
+                  mushaf: widget.mushaf,
                 ),
               ),
             ),

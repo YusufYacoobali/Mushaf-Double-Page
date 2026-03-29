@@ -7,7 +7,7 @@ class SurahList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
   final String mushaf;
 
-  const SurahList({
+  const SurahList(void Function(int pageIndex) onJumpToPage,{
     super.key,
     required this.onJump,
     required this.mushaf,

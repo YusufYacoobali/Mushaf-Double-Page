@@ -134,7 +134,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   Future<void> _loadBookmarks() async {
-    final data = await StorageManager.getBookmarks();
+    final data = await StorageManager.getBookmarks(_mushaf);
     _bookmarks
       ..clear()
       ..addAll(data);
@@ -230,7 +230,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
     if (_bookmarks.any((b) => b.pageNumber == pageNumber)) return;
 
-    setState(() => _bookmarks.add(Bookmark(pageNumber: pageNumber)));
+    setState(() => _bookmarks.add(Bookmark(pageNumber: pageNumber, mushaf: _mushaf)));
     StorageManager.saveBookmarks(_bookmarks);
   }
 

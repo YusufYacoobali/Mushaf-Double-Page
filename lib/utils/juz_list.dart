@@ -4,11 +4,13 @@ import 'juz_mapper.dart';
 
 class JuzList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
+  final String mushaf;
 
-  const JuzList(void Function(int pageIndex) onJumpToPage, {super.key, required this.onJump});
+  const JuzList(void Function(int pageIndex) onJumpToPage, {super.key, required this.onJump,  required this.mushaf});
 
   @override
   Widget build(BuildContext context) {
+    final juzRanges = getJuzRanges(mushaf);
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: juzRanges.length,
@@ -20,7 +22,7 @@ class JuzList extends StatelessWidget {
           title: "Juz ${juz.juz}",
           onTap: () {
             Navigator.pop(context);
-            onJump(pageFromJuz(juz.juz));
+            onJump(pageFromJuz(juz.juz, mushaf));
           },
         );
       },

@@ -2,27 +2,25 @@ import '../utils/surah_mapper.dart';
 
 class Bookmark {
   final int pageNumber;
+  final String mushaf;
   String? surah;
 
-  /// Creates a Bookmark instance
-  /// Surah uses mapper to get value from page number
   Bookmark({
     required this.pageNumber,
+    required this.mushaf,
     String? surah,
-  }) : surah = surah ?? surahNameFromPage(pageNumber);
+  }) : surah = surah ?? surahNameFromPage(pageNumber, mushaf);
 
-  /// Converts this Bookmark into a Map, Serializes it
-  /// Used for local storage (e.g. SharedPreferences, JSON)
   Map<String, dynamic> toMap() => {
     'pageNumber': pageNumber,
     'surah': surah,
+    'mushaf': mushaf,
   };
 
-  /// Creates a Bookmark instance from stored data, Deserializes it
-  /// Used when reading from local storage
   factory Bookmark.fromMap(Map<String, dynamic> map) {
     return Bookmark(
       pageNumber: map['pageNumber'],
+      mushaf: map['mushaf'] ?? "indopak_tajweed",
       surah: map['surah'],
     );
   }

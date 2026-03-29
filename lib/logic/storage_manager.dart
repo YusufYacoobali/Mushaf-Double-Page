@@ -44,7 +44,7 @@ class StorageManager {
 
   /// Retrieves all saved bookmarks
   /// Returns an empty list if none exist
-  static Future<List<Bookmark>> getBookmarks() async {
+  static Future<List<Bookmark>> getBookmarks(String mushaf) async {
     final prefs = await SharedPreferences.getInstance();
 
     final List<String>? jsonList = prefs.getStringList(_kBookmarkKey);
@@ -54,7 +54,7 @@ class StorageManager {
       final bookmark = Bookmark.fromMap(jsonDecode(jsonStr));
 
       // Fill surah if it was null
-      bookmark.surah ??= surahNameFromPage(bookmark.pageNumber);
+      bookmark.surah ??= surahNameFromPage(bookmark.pageNumber, mushaf);
       return bookmark;
     }).toList();
   }
