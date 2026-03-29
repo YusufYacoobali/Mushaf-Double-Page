@@ -75,7 +75,6 @@ class MyPDFViewer extends StatefulWidget {
 }
 
 class _MyPDFViewerState extends State<MyPDFViewer> {
-  static const int TOTAL_PAGES = 851;
   String _mushaf = 'indopak';
 
   late Directory _docDir;

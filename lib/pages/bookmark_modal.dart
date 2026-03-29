@@ -33,7 +33,7 @@ class BookmarksModal {
                     : screenHeight * 0.65) +
                     bottomInset,
                 decoration: const BoxDecoration(
-                  color: Color.fromARGB(255, 235, 243, 236),
+                  color: Color.fromARGB(255, 17, 38, 8),
                   borderRadius:
                   BorderRadius.vertical(top: Radius.circular(22)),
                   boxShadow: [
@@ -68,10 +68,10 @@ class BookmarksModal {
                             onAddBookmark();
                             setModalState(() {});
                           },
-                          icon: const Icon(Icons.bookmark_add_rounded),
-                          label: const Text('Bookmark this page'),
+                          icon: const Icon(Icons.bookmark_add_rounded, color: Colors.black,),
+                          label: const Text('Bookmark this page', style: TextStyle(color: Colors.black),),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.surface,
+                            backgroundColor:  Color.fromARGB(255, 235, 243, 236),
                             foregroundColor: Theme.of(context).colorScheme.onSurface,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(

@@ -9,6 +9,10 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
+
+  static const _darkBg = Color.fromARGB(255, 17, 38, 8);
+  static const _lightBg = Color.fromARGB(255, 235, 243, 236);
+
   bool isDarkMode = false;
 
   /// Selected Mushaf
@@ -50,7 +54,7 @@ class _SettingsState extends State<Settings> {
 
     if (mushaf == 'madani') {
       _showDownloadingDialog();
-      await StorageManager.ensureMushafDownloaded("madani", 2,);
+      await StorageManager.ensureMushafDownloaded("madani", 2);
       Navigator.pop(context);
     }
 
@@ -81,8 +85,7 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  /// Switch row widget
-  Widget _buildSwitch(String title, bool value) {
+  Widget _buildSwitch(String title, bool value, Color textColor) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => _updateDarkMode(!value),
@@ -93,10 +96,10 @@ class _SettingsState extends State<Settings> {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: textColor,
                 ),
               ),
             ),
@@ -115,7 +118,10 @@ class _SettingsState extends State<Settings> {
     required String title,
     required String value,
     required String previewImage,
+    required bool isDark,
+    required Color textPrimary,
   }) {
+
     final bool isSelected = selectedMushaf == value;
 
     return GestureDetector(
@@ -126,7 +132,7 @@ class _SettingsState extends State<Settings> {
         margin: const EdgeInsets.only(right: 14),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF1E2A1B) : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
@@ -184,10 +190,10 @@ class _SettingsState extends State<Settings> {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
+                color: textPrimary,
               ),
             ),
           ],
@@ -196,13 +202,12 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  /// Card container
-  Widget _buildCard(Widget child) {
+  Widget _buildCard(Widget child, Color cardColor) {
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFBFBFB),
+        color: cardColor,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
@@ -218,48 +223,57 @@ class _SettingsState extends State<Settings> {
 
   @override
   Widget build(BuildContext context) {
+
     if (!_loaded) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    final isDark = isDarkMode;
+    final bg = isDark ? _darkBg : _lightBg;
+    final textPrimary = isDark ? Colors.white : Colors.black87;
+    final textSecondary = isDark ? Colors.black : Colors.black;
+    final cardColor = isDark ? _lightBg : const Color(0xFFFBFBFB);
+
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 235, 243, 236),
+      backgroundColor: bg,
+
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 235, 243, 236),
+        backgroundColor: bg,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleSpacing: 20,
-        title: const Text(
+        title: Text(
           'Settings',
           style: TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF1F4F4F),
-            letterSpacing: 0.2,
+            color: textPrimary,
           ),
         ),
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
             size: 20,
-            color: Color(0xFF1F4F4F),
+            color: textPrimary,
           ),
           onPressed: () => Navigator.pop(context, true),
         ),
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// Info card
+
             _buildCard(
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
+
+                  const Center(
                     child: Text(
                       'السلام عليكم ورحمة الله وبركاته',
                       style: TextStyle(
@@ -270,95 +284,93 @@ class _SettingsState extends State<Settings> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 24),
+
+                  const SizedBox(height: 24),
 
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.bookmark_rounded,
                         size: 28,
                         color: Color.fromARGB(255, 2, 92, 50),
                       ),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 10),
                       Text(
                         'Using bookmarks',
                         style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: textSecondary,
                         ),
                       ),
                     ],
                   ),
 
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
                   Text(
                     'Save pages while reading and jump back to them later using the bookmarks icon.',
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                    style: TextStyle(fontSize: 16, color: textSecondary),
                   ),
 
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   Row(
                     children: [
-                      Icon(Icons.star_rounded, size: 28, color: Color(0xFFD9B44A)),
-                      SizedBox(width: 10),
+                      const Icon(Icons.star_rounded, size: 28, color: Color(0xFFD9B44A)),
+                      const SizedBox(width: 10),
                       Text(
                         'Support the app',
                         style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: textSecondary
                         ),
                       ),
                     ],
                   ),
 
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
                   Text(
                     'Leaving a positive review helps us continue improving the app.',
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                    style: TextStyle(fontSize: 16, color: textSecondary),
                   ),
                 ],
               ),
+              cardColor,
             ),
 
-            /// Appearance
             _buildCard(
               Column(
                 children: [
-                  _buildSwitch(
-                    'Dark Mode',
-                    isDarkMode,
-                  ),
+                  _buildSwitch('Dark Mode', isDarkMode, textSecondary),
                 ],
               ),
+              cardColor,
             ),
 
-            /// Mushaf selector
-            /// Mushaf selector
             _buildCard(
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+
+                  Text(
                     'Mushaf Choice',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+                      color: textSecondary,
                     ),
                   ),
 
                   const SizedBox(height: 6),
 
-                  const Text(
+                  Text(
                     'Choose the Qur’an layout you prefer.',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black54,
+                      color: textSecondary,
                     ),
                   ),
 
@@ -369,22 +381,31 @@ class _SettingsState extends State<Settings> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
+
                         _buildMushafOption(
                           title: 'Indo-Pak Tajweed (13 lines)',
                           value: 'indopak_tajweed',
                           previewImage: 'assets/mushaf/indopak_tajweed_preview.png',
+                          isDark: isDark,
+                          textPrimary: textPrimary,
                         ),
+
                         _buildMushafOption(
                           title: 'Madani (15 lines)',
                           value: 'madani',
-                          previewImage: 'assets/mushaf/madani_preview.jpeg',
+                          previewImage: 'assets/mushaf/madani_preview.png',
+                          isDark: isDark,
+                          textPrimary: textPrimary,
                         ),
+
                       ],
                     ),
                   ),
                 ],
               ),
+              cardColor,
             ),
+
           ],
         ),
       ),

@@ -38,7 +38,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       child: Material(
-        color: theme.colorScheme.surface,
+        color:  Color.fromARGB(255, 235, 243, 236),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -85,13 +85,14 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
+                          color: Colors.black
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Page ${widget.bookmark.pageNumber}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(.6),
+                          color: Colors.black,
                         ),
                       ),
                     ],
@@ -107,7 +108,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                     child: Icon(
                       Icons.close_rounded,
                       size: 20,
-                      color: theme.colorScheme.onSurface.withOpacity(.45),
+                      color: Colors.black.withOpacity(.45),
                     ),
                   ),
                 ),

@@ -52,7 +52,8 @@ class _LoadingScreenState extends State<LoadingScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
+          child: Center(
+            child: Column(
             children: [
 
               const Spacer(flex: 3),
@@ -125,7 +126,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
             ],
           ),
         ),
-      ),
+      ),)
     );
   }
 }
