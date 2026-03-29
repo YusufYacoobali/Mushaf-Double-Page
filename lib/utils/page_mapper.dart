@@ -34,11 +34,6 @@ class PageMapper {
         : ((currentPage) ~/ 2);
   }
 
-  /// Maps the page number when adding a new bookmark
-  // static int bookmarkAddMapper(int currentPage, bool isPortrait) {
-  //   return currentPage;
-  // }
-
   static int pageIndexFromLogical(int logical, bool portrait) {
     if (portrait) {
       debugPrint('[MAP] logical $logical -> index $logical (portrait)');

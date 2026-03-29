@@ -272,7 +272,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
             _pageController.dispose();
             _pageController =
-                PageController(initialPage: _logicalPage);
+                PageController(initialPage: newIndex);
           }
 
           final pageCount = _pageCount(_isPortrait);
