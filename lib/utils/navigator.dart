@@ -130,7 +130,6 @@ class _BottomSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const bg = Color.fromARGB(255, 220, 232, 224);
-    const active = Color(0xFF025C32);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),

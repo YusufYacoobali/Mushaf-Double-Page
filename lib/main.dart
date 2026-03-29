@@ -61,7 +61,9 @@ class _MyAppState extends State<MyApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: _darkMode ? ThemeData.dark() : ThemeData.light(),
+      theme: _darkMode ? ThemeData.dark() : ThemeData.light().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+      ),
       home: const LoadingScreen(),
     );
   }
@@ -91,6 +93,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   bool _isScrollbarVisible = true;
   Timer? _hideScrollbarTimer;
+
 
   final List<Bookmark> _bookmarks = [];
 
@@ -245,6 +248,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       );
     }
 
+    final darkMode = MyApp.of(context)?._darkMode ?? false;
+
     return Scaffold(
       body: OrientationBuilder(
         builder: (context, orientation) {
@@ -302,12 +307,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     logicalPage: index,
                     pageScale: _pageScalePortrait,
                     imagePath: imagePath,
+                    isDarkMode: darkMode,
                   )
                       : QuranPageView.doublePage(
                     spreadIndex: index,
                     pageScale: _pageScaleLandscape,
                     imagePath: imagePath,
                     totalPages: totalPages,
+                    isDarkMode: darkMode
                   );
                 },
               ),
@@ -441,6 +448,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                             '[SETTINGS] changed, reloading flags',
                           );
                           await MyApp.of(context)?.reloadTheme();
+
                           final mushaf = await StorageManager.getMushaf();
                           debugPrint('[MUSHAF] Current mushaf $_mushaf');
 
@@ -465,6 +473,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                             await _loadBookmarks();
                             _pageController.jumpToPage(newIndex);
                           }
+                          setState(() {});
                         },
                       ),
                     ],
