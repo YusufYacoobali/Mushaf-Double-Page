@@ -4,8 +4,8 @@ import 'package:flutter/cupertino.dart';
 /// between portrait (single page) and landscape (two-page) modes
 class PageMapper {
   /// Total number of spreads in Portrait and landscape (two-page) mode
-  static const int totalPages = 851;
-  static const int totalPagesHorizontal = 426;
+  // static const int totalPages = 851;
+  // static const int totalPagesHorizontal = 426;
 
   /// Maps the current page index when orientation changes
   ///
@@ -14,17 +14,7 @@ class PageMapper {
   ///
   /// Landscape:
   ///   Each spread represents two pages, so divide by 2 if coming from portrait
-  // static int orientationMapper(int currentPage, bool isPortrait) {
-  //   return isPortrait
-  //       ? (currentPage * 2).toInt()
-  //       : (currentPage ~/ 2);
-  // }
 
-  // static int sliderMapper(int currentPage, bool isPortrait) {
-  //   return isPortrait
-  //       ? (currentPage )
-  //       : (currentPage );
-  // }
 
   static int indoPakToMadani(int page) {
     return ((page / 851) * 624).round();
@@ -45,9 +35,9 @@ class PageMapper {
   }
 
   /// Maps the page number when adding a new bookmark
-  static int bookmarkAddMapper(int currentPage, bool isPortrait) {
-    return currentPage;
-  }
+  // static int bookmarkAddMapper(int currentPage, bool isPortrait) {
+  //   return currentPage;
+  // }
 
   static int pageIndexFromLogical(int logical, bool portrait) {
     if (portrait) {

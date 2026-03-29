@@ -88,7 +88,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   double _pageScaleLandscape = 0.7; // slightly smaller to fit side-by-side
 
   /// 🔑 single source of truth
-  int _logicalPage = 0; // 0-based mushaf page
+  int _logicalPage = 1; // 0-based mushaf page
 
   bool _isScrollbarVisible = true;
   Timer? _hideScrollbarTimer;
@@ -191,6 +191,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   String imagePath(int logicalPage) {
     debugPrint('[MUSHAF] Current mushaf $_mushaf');
+    logicalPage = logicalPage.clamp(1, totalPages);
     return '${_docDir.path}/$_mushaf/${logicalPage}.webp';
   }
 
@@ -221,11 +222,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _addBookmark() {
-    final pageNumber =
-    PageMapper.bookmarkAddMapper(_logicalPage, _isPortrait);
+    final pageNumber =_logicalPage;
 
     debugPrint(
-      '[BOOKMARK] add logical=$_logicalPage mapped=$pageNumber',
+      '[BOOKMARK] add logical=$_logicalPage mapped=$pageNumber mushaf $_mushaf',
     );
 
     if (_bookmarks.any((b) => b.pageNumber == pageNumber)) return;
@@ -268,7 +268,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
             _pageController.dispose();
             _pageController =
-                PageController(initialPage: newIndex);
+                PageController(initialPage: _logicalPage);
           }
 
           final pageCount = _pageCount(_isPortrait);
@@ -463,7 +463,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                             setState(() {
                               _mushaf = mushaf;
                             });
-
+                            await _loadBookmarks();
                             _pageController.jumpToPage(newIndex);
                           }
                         },

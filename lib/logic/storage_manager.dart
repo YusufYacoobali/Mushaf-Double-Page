@@ -30,33 +30,79 @@ class StorageManager {
   /// Defaults to 0 if no value has been stored yet
   static Future<int> getCurrentPage() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_kCurrentPageKey) ?? 0;
+    return prefs.getInt(_kCurrentPageKey) ?? 1;
   }
 
   /// Persists the list of bookmarks
   /// Each bookmark is stored as a JSON string
   static Future<void> saveBookmarks(List<Bookmark> bookmarks) async {
     final prefs = await SharedPreferences.getInstance();
-    final List<String> jsonList =
-    bookmarks.map((b) => jsonEncode(b.toMap())).toList();
+
+    final List<String>? existingJson = prefs.getStringList(_kBookmarkKey);
+
+    final existing = existingJson == null
+        ? <Bookmark>[]
+        : existingJson
+        .map((e) => Bookmark.fromMap(jsonDecode(e)))
+        .toList();
+
+    if (bookmarks.isNotEmpty) {
+      final mushaf = bookmarks.first.mushaf;
+
+      // remove old bookmarks for this mushaf only
+      existing.removeWhere((b) => b.mushaf == mushaf);
+
+      // add the updated ones
+      existing.addAll(bookmarks);
+    }
+
+    final jsonList = existing
+        .map((b) => jsonEncode(b.toMap()))
+        .toList();
+
     await prefs.setStringList(_kBookmarkKey, jsonList);
+
+    debugPrint('[BOOKMARK] saved total ${existing.length}');
   }
 
   /// Retrieves all saved bookmarks
   /// Returns an empty list if none exist
-  static Future<List<Bookmark>> getBookmarks(String mushaf) async {
+  static Future<List<Bookmark>> getBookmarks(String currentMushaf) async {
     final prefs = await SharedPreferences.getInstance();
 
+    debugPrint('[BOOKMARK] requested mushaf: $currentMushaf');
+
     final List<String>? jsonList = prefs.getStringList(_kBookmarkKey);
-    if (jsonList == null) return [];
 
-    return jsonList.map((jsonStr) {
-      final bookmark = Bookmark.fromMap(jsonDecode(jsonStr));
+    if (jsonList == null) {
+      debugPrint('[BOOKMARK] no bookmarks stored');
+      return [];
+    }
 
-      // Fill surah if it was null
-      bookmark.surah ??= surahNameFromPage(bookmark.pageNumber, mushaf);
+    debugPrint('[BOOKMARK] raw stored count: ${jsonList.length}');
+
+    final bookmarks = jsonList
+        .map((jsonStr) {
+      final map = jsonDecode(jsonStr);
+      final bookmark = Bookmark.fromMap(map);
+
+      debugPrint(
+        '[BOOKMARK] loaded page=${bookmark.pageNumber} mushaf=${bookmark.mushaf}',
+      );
+
       return bookmark;
-    }).toList();
+    })
+        .toList();
+
+    final filtered = bookmarks
+        .where((b) => b.mushaf == currentMushaf)
+        .toList();
+
+    debugPrint(
+      '[BOOKMARK] after filter for "$currentMushaf": ${filtered.length}',
+    );
+
+    return filtered;
   }
 
   static Future<bool> getDarkMode() async {

@@ -52,7 +52,7 @@ class QuranPageView {
               SizedBox(
                 width: pageWidth,
                 child: Image.file(
-                  File(imagePath(leftIndex)),
+                  File(imagePath(rightIndex)),
                   fit: BoxFit.contain,
                 ),
               ),
@@ -62,7 +62,7 @@ class QuranPageView {
                 SizedBox(
                   width: pageWidth,
                   child: Image.file(
-                    File(imagePath(rightIndex)),
+                    File(imagePath(leftIndex)),
                     fit: BoxFit.contain,
                   ),
                 ),
