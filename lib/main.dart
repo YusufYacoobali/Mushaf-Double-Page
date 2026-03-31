@@ -193,7 +193,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   String imagePath(int logicalPage) {
     debugPrint('[MUSHAF] Current mushaf $_mushaf');
-    logicalPage = logicalPage.clamp(1, totalPages);
+    logicalPage = logicalPage.clamp(1, totalPages-1);
     return '${_docDir.path}/$_mushaf/${logicalPage}.webp';
   }
 

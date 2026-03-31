@@ -137,13 +137,13 @@ class StorageManager {
 
   static Future<void> saveMushaf(String mushaf) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('mushafTest1', mushaf);
+    await prefs.setString('mushaf', mushaf);
     debugPrint('[MUSHAF] Saved mushaf $mushaf');
   }
 
   static Future<String> getMushaf() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('mushafTest1') ?? 'indopak_tajweed';
+    return prefs.getString('mushaf') ?? 'indopak_tajweed';
   }
 
   static Future<void> ensureMushafDownloaded(

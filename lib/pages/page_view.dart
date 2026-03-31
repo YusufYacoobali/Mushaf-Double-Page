@@ -95,8 +95,8 @@ class QuranPageView {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (leftPage != null) leftPage,
-              if (leftPage != null && rightPage != null) const SizedBox(width: 1),
               if (rightPage != null) rightPage,
+              if (leftPage != null && rightPage != null) const SizedBox(width: 1),
             ],
           ),
         );

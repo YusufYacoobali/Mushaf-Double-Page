@@ -9,7 +9,9 @@ class Bookmark {
     required this.pageNumber,
     required this.mushaf,
     String? surah,
-  }) : surah = surah ?? surahNameFromPage(pageNumber, mushaf);
+  }) : surah = surahNameFromPage(pageNumber, mushaf)
+  {print("Bookmark mushaf=$mushaf page=$pageNumber surah=$surah");}
+
 
   Map<String, dynamic> toMap() => {
     'pageNumber': pageNumber,
@@ -17,11 +19,22 @@ class Bookmark {
     'mushaf': mushaf,
   };
 
+  // factory Bookmark.fromMap(Map<String, dynamic> map) {
+  //   return Bookmark(
+  //     pageNumber: map['pageNumber'],
+  //     mushaf: map['mushaf'] ?? "indopak_tajweed",
+  //     surah: surahNameFromPage(page, mushaf),
+  //   );
+  // }
+
   factory Bookmark.fromMap(Map<String, dynamic> map) {
+    final mushaf = map['mushaf'] ?? "indopak_tajweed";
+    final page = map['pageNumber'];
+
     return Bookmark(
-      pageNumber: map['pageNumber'],
-      mushaf: map['mushaf'] ?? "indopak_tajweed",
-      surah: map['surah'],
+      pageNumber: page,
+      mushaf: mushaf,
+      surah: surahNameFromPage(page, mushaf),
     );
   }
 }
