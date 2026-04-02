@@ -1,5 +1,21 @@
-String surahNameFromPage(int pageNumber) {
-  for (final entry in surahRanges) {
+import 'package:mushaf_two_page/utils/page_mapper.dart';
+
+List<_SurahRange> getSurahRanges(String mushaf) {
+  print("SURAH MAPPER ]] Surah lookup mushaf=$mushaf");
+  switch (mushaf) {
+    case "madani":
+      return madaniSurahRanges;
+    case "indopak":
+      return IndopakSurahRanges;
+    default:
+      return IndopakSurahRanges;
+  }
+}
+
+String surahNameFromPage(int pageNumber, String mushaf) {
+  final ranges = getSurahRanges(mushaf);
+
+  for (final entry in ranges) {
     if (pageNumber >= entry.start && pageNumber <= entry.end) {
       return entry.name;
     }
@@ -7,12 +23,13 @@ String surahNameFromPage(int pageNumber) {
   return "Surah";
 }
 
-int pageFromSurah(int surah) {
-  final entry = surahRanges.firstWhere(
+int pageFromSurah(int surah, String mushaf) {
+  final ranges = getSurahRanges(mushaf);
+  final entry = ranges.firstWhere(
         (e) => e.surah == surah,
-    orElse: () => surahRanges[0],
+    orElse: () => ranges[0],
   );
-  return 851 - entry.start;
+  return entry.start;
 }
 
 class _SurahRange {
@@ -25,7 +42,7 @@ class _SurahRange {
   const _SurahRange(this.surah, this.start, this.end, this.name, this.english);
 }
 
-const List<_SurahRange> surahRanges = [
+const List<_SurahRange> IndopakSurahRanges = [
   _SurahRange(0, 0, 3, "Start", "Start"),
   _SurahRange(1, 4, 4, "Al-Fatiha", "The Opening"),
   _SurahRange(2, 5, 69, "Al-Baqarah", "The Cow"),
@@ -141,4 +158,124 @@ const List<_SurahRange> surahRanges = [
   _SurahRange(112, 849, 849, "Al-Ikhlas", "Sincerity"),
   _SurahRange(113, 849, 850, "Al-Falaq", "The Daybreak"),
   _SurahRange(114, 850, 850, "An-Nas", "Mankind"),
+];
+
+
+const List<_SurahRange> madaniSurahRanges = [
+  _SurahRange(0, 0, 3, "Start", "Start"),
+  _SurahRange(1, 4, 4, "Al-Fatiha", "The Opening"),
+  _SurahRange(2, 5, 52, "Al-Baqarah", "The Cow"),
+  _SurahRange(3, 53, 79, "Aal-E-Imran", "Family of Imran"),
+  _SurahRange(4, 80, 108, "An-Nisa", "The Women"),
+  _SurahRange(5, 109, 130, "Al-Maidah", "The Table Spread"),
+  _SurahRange(6, 131, 153, "Al-Anam", "The Cattle"),
+  _SurahRange(7, 154, 179, "Al-Araf", "The Heights"),
+  _SurahRange(8, 180, 189, "Al-Anfal", "The Spoils of War"),
+  _SurahRange(9, 190, 210, "At-Tawbah", "The Repentance"),
+  _SurahRange(10, 211, 223, "Yunus", "Jonah"),
+  _SurahRange(11, 224, 237, "Hud", "Hud"),
+  _SurahRange(12, 238, 251, "Yusuf", "Joseph"),
+  _SurahRange(13, 252, 257, "Ar-Rad", "The Thunder"),
+  _SurahRange(14, 258, 264, "Ibrahim", "Abraham"),
+  _SurahRange(15, 265, 269, "Al-Hijr", "The Rocky Tract"),
+  _SurahRange(16, 270, 284, "An-Nahl", "The Bee"),
+  _SurahRange(17, 285, 295, "Al-Isra", "The Night Journey"),
+  _SurahRange(18, 296, 307, "Al-Kahf", "The Cave"),
+  _SurahRange(19, 308, 314, "Maryam", "Mary"),
+  _SurahRange(20, 315, 324, "Taha", "Ta-Ha"),
+  _SurahRange(21, 325, 334, "Al-Anbiya", "The Prophets"),
+  _SurahRange(22, 335, 344, "Al-Hajj", "The Pilgrimage"),
+  _SurahRange(23, 345, 352, "Al-Muminun", "The Believers"),
+  _SurahRange(24, 353, 361, "An-Nur", "The Light"),
+  _SurahRange(25, 362, 369, "Al-Furqan", "The Criterion"),
+  _SurahRange(26, 370, 379, "Ash-Shuara", "The Poets"),
+  _SurahRange(27, 380, 387, "An-Naml", "The Ant"),
+  _SurahRange(28, 388, 398, "Al-Qasas", "The Stories"),
+  _SurahRange(29, 399, 406, "Al-Ankabut", "The Spider"),
+  _SurahRange(30, 407, 413, "Ar-Rum", "The Romans"),
+  _SurahRange(31, 414, 417, "Luqman", "Luqman"),
+  _SurahRange(32, 418, 420, "As-Sajda", "The Prostration"),
+  _SurahRange(33, 421, 430, "Al-Ahzab", "The Confederates"),
+  _SurahRange(34, 431, 436, "Saba", "Sheba"),
+  _SurahRange(35, 437, 442, "Fatir", "Originator"),
+  _SurahRange(36, 443, 448, "Ya-Sin", "Ya-Sin"),
+  _SurahRange(37, 449, 455, "As-Saffat", "Those Who Set the Ranks"),
+  _SurahRange(38, 456, 460, "Sad", "Sad"),
+  _SurahRange(39, 461, 469, "Az-Zumar", "The Groups"),
+  _SurahRange(40, 470, 479, "Ghafir", "The Forgiver"),
+  _SurahRange(41, 480, 485, "Fussilat", "Explained in Detail"),
+  _SurahRange(42, 486, 491, "Ash-Shura", "Consultation"),
+  _SurahRange(43, 492, 498, "Az-Zukhruf", "Gold Ornaments"),
+  _SurahRange(44, 499, 501, "Ad-Dukhan", "The Smoke"),
+  _SurahRange(45, 502, 504, "Al-Jathiya", "The Kneeling"),
+  _SurahRange(46, 505, 509, "Al-Ahqaf", "The Wind-Curved Sandhills"),
+  _SurahRange(47, 510, 513, "Muhammad", "Muhammad"),
+  _SurahRange(48, 514, 517, "Al-Fath", "The Victory"),
+  _SurahRange(49, 518, 520, "Al-Hujurat", "The Rooms"),
+  _SurahRange(50, 521, 522, "Qaf", "Qaf"),
+  _SurahRange(51, 523, 525, "Adh-Dhariyat", "The Scatterers"),
+  _SurahRange(52, 526, 528, "At-Tur", "The Mount"),
+  _SurahRange(53, 529, 530, "An-Najm", "The Star"),
+  _SurahRange(54, 531, 533, "Al-Qamar", "The Moon"),
+  _SurahRange(55, 534, 536, "Ar-Rahman", "The Most Merciful"),
+  _SurahRange(56, 537, 539, "Al-Waqia", "The Inevitable"),
+  _SurahRange(57, 540, 544, "Al-Hadid", "The Iron"),
+  _SurahRange(58, 545, 547, "Al-Mujadila", "The Pleading Woman"),
+  _SurahRange(59, 548, 551, "Al-Hashr", "The Exile"),
+  _SurahRange(60, 552, 553, "Al-Mumtahina", "She That Is to Be Examined"),
+  _SurahRange(61, 554, 555, "As-Saff", "The Ranks"),
+  _SurahRange(62, 556, 556, "Al-Jumuah", "The Congregation"),
+  _SurahRange(63, 557, 558, "Al-Munafiqun", "The Hypocrites"),
+  _SurahRange(64, 559, 560, "At-Taghabun", "Mutual Loss and Gain"),
+  _SurahRange(65, 561, 562, "At-Talaq", "Divorce"),
+  _SurahRange(66, 563, 564, "At-Tahrim", "The Prohibition"),
+  _SurahRange(67, 565, 566, "Al-Mulk", "The Sovereignty"),
+  _SurahRange(68, 567, 568, "Al-Qalam", "The Pen"),
+  _SurahRange(69, 569, 570, "Al-Haaqqa", "The Reality"),
+  _SurahRange(70, 571, 572, "Al-Maarij", "The Ascending Stairways"),
+  _SurahRange(71, 573, 574, "Nuh", "Noah"),
+  _SurahRange(72, 575, 576, "Al-Jinn", "The Jinn"),
+  _SurahRange(73, 577, 577, "Al-Muzzammil", "The Enshrouded One"),
+  _SurahRange(74, 578, 579, "Al-Muddathir", "The Cloaked One"),
+  _SurahRange(75, 580, 580, "Al-Qiyama", "The Resurrection"),
+  _SurahRange(76, 581, 582, "Al-Insan", "Man"),
+  _SurahRange(77, 583, 584, "Al-Mursalat", "The Emissaries"),
+  _SurahRange(78, 585, 585, "An-Naba", "The Tidings"),
+  _SurahRange(79, 586, 587, "An-Naziat", "Those Who Drag Forth"),
+  _SurahRange(80, 588, 588, "Abasa", "He Frowned"),
+  _SurahRange(81, 589, 589, "At-Takwir", "The Overthrowing"),
+  _SurahRange(82, 590, 590, "Al-Infitar", "The Cleaving"),
+  _SurahRange(82, 590, 590, "Al-Infitar", "The Cleaving"),
+  _SurahRange(83, 590, 591, "Al-Mutaffifin", "Defrauding"),
+  _SurahRange(84, 592, 592, "Al-Inshiqaq", "The Splitting Open"),
+  _SurahRange(85, 593, 593, "Al-Buruj", "The Constellations"),
+  _SurahRange(86, 594, 594, "At-Tariq", "The Morning Star"),
+  _SurahRange(87, 594, 594, "Al-Ala", "The Most High"),
+  _SurahRange(88, 595, 595, "Al-Ghashiya", "The Overwhelming"),
+  _SurahRange(89, 596, 596, "Al-Fajr", "The Dawn"),
+  _SurahRange(90, 597, 597, "Al-Balad", "The City"),
+  _SurahRange(91, 598, 598, "Ash-Shams", "The Sun"),
+  _SurahRange(92, 598, 598, "Al-Layl", "The Night"),
+  _SurahRange(93, 599, 599, "Ad-Duha", "The Morning Brightness"),
+  _SurahRange(94, 599, 599, "Ash-Sharh", "The Relief"),
+  _SurahRange(95, 600, 600, "At-Tin", "The Fig"),
+  _SurahRange(96, 600, 600, "Al-Alaq", "The Clot"),
+  _SurahRange(97, 601, 601, "Al-Qadr", "The Power"),
+  _SurahRange(98, 601, 601, "Al-Bayyina", "The Clear Proof"),
+  _SurahRange(99, 602, 602, "Az-Zalzalah", "The Earthquake"),
+  _SurahRange(100, 602, 602, "Al-Adiyat", "The Chargers"),
+  _SurahRange(101, 603, 603, "Al-Qaria", "The Calamity"),
+  _SurahRange(102, 603, 603, "At-Takathur", "Rivalry in Worldly Increase"),
+  _SurahRange(103, 604, 604, "Al-Asr", "The Time"),
+  _SurahRange(104, 604, 604, "Al-Humazah", "The Slanderer"),
+  _SurahRange(105, 604, 604, "Al-Fil", "The Elephant"),
+  _SurahRange(106, 605, 605, "Quraish", "Quraysh"),
+  _SurahRange(107, 605, 605, "Al-Maun", "Small Kindnesses"),
+  _SurahRange(108, 605, 605, "Al-Kawthar", "Abundance"),
+  _SurahRange(109, 606, 606, "Al-Kafirun", "The Disbelievers"),
+  _SurahRange(110, 606, 606, "An-Nasr", "Divine Support"),
+  _SurahRange(111, 606, 606, "Al-Masad", "The Palm Fiber"),
+  _SurahRange(112, 607, 607, "Al-Ikhlas", "Sincerity"),
+  _SurahRange(113, 607, 607, "Al-Falaq", "The Daybreak"),
+  _SurahRange(114, 607, 607, "An-Nas", "Mankind"),
 ];

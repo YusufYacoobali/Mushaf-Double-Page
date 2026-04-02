@@ -1,9 +1,11 @@
+import 'package:flutter/cupertino.dart';
+
 /// Utility class responsible for mapping page numbers
 /// between portrait (single page) and landscape (two-page) modes
 class PageMapper {
   /// Total number of spreads in Portrait and landscape (two-page) mode
-  static const int totalPages = 851;
-  static const int totalPagesHorizontal = 426;
+  // static const int totalPages = 851;
+  // static const int totalPagesHorizontal = 426;
 
   /// Maps the current page index when orientation changes
   ///
@@ -12,16 +14,14 @@ class PageMapper {
   ///
   /// Landscape:
   ///   Each spread represents two pages, so divide by 2 if coming from portrait
-  static int orientationMapper(int currentPage, bool isPortrait) {
-    return isPortrait
-        ? (currentPage * 2).toInt()
-        : (currentPage ~/ 2);
+
+
+  static int indoPakToMadani(int page) {
+    return ((page / 851) * 624).round();
   }
 
-  static int sliderMapper(int currentPage, bool isPortrait) {
-    return isPortrait
-        ? (totalPages - currentPage )
-        : (totalPages - currentPage );
+  static int madaniToIndoPak(int page) {
+    return ((page / 624) * 851).round();
   }
 
   /// Maps a bookmarked page when navigating to it
@@ -30,12 +30,35 @@ class PageMapper {
   /// so we subtract from totalPages before applying orientation logic
   static int bookmarkGoToMapper(int currentPage, bool isPortrait) {
     return isPortrait
-        ? (totalPages - currentPage)
-        : ((totalPages - currentPage) ~/ 2);
+        ? (currentPage)
+        : ((currentPage) ~/ 2);
   }
 
-  /// Maps the page number when adding a new bookmark
-  static int bookmarkAddMapper(int currentPage, bool isPortrait) {
-    return totalPages - currentPage;
+  static int pageIndexFromLogical(int logical, bool portrait) {
+    if (portrait) {
+      debugPrint('[MAP] logical $logical -> index $logical (portrait)');
+      return logical;
+    }
+
+    // left page must be odd (1-based)
+    final left = logical.isOdd ? logical - 1 : logical;
+    final index = left ~/ 2;
+
+    debugPrint(
+      '[MAP] logical $logical -> left=$left -> spreadIndex=$index (landscape)',
+    );
+
+    return index;
   }
+
+  static int logicalFromPageIndex(int index, bool portrait) {
+    final logical = portrait ? index : index * 2;
+
+    debugPrint(
+      '[MAP] index $index -> logical=$logical (portrait=$portrait)',
+    );
+
+    return logical;
+  }
+
 }

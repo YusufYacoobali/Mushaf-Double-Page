@@ -61,7 +61,9 @@ class _MyAppState extends State<MyApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: _darkMode ? ThemeData.dark() : ThemeData.light(),
+      theme: _darkMode ? ThemeData.dark() : ThemeData.light().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+      ),
       home: const LoadingScreen(),
     );
   }
@@ -75,7 +77,7 @@ class MyPDFViewer extends StatefulWidget {
 }
 
 class _MyPDFViewerState extends State<MyPDFViewer> {
-  static const int TOTAL_PAGES = 851;
+  String _mushaf = 'indopak';
 
   late Directory _docDir;
   late PageController _pageController;
@@ -87,10 +89,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   double _pageScaleLandscape = 0.7; // slightly smaller to fit side-by-side
 
   /// 🔑 single source of truth
-  int _logicalPage = 0; // 0-based mushaf page
+  int _logicalPage = 1; // 0-based mushaf page
 
   bool _isScrollbarVisible = true;
   Timer? _hideScrollbarTimer;
+
 
   final List<Bookmark> _bookmarks = [];
 
@@ -110,6 +113,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     debugPrint('[INIT] loading dirs / settings / state');
 
     _docDir = await getApplicationDocumentsDirectory();
+    _mushaf = await StorageManager.getMushaf();
     await _loadBookmarks();
 
     _pageScalePortrait = await StorageManager.getPageScalePortrait();
@@ -119,7 +123,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     debugPrint('[STATE] restored logicalPage=$_logicalPage');
 
     final initialIndex =
-    _pageIndexFromLogical(_logicalPage, _isPortrait);
+    PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
 
     debugPrint(
       '[PAGECTRL] initial index=$initialIndex portrait=$_isPortrait',
@@ -132,7 +136,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   Future<void> _loadBookmarks() async {
-    final data = await StorageManager.getBookmarks();
+    final data = await StorageManager.getBookmarks(_mushaf);
     _bookmarks
       ..clear()
       ..addAll(data);
@@ -168,40 +172,17 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     });
   }
 
-  // -------------------------
-  // Page mapping (CRITICAL)
-  // -------------------------
-
-  int _pageIndexFromLogical(int logical, bool portrait) {
-    if (portrait) {
-      debugPrint('[MAP] logical $logical -> index $logical (portrait)');
-      return logical;
-    }
-
-    // left page must be odd (1-based)
-    final left = logical.isOdd ? logical - 1 : logical;
-    final index = left ~/ 2;
-
-    debugPrint(
-      '[MAP] logical $logical -> left=$left -> spreadIndex=$index (landscape)',
-    );
-
-    return index;
-  }
-
-  int _logicalFromPageIndex(int index, bool portrait) {
-    final logical = portrait ? index : index * 2;
-
-    debugPrint(
-      '[MAP] index $index -> logical=$logical (portrait=$portrait)',
-    );
-
-    return logical;
+  int get totalPages {
+    if (_mushaf == 'madani') return 625;
+    return 852; // indopak_tajweed
   }
 
   int _pageCount(bool portrait) {
-    final count =
-    portrait ? TOTAL_PAGES : (TOTAL_PAGES / 2).ceil();
+    final pages = totalPages;
+
+    final count = portrait
+        ? pages
+        : (pages / 2).ceil();
 
     debugPrint(
       '[LAYOUT] pageCount=$count portrait=$portrait',
@@ -211,8 +192,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   String imagePath(int logicalPage) {
-    return '${_docDir.path}/quran/13line/'
-        'quran_13line_tajweed-${logicalPage + 1}.webp';
+    debugPrint('[MUSHAF] Current mushaf $_mushaf');
+    logicalPage = logicalPage.clamp(1, totalPages-1);
+    return '${_docDir.path}/$_mushaf/${logicalPage}.webp';
   }
 
   // -------------------------
@@ -242,16 +224,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _addBookmark() {
-    final pageNumber =
-    PageMapper.bookmarkAddMapper(_logicalPage, _isPortrait);
+    final pageNumber =_logicalPage;
 
     debugPrint(
-      '[BOOKMARK] add logical=$_logicalPage mapped=$pageNumber',
+      '[BOOKMARK] add logical=$_logicalPage mapped=$pageNumber mushaf $_mushaf',
     );
 
     if (_bookmarks.any((b) => b.pageNumber == pageNumber)) return;
 
-    setState(() => _bookmarks.add(Bookmark(pageNumber: pageNumber)));
+    setState(() => _bookmarks.add(Bookmark(pageNumber: pageNumber, mushaf: _mushaf)));
     StorageManager.saveBookmarks(_bookmarks);
   }
 
@@ -267,6 +248,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       );
     }
 
+    final darkMode = MyApp.of(context)?._darkMode ?? false;
+
     return Scaffold(
       body: OrientationBuilder(
         builder: (context, orientation) {
@@ -281,7 +264,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
             _isPortrait = portraitNow;
 
             final newIndex =
-            _pageIndexFromLogical(_logicalPage, _isPortrait);
+            PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
 
             debugPrint(
               '[ORIENTATION] logical=$_logicalPage -> newIndex=$newIndex',
@@ -299,6 +282,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
               PageView.builder(
                 key: ValueKey(_isPortrait),
                 controller: _pageController,
+                reverse: true,
                 physics: const ClampingScrollPhysics(),
                 itemCount: pageCount,
                 onPageChanged: (index) {
@@ -308,7 +292,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
                   setState(() {
                     _logicalPage =
-                        _logicalFromPageIndex(index, _isPortrait);
+                        PageMapper.logicalFromPageIndex(index, _isPortrait);
                   });
 
                   debugPrint(
@@ -323,12 +307,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     logicalPage: index,
                     pageScale: _pageScalePortrait,
                     imagePath: imagePath,
+                    isDarkMode: darkMode,
                   )
                       : QuranPageView.doublePage(
                     spreadIndex: index,
                     pageScale: _pageScaleLandscape,
                     imagePath: imagePath,
-                    totalPages: TOTAL_PAGES,
+                    totalPages: totalPages,
+                    isDarkMode: darkMode
                   );
                 },
               ),
@@ -388,6 +374,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           ),
                         ],
                       ),
+          Row(
+          children: [
                       IconButton(
                         icon: const Icon(Icons.menu_book_outlined),
                         color: Color(0xFF025C32),
@@ -395,20 +383,24 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           SurahJuzNavigator.show(
                             context: context,
                             onJumpToPage: (page) {
-                              _pageController.animateToPage(
+                              final actualPage = PageMapper.bookmarkGoToMapper(
                                 page,
-                                duration: const Duration(milliseconds: 350),
-                                curve: Curves.easeOutCubic,
+                                _isPortrait,
                               );
+                              _pageController.jumpToPage(actualPage);
 
                               final logical =
-                              _logicalFromPageIndex(page, _isPortrait);
+                              PageMapper.logicalFromPageIndex(actualPage, _isPortrait);
+
+                              debugPrint('[NAV] page returned $actualPage');
+                              debugPrint('[NAV] logical page returned $logical');
 
                               setState(() => _logicalPage = logical);
-                            },
+                            }, mushaf: _mushaf,
                           );
                         },
                       ),
+                      const SizedBox(width: 30),
                       IconButton(
                           icon: const Icon(Icons.bookmarks_rounded),
                           color: Color(0xFF025C32),
@@ -422,6 +414,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 StorageManager.saveBookmarks(_bookmarks);
                               },
                               onJumpToBookmark: (b) {
+                                Navigator.pop(context);
+
                                 final page = PageMapper.bookmarkGoToMapper(
                                   b.pageNumber,
                                   _isPortrait,
@@ -430,11 +424,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 _pageController.jumpToPage(page);
 
                                 final logical =
-                                _logicalFromPageIndex(page, _isPortrait);
+                                PageMapper.logicalFromPageIndex(page, _isPortrait);
+
+                                debugPrint('[BOOKMAKR] page returned $page');
+                                debugPrint('[BOOKMAKR] logical page returned $logical');
 
                                 setState(() => _logicalPage = logical);
                               });}
                       ),
+                      const SizedBox(width: 30),
                       IconButton(
                         icon: const Icon(Icons.settings),
                         color: Color(0xFF025C32),
@@ -450,8 +448,36 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                             '[SETTINGS] changed, reloading flags',
                           );
                           await MyApp.of(context)?.reloadTheme();
+
+                          final mushaf = await StorageManager.getMushaf();
+                          debugPrint('[MUSHAF] Current mushaf $_mushaf');
+
+                          if (mushaf != _mushaf) {
+
+                            debugPrint('[MUSHAF] Mushaf changed: $_mushaf -> $mushaf');
+
+                            // convert page BEFORE switching mushaf
+                            if (_mushaf == 'indopak_tajweed' && mushaf == 'madani') {
+                              _logicalPage = ((_logicalPage / 851) * 624).round();
+                            }
+
+                            if (_mushaf == 'madani' && mushaf == 'indopak_tajweed') {
+                              _logicalPage = ((_logicalPage / 624) * 851).round();
+                            }
+
+                            final newIndex = PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
+
+                            setState(() {
+                              _mushaf = mushaf;
+                            });
+                            await _loadBookmarks();
+                            _pageController.jumpToPage(newIndex);
+                          }
+                          setState(() {});
                         },
                       ),
+                    ],
+                    ),
                     ],
                   ),),
                 ),

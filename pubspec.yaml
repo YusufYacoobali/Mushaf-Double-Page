@@ -42,6 +42,7 @@ dependencies:
   firebase_storage: ^13.0.6
   firebase_core: ^4.3.0
   dio: ^5.9.0
+  archive: ^4.0.9
 
 dev_dependencies:
   flutter_test:
@@ -79,6 +80,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/mushaf/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

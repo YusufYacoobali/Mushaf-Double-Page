@@ -6,6 +6,7 @@ class SurahJuzNavigator {
   static void show({
     required BuildContext context,
     required void Function(int pageIndex) onJumpToPage,
+    required String mushaf,
   }) {
     showGeneralDialog(
       context: context,
@@ -29,7 +30,7 @@ class SurahJuzNavigator {
           position: slide,
           child: Align(
             alignment: Alignment.centerRight,
-            child: _Panel(onJumpToPage: onJumpToPage),
+            child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf,),
           ),
         );
       },
@@ -39,8 +40,9 @@ class SurahJuzNavigator {
 
 class _Panel extends StatefulWidget {
   final void Function(int pageIndex) onJumpToPage;
+  final String mushaf;
 
-  const _Panel({required this.onJumpToPage});
+  const _Panel({required this.onJumpToPage, required this.mushaf});
 
   @override
   State<_Panel> createState() => _PanelState();
@@ -91,12 +93,14 @@ class _PanelState extends State<_Panel>
                     ? SurahList(
                   key: const ValueKey("surah"),
                   widget.onJumpToPage,
+                  mushaf: widget.mushaf,
                   onJump: widget.onJumpToPage,
                 )
                     : JuzList(
                   key: const ValueKey("juz"),
                   widget.onJumpToPage,
                   onJump: widget.onJumpToPage,
+                  mushaf: widget.mushaf,
                 ),
               ),
             ),
@@ -126,7 +130,6 @@ class _BottomSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const bg = Color.fromARGB(255, 220, 232, 224);
-    const active = Color(0xFF025C32);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),

@@ -1,218 +1,63 @@
-import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mushaf_two_page/main.dart';
+import '../logic/storage_manager.dart';
 
 class LoadingScreen extends StatefulWidget {
   const LoadingScreen({super.key});
 
   @override
-  LoadingScreenState createState() => LoadingScreenState();
+  State<LoadingScreen> createState() => _LoadingScreenState();
 }
 
-class LoadingScreenState extends State<LoadingScreen> {
-  double _progress = 0.0;
+class _LoadingScreenState extends State<LoadingScreen> {
+
   bool _downloadFailed = false;
-  final List<DownloadTask> _activeTasks = [];
-  bool _disposed = false;
-
-  @override
-  void dispose() {
-    _disposed = true;
-
-    for (final task in _activeTasks) {
-      try {
-        task.cancel();
-      } catch (_) {}
-    }
-
-    _activeTasks.clear();
-    super.dispose();
-  }
 
   @override
   void initState() {
     super.initState();
-    print('[LOADING][1] Loading screen initState called');
-
-    // Defer heavy work until after first frame
-    Future.microtask(() {
-      _checkAndDownloadAssets();
-    });
+    Future.microtask(_prepareApp);
   }
 
-  Future<void> _checkAndDownloadAssets() async {
-    print('[LOADING][3] _checkAndDownloadAssets start');
-
+  Future<void> _prepareApp() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final mushaf = await StorageManager.getMushaf();
+      debugPrint('[LOADING] Current mushaf $mushaf ');
 
-      final assetsDownloaded =
-          prefs.getBool('assetsDownloaded2') ?? false;
-      print('[LOADING][5] assetsDownloaded flag = $assetsDownloaded');
+      await StorageManager.ensureMushafDownloaded(
+        mushaf,
+        mushaf == "indopak_tajweed" ? 1 : 2,
+      );
 
-      final filesExist = await _checkFilesExist();
-      print('[LOADING][7] Files exist = $filesExist');
+      if (!mounted) return;
 
-      if (!assetsDownloaded || !filesExist) {
-        print('[LOADING][8] Assets missing, starting download');
-        final success = await _downloadAssets();
-
-        if (success) {
-          print('[LOADING][9] Download successful, saving flag');
-          await prefs.setBool('assetsDownloaded2', true);
-        } else {
-          print('[LOADING][10] Download failed');
-          if (mounted) {
-            setState(() => _downloadFailed = true);
-          }
-          return;
-        }
-      } else {
-        print('[LOADING][8b] Assets already present, skipping download');
-      }
-
-      print('[LOADING][11] Scheduling navigation to MyPDFViewer');
-
-      if (!mounted) return;  // Always check
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const MyPDFViewer()),
       );
-    } catch (e, stack) {
-      print('[LOADING][ERROR] Exception in asset check');
-      print(e);
-      print(stack);
+
+    } catch (e) {
 
       if (mounted) {
         setState(() => _downloadFailed = true);
       }
-    }
-  }
 
-  Future<bool> _checkFilesExist({int threshold = 400}) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final quranDir = Directory('${dir.path}/quran/13line');
-
-    if (!await quranDir.exists()) return false;
-
-    final files = quranDir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.webp'));
-
-    int count = 0;
-    for (final file in files) {
-      count++;
-      if (count >= threshold) return true; // early exit
-    }
-
-    return false;
-  }
-
-  Future<bool> _downloadAssets() async {
-    print('[DOWNLOAD] Quran images download start');
-
-    try {
-      final storage = FirebaseStorage.instance;
-      final ref =
-      storage.ref('Quran-images/Quran-13-line-tajweed');
-
-      final dir = await getApplicationDocumentsDirectory();
-      final localDir = Directory('${dir.path}/quran/13line');
-
-      if (!await localDir.exists()) {
-        await localDir.create(recursive: true);
-      }
-
-      // preload existing filenames once
-      final existingFiles = localDir
-          .listSync()
-          .whereType<File>()
-          .map((f) => f.uri.pathSegments.last)
-          .toSet();
-
-      final result = await ref.listAll();
-      final items = result.items;
-
-      print('Found ${items.length} pages in Firebase');
-
-      const int maxConcurrent = 16;
-
-      int completedFiles = 0;
-      final int totalFiles = items.length;
-
-      if (mounted) {
-        setState(() {
-          _progress = 0;
-        });
-      }
-
-      for (int i = 0; i < items.length; i += maxConcurrent) {
-        final batch = items.skip(i).take(maxConcurrent);
-        if (_disposed) return false;
-
-        await Future.wait(
-          batch.map((item) async {
-            if (existingFiles.contains(item.name)) {
-              if (_disposed) return;
-              completedFiles++;
-              return;
-            }
-
-            final filePath = '${localDir.path}/${item.name}';
-            final file = File(filePath);
-
-            if (_disposed) return;
-
-            final task = item.writeToFile(file);
-            _activeTasks.add(task);
-
-            try {
-              await task;
-              existingFiles.add(item.name);
-            } finally {
-              _activeTasks.remove(task);
-            }
-
-            if (_disposed) return;
-
-            completedFiles++;
-
-            if (!mounted) return;
-
-            if (completedFiles % 10 == 0 || completedFiles == totalFiles) {
-              setState(() {
-                _progress = completedFiles / totalFiles;
-              });
-            }
-          }),
-        );
-      }
-
-      print('[DOWNLOAD] Quran images download complete');
-      return true;
-    } catch (e, stack) {
-      print('[DOWNLOAD][ERROR]');
-      print(e);
-      print(stack);
-      return false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: const Color(0xFF2A6767),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
+          child: Center(
+            child: Column(
             children: [
+
               const Spacer(flex: 3),
 
-              // App mark / title
               const Text(
                 'Quran',
                 style: TextStyle(
@@ -235,48 +80,13 @@ class LoadingScreenState extends State<LoadingScreen> {
 
               const Spacer(flex: 2),
 
-              // Progress section
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: _progress > 0 ? _progress : null,
-                      minHeight: 6,
-                      backgroundColor: Colors.white.withOpacity(0.15),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFFD6D85F), // softer gold
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _progress > 0 ? 'Downloading' : 'Starting…',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                      Text(
-                        _progress > 0 ? '${(_progress * 100).toInt()}%' : '',
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              const CircularProgressIndicator(
+                color: Color(0xFFD6D85F),
               ),
 
               if (_downloadFailed) ...[
                 const SizedBox(height: 32),
+
                 Text(
                   'Download failed',
                   style: TextStyle(
@@ -284,14 +94,15 @@ class LoadingScreenState extends State<LoadingScreen> {
                     fontSize: 13,
                   ),
                 ),
+
                 const SizedBox(height: 12),
+
                 TextButton(
                   onPressed: () {
                     setState(() {
-                      _progress = 0;
                       _downloadFailed = false;
                     });
-                    _checkAndDownloadAssets();
+                    _prepareApp();
                   },
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
@@ -302,7 +113,6 @@ class LoadingScreenState extends State<LoadingScreen> {
 
               const Spacer(flex: 3),
 
-              // Footnote reassurance
               const Text(
                 'Can take a few minutes!',
                 style: TextStyle(
@@ -312,10 +122,11 @@ class LoadingScreenState extends State<LoadingScreen> {
               ),
 
               const SizedBox(height: 24),
+
             ],
           ),
         ),
-      ),
+      ),)
     );
   }
 }

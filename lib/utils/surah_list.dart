@@ -5,12 +5,17 @@ import '../components/nav_tile.dart';
 
 class SurahList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
+  final String mushaf;
 
-  const SurahList(void Function(int pageIndex) onJumpToPage, {super.key, required this.onJump});
+  const SurahList(void Function(int pageIndex) onJumpToPage,{
+    super.key,
+    required this.onJump,
+    required this.mushaf,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final surahs = surahRanges.where((s) => s.surah > 0).toList();
+    final surahs = getSurahRanges(mushaf).where((s) => s.surah > 0).toList();
     final theme = Theme.of(context);
 
     return ListView.builder(
@@ -25,7 +30,7 @@ class SurahList extends StatelessWidget {
           englishTitle: surah.english,
           onTap: () {
             Navigator.pop(context);
-            onJump(pageFromSurah(surah.surah));
+            onJump(pageFromSurah(surah.surah, mushaf));
           },
         );
       },
