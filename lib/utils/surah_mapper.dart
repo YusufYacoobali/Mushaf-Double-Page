@@ -23,6 +23,18 @@ String surahNameFromPage(int pageNumber, String mushaf) {
   return "Surah";
 }
 
+// Returns the surah number for a given logical page
+int surahNumFromLogicalPage(int logicalPage, String mushaf) {
+  final ranges = getSurahRanges(mushaf);
+  for (final range in ranges) {
+    if (logicalPage >= range.start && logicalPage <= range.end) {
+      return range.surah;
+    }
+  }
+  // fallback if page not found
+  return 0;
+}
+
 int pageFromSurah(int surah, String mushaf) {
   final ranges = getSurahRanges(mushaf);
   final entry = ranges.firstWhere(
