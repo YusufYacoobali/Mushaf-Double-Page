@@ -1,6 +1,8 @@
 // lib/pages/translation_modal.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import '../utils/surah_mapper.dart';
 import '../utils/translation_manager.dart';
 
@@ -124,10 +126,10 @@ class TranslationModal extends StatelessWidget {
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
 
                         child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
 
                             CircleAvatar(
@@ -154,6 +156,37 @@ class TranslationModal extends StatelessWidget {
                                   color: Color(0xFF1B5E20),
                                 ),
                               ),
+                            ),
+
+                            /// Copy + Share buttons
+                            Column(
+                              children: [
+
+                                IconButton(
+                                  icon: const Icon(Icons.copy, size: 15),
+                                  onPressed: () {
+
+                                    Clipboard.setData(
+                                      ClipboardData(text: text ?? ''),
+                                    );
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Ayah copied"),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                                IconButton(
+                                  icon: const Icon(Icons.share, size: 15),
+                                  onPressed: () {
+                                    Share.share(text ?? '');
+                                  },
+                                ),
+
+                              ],
                             ),
                           ],
                         ),
