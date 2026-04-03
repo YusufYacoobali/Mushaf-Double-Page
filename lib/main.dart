@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mushaf_two_page/pages/bookmark_modal.dart';
+import 'package:mushaf_two_page/components/bookmark_modal.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/navigator.dart';
+import 'package:mushaf_two_page/utils/surah_mapper.dart' as Surah_Mapper;
+import 'package:mushaf_two_page/utils/translation_manager.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:mushaf_two_page/pages/settings.dart';
@@ -15,6 +17,7 @@ import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/utils/page_mapper.dart';
 import 'package:mushaf_two_page/pages/loading.dart';
 
+import 'components/translation_modal.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -132,6 +135,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     _pageController = PageController(initialPage: initialIndex);
 
     _startHideScrollbarTimer();
+    TranslationManager.load();
     setState(() => _ready = true);
   }
 
@@ -234,6 +238,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
     setState(() => _bookmarks.add(Bookmark(pageNumber: pageNumber, mushaf: _mushaf)));
     StorageManager.saveBookmarks(_bookmarks);
+  }
+
+  void _showTranslationModal() {
+    final surahs = Surah_Mapper.surahsFromLogicalPage(_logicalPage, _mushaf);
+    TranslationModal.show(context, surahs);
   }
 
   // -------------------------
@@ -377,6 +386,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
           Row(
           children: [
                       IconButton(
+                        icon: const Icon(Icons.chat_outlined),
+                        color: const Color(0xFF025C32),
+                        onPressed: () {
+                          _showTranslationModal();
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      IconButton(
                         icon: const Icon(Icons.menu_book_outlined),
                         color: Color(0xFF025C32),
                         onPressed: () {
@@ -400,7 +417,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                           );
                         },
                       ),
-                      const SizedBox(width: 30),
+                      const SizedBox(width: 10),
                       IconButton(
                           icon: const Icon(Icons.bookmarks_rounded),
                           color: Color(0xFF025C32),
@@ -432,7 +449,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 setState(() => _logicalPage = logical);
                               });}
                       ),
-                      const SizedBox(width: 30),
+                      const SizedBox(width: 10),
                       IconButton(
                         icon: const Icon(Icons.settings),
                         color: Color(0xFF025C32),

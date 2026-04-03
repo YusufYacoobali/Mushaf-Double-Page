@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
 
-import 'bookmark.dart';
+import '../pages/bookmark.dart';
 
 class BookmarksModal {
   static void show({
