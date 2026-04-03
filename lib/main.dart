@@ -241,8 +241,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _showTranslationModal() {
-    final surah = Surah_Mapper.surahNumFromLogicalPage(_logicalPage, _mushaf);
-    TranslationModal.show(context, surah);
+    final surahs = Surah_Mapper.surahsFromLogicalPage(_logicalPage, _mushaf);
+    TranslationModal.show(context, surahs);
   }
 
   // -------------------------
@@ -386,7 +386,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
           Row(
           children: [
                       IconButton(
-                        icon: const Icon(Icons.translate),
+                        icon: const Icon(Icons.chat_outlined),
                         color: const Color(0xFF025C32),
                         onPressed: () {
                           _showTranslationModal();
