@@ -161,9 +161,8 @@ class TranslationModal extends StatelessWidget {
                             /// Copy + Share buttons
                             Column(
                               children: [
-
                                 IconButton(
-                                  icon: const Icon(Icons.copy, size: 15),
+                                  icon: const Icon(Icons.copy, size: 18),
                                   onPressed: () {
 
                                     Clipboard.setData(
@@ -180,7 +179,7 @@ class TranslationModal extends StatelessWidget {
                                 ),
 
                                 IconButton(
-                                  icon: const Icon(Icons.share, size: 15),
+                                  icon: const Icon(Icons.share, size: 18),
                                   onPressed: () {
                                     Share.share(text ?? '');
                                   },
