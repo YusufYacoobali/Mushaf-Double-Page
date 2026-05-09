@@ -11,6 +11,8 @@ class LoadingScreen extends StatefulWidget {
 
 class _LoadingScreenState extends State<LoadingScreen> {
   bool _downloadFailed = false;
+  String _status = 'Preparing your Mushaf';
+  double? _progress;
 
   @override
   void initState() {
@@ -26,6 +28,14 @@ class _LoadingScreenState extends State<LoadingScreen> {
       await StorageManager.ensureMushafDownloaded(
         mushaf,
         mushaf == "indopak_tajweed" ? 1 : 2,
+        onProgress: (progress) {
+          if (!mounted) return;
+
+          setState(() {
+            _status = progress.message;
+            _progress = progress.value;
+          });
+        },
       );
 
       if (!mounted) return;
@@ -64,14 +74,24 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
                 const SizedBox(height: 8),
 
-                const Text(
-                  'Preparing your Mushaf',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  _status,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
 
                 const Spacer(flex: 2),
 
-                const CircularProgressIndicator(color: Color(0xFFD6D85F)),
+                SizedBox(
+                  width: 220,
+                  child: LinearProgressIndicator(
+                    value: _progress,
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(999),
+                    backgroundColor: Colors.white.withValues(alpha: .18),
+                    color: const Color(0xFFD6D85F),
+                  ),
+                ),
 
                 if (_downloadFailed) ...[
                   const SizedBox(height: 32),
@@ -90,6 +110,8 @@ class _LoadingScreenState extends State<LoadingScreen> {
                     onPressed: () {
                       setState(() {
                         _downloadFailed = false;
+                        _status = 'Preparing your Mushaf';
+                        _progress = null;
                       });
                       _prepareApp();
                     },

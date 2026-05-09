@@ -45,14 +45,43 @@ class _SettingsState extends State<Settings> {
   Future<void> _updateMushaf(String mushaf) async {
     if (mushaf == selectedMushaf) return;
 
-    if (mushaf == 'madani') {
-      _showDownloadingDialog();
+    final version = _versionForMushaf(mushaf);
+    final needsDownload =
+        !await StorageManager.isMushafUpToDate(mushaf, version) ||
+        !await StorageManager.isMushafAvailable(mushaf);
+
+    if (!mounted) return;
+
+    ValueNotifier<MushafDownloadProgress>? progress;
+
+    if (needsDownload) {
+      progress = ValueNotifier(
+        const MushafDownloadProgress('Preparing download'),
+      );
+      _showDownloadingDialog(progress);
+
+      var downloadSucceeded = false;
       try {
-        await StorageManager.ensureMushafDownloaded("madani", 2);
+        await StorageManager.ensureMushafDownloaded(
+          mushaf,
+          version,
+          onProgress: (value) {
+            progress?.value = value;
+          },
+        );
+        downloadSucceeded = true;
+      } catch (e) {
+        debugPrint('[MUSHAF] Download failed: $e');
       } finally {
         if (mounted) {
           Navigator.pop(context);
         }
+        progress.dispose();
+      }
+
+      if (!downloadSucceeded) {
+        await _showDownloadErrorDialog();
+        return;
       }
     }
 
@@ -65,7 +94,11 @@ class _SettingsState extends State<Settings> {
     });
   }
 
-  void _showDownloadingDialog() {
+  int _versionForMushaf(String mushaf) {
+    return mushaf == 'indopak_tajweed' ? 1 : 2;
+  }
+
+  void _showDownloadingDialog(ValueNotifier<MushafDownloadProgress> progress) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -76,20 +109,56 @@ class _SettingsState extends State<Settings> {
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                CircularProgressIndicator(),
-                SizedBox(width: 20),
-                Expanded(
-                  child: Text(
-                    'Downloading Mushaf...',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ],
+            child: ValueListenableBuilder<MushafDownloadProgress>(
+              valueListenable: progress,
+              builder: (context, value, _) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      value.message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    LinearProgressIndicator(
+                      value: value.value,
+                      minHeight: 6,
+                      borderRadius: BorderRadius.circular(999),
+                      backgroundColor: _accent.withValues(alpha: .12),
+                      color: _accent,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showDownloadErrorDialog() async {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Download failed'),
+          content: const Text(
+            'Please check your connection and try changing Mushaf again.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
         );
       },
     );
