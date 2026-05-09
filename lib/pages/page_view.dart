@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../utils/cache.dart'; // your QuranPageCache
 
@@ -9,10 +8,26 @@ class QuranPageView {
   static const double maxPageScaleLandscape = 0.9;
 
   static const ColorFilter invertFilter = ColorFilter.matrix([
-    -1, 0, 0, 0, 255,
-    0, -1, 0, 0, 255,
-    0, 0, -1, 0, 255,
-    0, 0, 0, 1, 0,
+    -1,
+    0,
+    0,
+    0,
+    255,
+    0,
+    -1,
+    0,
+    0,
+    255,
+    0,
+    0,
+    -1,
+    0,
+    255,
+    0,
+    0,
+    0,
+    1,
+    0,
   ]);
 
   // ---------------------
@@ -26,27 +41,22 @@ class QuranPageView {
   }) {
     final clamped = pageScale.clamp(minPageScalePortrait, maxPageScalePortrait);
     final path = imagePath(logicalPage);
-    Widget image = FittedBox(        // ← restore the old fill behaviour
+    Widget image = FittedBox(
+      // ← restore the old fill behaviour
       fit: BoxFit.fill,
       child: QuranPageCache.getPage(path),
     );
 
     // ✅ only apply filter if dark mode
     if (isDarkMode) {
-      image = ColorFiltered(
-        colorFilter: invertFilter,
-        child: image,
-      );
+      image = ColorFiltered(colorFilter: invertFilter, child: image);
     }
 
     return InteractiveViewer(
       panEnabled: false,
       minScale: 1,
       maxScale: 3,
-      child: FractionallySizedBox(
-        heightFactor: clamped,
-        child: image,
-      ),
+      child: FractionallySizedBox(heightFactor: clamped, child: image),
     );
   }
 
@@ -61,23 +71,21 @@ class QuranPageView {
     final rightIndex = leftIndex + 1;
 
     Widget buildPage(int index) {
-
       final path = imagePath(index);
       Widget image = QuranPageCache.getPage(path);
 
       if (isDarkMode) {
-        image = ColorFiltered(
-          colorFilter: invertFilter,
-          child: image,
-        );
+        image = ColorFiltered(colorFilter: invertFilter, child: image);
       }
       return image;
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final pageWidth =
-        (constraints.maxWidth / 2 * pageScale).clamp(0.0, constraints.maxWidth / 2);
+        final pageWidth = (constraints.maxWidth / 2 * pageScale).clamp(
+          0.0,
+          constraints.maxWidth / 2,
+        );
 
         Widget? leftPage;
         Widget? rightPage;
@@ -96,7 +104,8 @@ class QuranPageView {
             children: [
               if (leftPage != null) leftPage,
               if (rightPage != null) rightPage,
-              if (leftPage != null && rightPage != null) const SizedBox(width: 1),
+              if (leftPage != null && rightPage != null)
+                const SizedBox(width: 1),
             ],
           ),
         );

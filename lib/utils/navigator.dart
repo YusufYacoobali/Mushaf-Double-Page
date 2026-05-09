@@ -14,23 +14,18 @@ class SurahJuzNavigator {
       barrierLabel: "Surah and Juz navigation",
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (_, __, ___) => const SizedBox(),
-      transitionBuilder: (context, anim, _, __) {
+      pageBuilder: (_, _, _) => const SizedBox(),
+      transitionBuilder: (context, anim, _, _) {
         final slide = Tween(
           begin: const Offset(1, 0),
           end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: anim,
-            curve: Curves.easeOutCubic,
-          ),
-        );
+        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
 
         return SlideTransition(
           position: slide,
           child: Align(
             alignment: Alignment.centerRight,
-            child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf,),
+            child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf),
           ),
         );
       },
@@ -48,8 +43,7 @@ class _Panel extends StatefulWidget {
   State<_Panel> createState() => _PanelState();
 }
 
-class _PanelState extends State<_Panel>
-    with SingleTickerProviderStateMixin {
+class _PanelState extends State<_Panel> with SingleTickerProviderStateMixin {
   late final TabController _tabs;
 
   @override
@@ -91,24 +85,21 @@ class _PanelState extends State<_Panel>
                 switchOutCurve: Curves.easeIn,
                 child: _tabs.index == 0
                     ? SurahList(
-                  key: const ValueKey("surah"),
-                  widget.onJumpToPage,
-                  mushaf: widget.mushaf,
-                  onJump: widget.onJumpToPage,
-                )
+                        key: const ValueKey("surah"),
+                        widget.onJumpToPage,
+                        mushaf: widget.mushaf,
+                        onJump: widget.onJumpToPage,
+                      )
                     : JuzList(
-                  key: const ValueKey("juz"),
-                  widget.onJumpToPage,
-                  onJump: widget.onJumpToPage,
-                  mushaf: widget.mushaf,
-                ),
+                        key: const ValueKey("juz"),
+                        widget.onJumpToPage,
+                        onJump: widget.onJumpToPage,
+                        mushaf: widget.mushaf,
+                      ),
               ),
             ),
 
-            _BottomSelector(
-              index: _tabs.index,
-              onTap: _tabs.animateTo,
-            ),
+            _BottomSelector(index: _tabs.index, onTap: _tabs.animateTo),
 
             const SizedBox(height: 20),
           ],
@@ -122,10 +113,7 @@ class _BottomSelector extends StatelessWidget {
   final int index;
   final void Function(int) onTap;
 
-  const _BottomSelector({
-    required this.index,
-    required this.onTap,
-  });
+  const _BottomSelector({required this.index, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -167,12 +155,7 @@ class _BottomSelector extends StatelessWidget {
                 ),
               ),
 
-              Row(
-                children: [
-                  _item("Surah", 0),
-                  _item("Juz", 1),
-                ],
-              ),
+              Row(children: [_item("Surah", 0), _item("Juz", 1)]),
             ],
           );
         },
@@ -192,9 +175,7 @@ class _BottomSelector extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                color: selected
-                    ? const Color(0xFF025C32)
-                    : Colors.black54,
+                color: selected ? const Color(0xFF025C32) : Colors.black54,
                 fontWeight: FontWeight.w600,
               ),
             ),

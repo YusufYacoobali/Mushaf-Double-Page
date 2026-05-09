@@ -3,8 +3,10 @@ import 'package:mushaf_two_page/models/bookmark.dart';
 
 class BookmarkWidget extends StatefulWidget {
   final Bookmark bookmark;
+
   /// Callback when bookmark icon is toggled (add/remove)
   final Function(Bookmark) onBookmarkToggled;
+
   /// Callback when the bookmark row itself is tapped
   /// Typically used to navigate to the bookmarked page
   final Function(Bookmark) onPagePressed;
@@ -31,6 +33,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
     // Inform parent so it can update storage / list state
     widget.onBookmarkToggled(widget.bookmark);
   }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -38,20 +41,17 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       child: Material(
-        color:  Color.fromARGB(255, 235, 243, 236),
+        color: Color.fromARGB(255, 235, 243, 236),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => widget.onPagePressed(widget.bookmark),
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: theme.dividerColor.withOpacity(.15),
+                color: theme.dividerColor.withValues(alpha: .15),
               ),
             ),
             child: Row(
@@ -63,7 +63,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: const Color(0xFF025C32).withOpacity(.15),
+                    color: const Color(0xFF025C32).withValues(alpha: .15),
                   ),
                   child: const Icon(
                     Icons.bookmark_rounded,
@@ -85,7 +85,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: Colors.black
+                          color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -108,7 +108,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                     child: Icon(
                       Icons.close_rounded,
                       size: 20,
-                      color: Colors.black.withOpacity(.45),
+                      color: Colors.black.withValues(alpha: .45),
                     ),
                   ),
                 ),

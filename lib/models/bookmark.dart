@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../utils/surah_mapper.dart';
 
 class Bookmark {
@@ -5,13 +7,10 @@ class Bookmark {
   final String mushaf;
   String? surah;
 
-  Bookmark({
-    required this.pageNumber,
-    required this.mushaf,
-    String? surah,
-  }) : surah = surahNameFromPage(pageNumber, mushaf)
-  {print("Bookmark mushaf=$mushaf page=$pageNumber surah=$surah");}
-
+  Bookmark({required this.pageNumber, required this.mushaf, String? surah})
+    : surah = surahNameFromPage(pageNumber, mushaf) {
+    debugPrint("Bookmark mushaf=$mushaf page=$pageNumber surah=$surah");
+  }
 
   Map<String, dynamic> toMap() => {
     'pageNumber': pageNumber,

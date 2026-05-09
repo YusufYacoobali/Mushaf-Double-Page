@@ -13,7 +13,6 @@ class TranslationModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     // Flatten surah headers + ayahs into one list for lazy building
     final List<dynamic> items = [];
 
@@ -23,10 +22,7 @@ class TranslationModal extends StatelessWidget {
       final ayahs = TranslationManager.getSurah(surah.surah);
 
       for (final entry in ayahs.entries) {
-        items.add({
-          "ayah": entry.key,
-          "text": entry.value,
-        });
+        items.add({"ayah": entry.key, "text": entry.value});
       }
     }
 
@@ -36,7 +32,6 @@ class TranslationModal extends StatelessWidget {
       minChildSize: 0.3,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
-
         return Container(
           decoration: const BoxDecoration(
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -49,7 +44,6 @@ class TranslationModal extends StatelessWidget {
 
           child: Column(
             children: [
-
               /// drag handle
               Padding(
                 padding: const EdgeInsets.only(top: 10, bottom: 6),
@@ -73,10 +67,12 @@ class TranslationModal extends StatelessWidget {
 
                   child: ListView.builder(
                     controller: scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 12,
+                    ),
                     itemCount: items.length,
                     itemBuilder: (context, index) {
-
                       final item = items[index];
 
                       /// Surah header
@@ -110,7 +106,10 @@ class TranslationModal extends StatelessWidget {
                       final text = item["text"];
 
                       return Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        margin: const EdgeInsets.symmetric(
+                          vertical: 6,
+                          horizontal: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -131,7 +130,6 @@ class TranslationModal extends StatelessWidget {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-
                             CircleAvatar(
                               radius: 15,
                               backgroundColor: const Color(0xFF025C32),
@@ -164,7 +162,6 @@ class TranslationModal extends StatelessWidget {
                                 IconButton(
                                   icon: const Icon(Icons.copy, size: 18),
                                   onPressed: () {
-
                                     Clipboard.setData(
                                       ClipboardData(text: text ?? ''),
                                     );
@@ -181,10 +178,11 @@ class TranslationModal extends StatelessWidget {
                                 IconButton(
                                   icon: const Icon(Icons.share, size: 18),
                                   onPressed: () {
-                                    Share.share(text ?? '');
+                                    SharePlus.instance.share(
+                                      ShareParams(text: text ?? ''),
+                                    );
                                   },
                                 ),
-
                               ],
                             ),
                           ],

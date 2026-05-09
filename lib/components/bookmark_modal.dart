@@ -28,65 +28,73 @@ class BookmarksModal {
             final sortedBookmarks = [...bookmarks]
               ..sort((a, b) => a.pageNumber.compareTo(b.pageNumber));
             return Container(
-                height: (isLandscape
-                    ? screenHeight * 0.85
-                    : screenHeight * 0.65) +
-                    bottomInset,
-                decoration: const BoxDecoration(
-                  color: Color.fromARGB(255, 17, 38, 8),
-                  borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(22)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 14,
-                      offset: Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        margin: const EdgeInsets.only(top: 8, bottom: 8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).dividerColor.withOpacity(.4),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+              height:
+                  (isLandscape ? screenHeight * 0.85 : screenHeight * 0.65) +
+                  bottomInset,
+              decoration: const BoxDecoration(
+                color: Color.fromARGB(255, 17, 38, 8),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 14,
+                    offset: Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 8, bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).dividerColor.withValues(alpha: .4),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    // Add bookmark button
-                    Container(
-                      margin: const EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            onAddBookmark();
-                            setModalState(() {});
-                          },
-                          icon: const Icon(Icons.bookmark_add_rounded, color: Colors.black,),
-                          label: const Text('Bookmark this page', style: TextStyle(color: Colors.black),),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:  Color.fromARGB(255, 235, 243, 236),
-                            foregroundColor: Theme.of(context).colorScheme.onSurface,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                              horizontal: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                  ),
+                  // Add bookmark button
+                  Container(
+                    margin: const EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          onAddBookmark();
+                          setModalState(() {});
+                        },
+                        icon: const Icon(
+                          Icons.bookmark_add_rounded,
+                          color: Colors.black,
+                        ),
+                        label: const Text(
+                          'Bookmark this page',
+                          style: TextStyle(color: Colors.black),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color.fromARGB(255, 235, 243, 236),
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onSurface,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                       ),
                     ),
+                  ),
 
-                    // Bookmark list
+                  // Bookmark list
                   Expanded(
                     child: ListView.builder(
                       padding: const EdgeInsets.only(bottom: 12),
@@ -106,8 +114,8 @@ class BookmarksModal {
                       },
                     ),
                   ),
-                  ],
-                ),
+                ],
+              ),
             );
           },
         );

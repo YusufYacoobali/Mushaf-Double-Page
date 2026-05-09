@@ -3,6 +3,7 @@ List<JuzRange> getJuzRanges(String mushaf) {
     case "madani":
       return madaniJuzRanges;
     case "indopak":
+    case "indopak_tajweed":
       return indopakJuzRanges;
     default:
       return indopakJuzRanges;
@@ -13,13 +14,12 @@ int pageFromJuz(int juz, String mushaf) {
   final ranges = getJuzRanges(mushaf);
 
   final entry = ranges.firstWhere(
-        (e) => e.juz == juz,
+    (e) => e.juz == juz,
     orElse: () => ranges.first,
   );
 
   return entry.start;
 }
-
 
 class JuzRange {
   final int juz;
@@ -60,7 +60,6 @@ const List<JuzRange> indopakJuzRanges = [
   JuzRange(29, 789),
   JuzRange(30, 821),
 ];
-
 
 const List<JuzRange> madaniJuzRanges = [
   JuzRange(1, 4),

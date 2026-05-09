@@ -27,19 +27,15 @@ class NavTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: theme.dividerColor.withOpacity(.15),
+                color: theme.dividerColor.withValues(alpha: .15),
               ),
             ),
             child: Row(
               children: [
-
                 /// Number badge
                 Container(
                   width: 42,
@@ -47,7 +43,7 @@ class NavTile extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: theme.colorScheme.primary.withOpacity(.10),
+                    color: theme.colorScheme.primary.withValues(alpha: .10),
                   ),
                   child: Text(
                     number.toString(),
@@ -77,7 +73,9 @@ class NavTile extends StatelessWidget {
                         Text(
                           englishTitle!,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: .6,
+                            ),
                           ),
                         ),
                     ],
@@ -88,7 +86,7 @@ class NavTile extends StatelessWidget {
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 16,
-                  color: theme.colorScheme.onSurface.withOpacity(.45),
+                  color: theme.colorScheme.onSurface.withValues(alpha: .45),
                 ),
               ],
             ),

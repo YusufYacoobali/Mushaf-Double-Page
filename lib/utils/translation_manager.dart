@@ -1,10 +1,12 @@
 import 'package:flutter/services.dart' show rootBundle;
 
 class TranslationManager {
-  static Map<int, Map<int, String>> _translations = {};
+  static final Map<int, Map<int, String>> _translations = {};
 
   static Future<void> load() async {
-    final data = await rootBundle.loadString('assets/translations/en.sahih.txt');
+    final data = await rootBundle.loadString(
+      'assets/translations/en.sahih.txt',
+    );
     _translations.clear();
 
     for (final line in data.split('\n')) {
@@ -15,7 +17,7 @@ class TranslationManager {
 
       final surah = int.tryParse(parts[0]) ?? 0;
       final ayah = int.tryParse(parts[1]) ?? 0;
-      final text = parts[2];
+      final text = parts.skip(2).join('|');
 
       if (!_translations.containsKey(surah)) {
         _translations[surah] = {};

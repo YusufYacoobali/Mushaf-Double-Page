@@ -9,13 +9,12 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
-
   static const _darkBg = Color.fromARGB(255, 17, 38, 8);
   static const _lightBg = Color.fromARGB(255, 235, 243, 236);
   static const _accent = Color.fromARGB(255, 2, 92, 50);
 
   bool isDarkMode = false;
-  String selectedMushaf = 'indopak';
+  String selectedMushaf = 'indopak_tajweed';
   bool _loaded = false;
 
   @override
@@ -48,9 +47,16 @@ class _SettingsState extends State<Settings> {
 
     if (mushaf == 'madani') {
       _showDownloadingDialog();
-      await StorageManager.ensureMushafDownloaded("madani", 2);
-      Navigator.pop(context);
+      try {
+        await StorageManager.ensureMushafDownloaded("madani", 2);
+      } finally {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      }
     }
+
+    if (!mounted) return;
 
     await StorageManager.saveMushaf(mushaf);
 
@@ -65,7 +71,9 @@ class _SettingsState extends State<Settings> {
       barrierDismissible: false,
       builder: (_) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Row(
@@ -96,7 +104,7 @@ class _SettingsState extends State<Settings> {
           fontSize: 15,
           fontWeight: FontWeight.w700,
           letterSpacing: .3,
-          color: color.withOpacity(.8),
+          color: color.withValues(alpha: .8),
         ),
       ),
     );
@@ -111,10 +119,10 @@ class _SettingsState extends State<Settings> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.08),
+            color: Colors.black.withValues(alpha: .08),
             blurRadius: 16,
             offset: const Offset(0, 6),
-          )
+          ),
         ],
       ),
       child: child,
@@ -142,7 +150,7 @@ class _SettingsState extends State<Settings> {
           Switch(
             value: value,
             onChanged: _updateDarkMode,
-            activeColor: _accent,
+            activeThumbColor: _accent,
           ),
         ],
       ),
@@ -156,7 +164,6 @@ class _SettingsState extends State<Settings> {
     required bool isDark,
     required Color textPrimary,
   }) {
-
     final bool isSelected = selectedMushaf == value;
 
     return GestureDetector(
@@ -170,13 +177,12 @@ class _SettingsState extends State<Settings> {
           color: isDark ? const Color(0xFF1E2A1B) : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isSelected ? _accent : Colors.grey.withOpacity(.2),
+            color: isSelected ? _accent : Colors.grey.withValues(alpha: .2),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           children: [
-
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
@@ -191,7 +197,6 @@ class _SettingsState extends State<Settings> {
 
             Row(
               children: [
-
                 if (isSelected)
                   const Icon(Icons.check_circle, size: 18, color: _accent),
 
@@ -226,11 +231,10 @@ class _SettingsState extends State<Settings> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(.12),
+            color: color.withValues(alpha: .12),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: color),
@@ -242,7 +246,6 @@ class _SettingsState extends State<Settings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               Text(
                 title,
                 style: TextStyle(
@@ -254,24 +257,18 @@ class _SettingsState extends State<Settings> {
 
               const SizedBox(height: 4),
 
-              Text(
-                text,
-                style: TextStyle(fontSize: 14, color: textPrimary),
-              ),
+              Text(text, style: TextStyle(fontSize: 14, color: textPrimary)),
             ],
           ),
-        )
+        ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-
     if (!_loaded) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final isDark = isDarkMode;
@@ -305,7 +302,6 @@ class _SettingsState extends State<Settings> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Center(
               child: Text(
                 'السلام عليكم ورحمة الله وبركاته',
@@ -325,12 +321,11 @@ class _SettingsState extends State<Settings> {
             _settingsCard(
               Column(
                 children: [
-
                   _infoTile(
                     icon: Icons.bookmark_rounded,
                     title: 'Bookmarks',
                     text:
-                    'Save pages while reading and jump back to them later.',
+                        'Save pages while reading and jump back to them later.',
                     color: _accent,
                   ),
 
@@ -339,8 +334,7 @@ class _SettingsState extends State<Settings> {
                   _infoTile(
                     icon: Icons.star_rounded,
                     title: 'Support the app',
-                    text:
-                    'Leaving a positive review helps the project grow.',
+                    text: 'Leaving a positive review helps the project grow.',
                     color: const Color(0xFFD9B44A),
                   ),
                 ],
@@ -361,7 +355,6 @@ class _SettingsState extends State<Settings> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   Text(
                     'Choose the Mushaf layout you prefer.',
                     style: TextStyle(fontSize: 14, color: Colors.black87),
@@ -374,12 +367,11 @@ class _SettingsState extends State<Settings> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
-
                         _buildMushafOption(
                           title: 'Indo-Pak Tajweed (13 lines)',
                           value: 'indopak_tajweed',
                           previewImage:
-                          'assets/mushaf/indopak_tajweed_preview.png',
+                              'assets/mushaf/indopak_tajweed_preview.png',
                           isDark: isDark,
                           textPrimary: textPrimary,
                         ),
@@ -387,8 +379,7 @@ class _SettingsState extends State<Settings> {
                         _buildMushafOption(
                           title: 'Madani (15 lines)',
                           value: 'madani',
-                          previewImage:
-                          'assets/mushaf/madani_preview.png',
+                          previewImage: 'assets/mushaf/madani_preview.png',
                           isDark: isDark,
                           textPrimary: textPrimary,
                         ),
