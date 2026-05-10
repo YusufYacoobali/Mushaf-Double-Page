@@ -23,6 +23,7 @@ import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/utils/page_mapper.dart';
 import 'package:mushaf_two_page/pages/loading.dart';
 
+import 'components/nav_bar_icon.dart';
 import 'components/translation_modal.dart';
 import 'firebase_options.dart';
 
@@ -461,65 +462,45 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 reverse: true,
                                 child: Row(
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.headphones_rounded,
-                                      ),
-                                      color: palette.readerIcon,
+                                    barIcon(
+                                      icon: Icons.headphones_rounded,
+                                      palette: palette,
                                       onPressed: _showAudioModal,
                                     ),
-                                    const SizedBox(width: 6),
-                                    IconButton(
-                                      icon: const Icon(Icons.chat_outlined),
-                                      color: palette.readerIcon,
-                                      onPressed: () {
-                                        _showTranslationModal();
-                                      },
+                                    //const SizedBox(width: 6),
+                                    barIcon(
+                                      icon: Icons.chat_outlined,
+                                      palette: palette,
+                                      onPressed: _showTranslationModal,
                                     ),
-                                    const SizedBox(width: 6),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.menu_book_outlined,
-                                      ),
-                                      color: palette.readerIcon,
+                                    //const SizedBox(width: 6),
+                                    //const SizedBox(width: 6),
+                                    barIcon(
+                                      icon: Icons.menu_book_outlined,
+                                      palette: palette,
                                       onPressed: () {
                                         SurahJuzNavigator.show(
                                           context: context,
                                           onJumpToPage: (page) {
                                             final actualPage =
-                                                PageMapper.bookmarkGoToMapper(
-                                                  page,
-                                                  _isPortrait,
-                                                );
-                                            _pageController.jumpToPage(
+                                            PageMapper.bookmarkGoToMapper(page, _isPortrait);
+
+                                            _pageController.jumpToPage(actualPage);
+
+                                            final logical = PageMapper.logicalFromPageIndex(
                                               actualPage,
+                                              _isPortrait,
                                             );
 
-                                            final logical =
-                                                PageMapper.logicalFromPageIndex(
-                                                  actualPage,
-                                                  _isPortrait,
-                                                );
-
-                                            debugPrint(
-                                              '[NAV] page returned $actualPage',
-                                            );
-                                            debugPrint(
-                                              '[NAV] logical page returned $logical',
-                                            );
-
-                                            setState(
-                                              () => _logicalPage = logical,
-                                            );
+                                            setState(() => _logicalPage = logical);
                                           },
                                           mushaf: _mushaf,
                                         );
                                       },
                                     ),
-                                    const SizedBox(width: 6),
-                                    IconButton(
-                                      icon: const Icon(Icons.bookmarks_rounded),
-                                      color: palette.readerIcon,
+                                    barIcon(
+                                      icon: Icons.bookmarks_rounded,
+                                      palette: palette,
                                       onPressed: () {
                                         BookmarksModal.show(
                                           context: context,
@@ -527,104 +508,65 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                           isPortrait: _isPortrait,
                                           onAddBookmark: _addBookmark,
                                           onRemoveBookmark: (b) {
-                                            setState(
-                                              () => _bookmarks.remove(b),
-                                            );
-                                            StorageManager.saveBookmarks(
-                                              _bookmarks,
-                                              mushaf: _mushaf,
-                                            );
+                                            setState(() => _bookmarks.remove(b));
+                                            StorageManager.saveBookmarks(_bookmarks, mushaf: _mushaf);
                                           },
                                           onJumpToBookmark: (b) {
                                             Navigator.pop(context);
 
                                             final page =
-                                                PageMapper.bookmarkGoToMapper(
-                                                  b.pageNumber,
-                                                  _isPortrait,
-                                                );
+                                            PageMapper.bookmarkGoToMapper(b.pageNumber, _isPortrait);
 
                                             _pageController.jumpToPage(page);
 
-                                            final logical =
-                                                PageMapper.logicalFromPageIndex(
-                                                  page,
-                                                  _isPortrait,
-                                                );
-
-                                            debugPrint(
-                                              '[BOOKMAKR] page returned $page',
-                                            );
-                                            debugPrint(
-                                              '[BOOKMAKR] logical page returned $logical',
+                                            final logical = PageMapper.logicalFromPageIndex(
+                                              page,
+                                              _isPortrait,
                                             );
 
-                                            setState(
-                                              () => _logicalPage = logical,
-                                            );
+                                            setState(() => _logicalPage = logical);
                                           },
                                         );
                                       },
                                     ),
-                                    const SizedBox(width: 6),
-                                    IconButton(
-                                      icon: const Icon(Icons.settings),
-                                      color: palette.readerIcon,
+                                    //const SizedBox(width: 6),
+                                    barIcon(
+                                      icon: Icons.settings,
+                                      palette: palette,
                                       onPressed: () async {
                                         debugPrint('[SETTINGS] open');
+
                                         await Navigator.push(
                                           context,
-                                          MaterialPageRoute(
-                                            builder: (_) => const Settings(),
-                                          ),
+                                          MaterialPageRoute(builder: (_) => const Settings()),
                                         );
+
                                         if (!context.mounted) return;
-                                        debugPrint(
-                                          '[SETTINGS] changed, reloading flags',
-                                        );
+
                                         await MyApp.of(context)?.reloadTheme();
 
-                                        final mushaf =
-                                            await StorageManager.getMushaf();
+                                        final mushaf = await StorageManager.getMushaf();
                                         if (!context.mounted) return;
-                                        debugPrint(
-                                          '[MUSHAF] Current mushaf $_mushaf',
-                                        );
 
                                         if (mushaf != _mushaf) {
-                                          debugPrint(
-                                            '[MUSHAF] Mushaf changed: $_mushaf -> $mushaf',
+                                          if (_mushaf == 'indopak_tajweed' && mushaf == 'madani') {
+                                            _logicalPage = PageMapper.indoPakToMadani(_logicalPage);
+                                          }
+
+                                          if (_mushaf == 'madani' && mushaf == 'indopak_tajweed') {
+                                            _logicalPage = PageMapper.madaniToIndoPak(_logicalPage);
+                                          }
+
+                                          final newIndex = PageMapper.pageIndexFromLogical(
+                                            _logicalPage,
+                                            _isPortrait,
                                           );
 
-                                          // convert page BEFORE switching mushaf
-                                          if (_mushaf == 'indopak_tajweed' &&
-                                              mushaf == 'madani') {
-                                            _logicalPage =
-                                                PageMapper.indoPakToMadani(
-                                                  _logicalPage,
-                                                );
-                                          }
-
-                                          if (_mushaf == 'madani' &&
-                                              mushaf == 'indopak_tajweed') {
-                                            _logicalPage =
-                                                PageMapper.madaniToIndoPak(
-                                                  _logicalPage,
-                                                );
-                                          }
-
-                                          final newIndex =
-                                              PageMapper.pageIndexFromLogical(
-                                                _logicalPage,
-                                                _isPortrait,
-                                              );
-
-                                          setState(() {
-                                            _mushaf = mushaf;
-                                          });
+                                          setState(() => _mushaf = mushaf);
                                           await _loadBookmarks();
                                           _pageController.jumpToPage(newIndex);
                                         }
+
                                         setState(() {});
                                       },
                                     ),
