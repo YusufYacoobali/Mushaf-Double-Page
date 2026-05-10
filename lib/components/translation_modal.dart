@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/surah_mapper.dart';
 import '../utils/translation_manager.dart';
 import '../utils/tafseer_manager.dart';
 import '../utils/surah_summary_manager.dart';
+import '../utils/arabic_text_manager.dart';
 
 class TranslationModal extends StatefulWidget {
   final List<SurahRange> surahs;
@@ -28,13 +31,32 @@ class TranslationModal extends StatefulWidget {
 class _TranslationModalState extends State<TranslationModal> {
   final List<String> _selectedTrans = ['Saheeh International'];
   final List<String> _selectedTafseer = ['Tafseer Ibn Kathir'];
+  bool _showArabic = true;
   bool _loading = true;
   List<dynamic> _items = [];
 
   @override
   void initState() {
     super.initState();
+    _initFromPrefs();
+  }
+
+  Future<void> _initFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final trans = prefs.getStringList('trans_selected') ?? ['Saheeh International'];
+    final tafseer = prefs.getStringList('tafseer_selected') ?? ['Tafseer Ibn Kathir'];
+    final showArabic = prefs.getBool('show_arabic') ?? true;
+    _selectedTrans..clear()..addAll(trans);
+    _selectedTafseer..clear()..addAll(tafseer);
+    _showArabic = showArabic;
     _load();
+  }
+
+  Future<void> _savePrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('trans_selected', _selectedTrans);
+    await prefs.setStringList('tafseer_selected', _selectedTafseer);
+    await prefs.setBool('show_arabic', _showArabic);
   }
 
   Future<void> _load() async {
@@ -62,6 +84,8 @@ class _TranslationModalState extends State<TranslationModal> {
         }
       }
 
+      final arabicData = await ArabicTextManager.getSurah(surah.surah);
+
       final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()
         ..sort();
 
@@ -74,7 +98,12 @@ class _TranslationModalState extends State<TranslationModal> {
         for (final src in _selectedTafseer) {
           tafseer[src] = tafseerData[src]?[ayah] ?? '';
         }
-        items.add({'ayah': ayah, 'trans': trans, 'tafseer': tafseer});
+        items.add({
+          'ayah': ayah,
+          'trans': trans,
+          'tafseer': tafseer,
+          'arabic': arabicData[ayah] ?? '',
+        });
       }
     }
 
@@ -97,6 +126,7 @@ class _TranslationModalState extends State<TranslationModal> {
   void _showSettings() {
     final tempTrans = List<String>.from(_selectedTrans);
     final tempTafseer = List<String>.from(_selectedTafseer);
+    var tempShowArabic = _showArabic;
 
     showModalBottomSheet(
       context: context,
@@ -163,7 +193,9 @@ class _TranslationModalState extends State<TranslationModal> {
                             _selectedTafseer
                               ..clear()
                               ..addAll(tempTafseer);
+                            _showArabic = tempShowArabic;
                           });
+                          _savePrefs();
                           _load();
                         },
                         child: Container(
@@ -188,6 +220,15 @@ class _TranslationModalState extends State<TranslationModal> {
                     ],
                   ),
                   const SizedBox(height: 20),
+                  _SectionLabel(palette: palette, label: 'Display'),
+                  const SizedBox(height: 6),
+                  _CheckTile(
+                    palette: palette,
+                    label: 'Show Arabic text',
+                    checked: tempShowArabic,
+                    onTap: () => setS(() => tempShowArabic = !tempShowArabic),
+                  ),
+                  const SizedBox(height: 16),
                   _SectionLabel(palette: palette, label: 'Translation'),
                   const SizedBox(height: 6),
                   ...TranslationManager.sources.keys.map(
@@ -412,6 +453,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                 item['trans'] as Map<String, String>;
                             final tafseer =
                                 item['tafseer'] as Map<String, String>;
+                            final arabic = item['arabic'] as String;
                             final prevIsHeader =
                                 index == 0 ||
                                 _items[index - 1] is SurahRange;
@@ -538,6 +580,24 @@ class _TranslationModalState extends State<TranslationModal> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
+                                          // Arabic text
+                                          if (_showArabic && arabic.isNotEmpty) ...[
+                                            SizedBox(
+                                              width: double.infinity,
+                                              child: Text(
+                                                arabic,
+                                                textDirection: TextDirection.rtl,
+                                                textAlign: TextAlign.right,
+                                                style: TextStyle(
+                                                  fontSize: 22,
+                                                  height: 1.8,
+                                                  color: palette.text,
+                                                  fontFamily: 'Scheherazade',
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                          ],
                                           // Translation blocks
                                           ..._selectedTrans
                                               .asMap()
