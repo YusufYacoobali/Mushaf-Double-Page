@@ -84,10 +84,10 @@ class QuranAudioController extends ChangeNotifier {
   bool get hasPlan => _plan != null;
 
   int? get currentIndex => _player.currentIndex;
-  int get totalItems => _player.sequence.length;
+  int get totalItems => _player.sequence?.length ?? 0;
 
   MediaItem? get currentMediaItem {
-    final tag = _player.sequenceState.currentSource?.tag;
+    final tag = _player.sequenceState?.currentSource?.tag;
     return tag is MediaItem ? tag : null;
   }
 
