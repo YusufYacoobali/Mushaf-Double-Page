@@ -8,6 +8,7 @@ import 'package:mushaf_two_page/components/bookmark_modal.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/navigator.dart';
+import 'package:mushaf_two_page/utils/reminder_notifications.dart';
 import 'package:mushaf_two_page/utils/surah_mapper.dart' as surah_mapper;
 import 'package:mushaf_two_page/utils/translation_manager.dart';
 import 'package:path_provider/path_provider.dart';
@@ -24,6 +25,7 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await ReminderNotifications.initialize();
   runApp(const MyApp());
 }
 
