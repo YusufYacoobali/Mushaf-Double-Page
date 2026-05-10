@@ -47,6 +47,8 @@ dependencies:
   flutter_local_notifications: ^21.0.0
   timezone: ^0.11.0
   flutter_timezone: ^5.0.2
+  just_audio: ^0.10.5
+  just_audio_background: ^0.0.1-beta.17
 
 dev_dependencies:
   flutter_test:

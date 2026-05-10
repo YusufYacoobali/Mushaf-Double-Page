@@ -4,7 +4,11 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
+import 'package:mushaf_two_page/components/audio_modal.dart';
 import 'package:mushaf_two_page/components/bookmark_modal.dart';
+import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/navigator.dart';
@@ -25,8 +29,25 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _initBackgroundAudio();
   await ReminderNotifications.initialize();
   runApp(const MyApp());
+}
+
+Future<void> _initBackgroundAudio() async {
+  try {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.quran.quran_double_page.audio',
+      androidNotificationChannelName: 'Quran audio',
+      androidNotificationChannelDescription: 'Quran recitation playback',
+      androidNotificationOngoing: true,
+    );
+  } on MissingPluginException catch (e) {
+    debugPrint(
+      '[AUDIO] Background audio plugin not registered yet. '
+      'Stop the app and run a fresh build after adding audio dependencies. $e',
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -269,6 +290,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     TranslationModal.show(context, surahs);
   }
 
+  void _showAudioModal() {
+    final surahs = surah_mapper.surahsFromLogicalPage(_logicalPage, _mushaf);
+    final pageSurahs = surahs.where((s) => s.surah > 0).toList();
+    final initialSurah = pageSurahs.isEmpty ? 1 : pageSurahs.first.surah;
+    AudioModal.show(context, initialSurah: initialSurah);
+  }
+
   // -------------------------
   // Build
   // -------------------------
@@ -358,6 +386,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 ),
               ),
 
+              AnimatedBuilder(
+                animation: QuranAudioController.instance,
+                builder: (context, _) {
+                  return _miniAudioPlayer(palette);
+                },
+              ),
+
               if (_isScrollbarVisible)
                 Positioned(
                   bottom: 24,
@@ -420,158 +455,182 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 ),
                               ],
                             ),
-                            Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.chat_outlined),
-                                  color: palette.readerIcon,
-                                  onPressed: () {
-                                    _showTranslationModal();
-                                  },
-                                ),
-                                const SizedBox(width: 10),
-                                IconButton(
-                                  icon: const Icon(Icons.menu_book_outlined),
-                                  color: palette.readerIcon,
-                                  onPressed: () {
-                                    SurahJuzNavigator.show(
-                                      context: context,
-                                      onJumpToPage: (page) {
-                                        final actualPage =
-                                            PageMapper.bookmarkGoToMapper(
-                                              page,
-                                              _isPortrait,
-                                            );
-                                        _pageController.jumpToPage(actualPage);
-
-                                        final logical =
-                                            PageMapper.logicalFromPageIndex(
-                                              actualPage,
-                                              _isPortrait,
-                                            );
-
-                                        debugPrint(
-                                          '[NAV] page returned $actualPage',
-                                        );
-                                        debugPrint(
-                                          '[NAV] logical page returned $logical',
-                                        );
-
-                                        setState(() => _logicalPage = logical);
+                            Flexible(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                reverse: true,
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.headphones_rounded,
+                                      ),
+                                      color: palette.readerIcon,
+                                      onPressed: _showAudioModal,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    IconButton(
+                                      icon: const Icon(Icons.chat_outlined),
+                                      color: palette.readerIcon,
+                                      onPressed: () {
+                                        _showTranslationModal();
                                       },
-                                      mushaf: _mushaf,
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 10),
-                                IconButton(
-                                  icon: const Icon(Icons.bookmarks_rounded),
-                                  color: palette.readerIcon,
-                                  onPressed: () {
-                                    BookmarksModal.show(
-                                      context: context,
-                                      bookmarks: _bookmarks,
-                                      isPortrait: _isPortrait,
-                                      onAddBookmark: _addBookmark,
-                                      onRemoveBookmark: (b) {
-                                        setState(() => _bookmarks.remove(b));
-                                        StorageManager.saveBookmarks(
-                                          _bookmarks,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.menu_book_outlined,
+                                      ),
+                                      color: palette.readerIcon,
+                                      onPressed: () {
+                                        SurahJuzNavigator.show(
+                                          context: context,
+                                          onJumpToPage: (page) {
+                                            final actualPage =
+                                                PageMapper.bookmarkGoToMapper(
+                                                  page,
+                                                  _isPortrait,
+                                                );
+                                            _pageController.jumpToPage(
+                                              actualPage,
+                                            );
+
+                                            final logical =
+                                                PageMapper.logicalFromPageIndex(
+                                                  actualPage,
+                                                  _isPortrait,
+                                                );
+
+                                            debugPrint(
+                                              '[NAV] page returned $actualPage',
+                                            );
+                                            debugPrint(
+                                              '[NAV] logical page returned $logical',
+                                            );
+
+                                            setState(
+                                              () => _logicalPage = logical,
+                                            );
+                                          },
                                           mushaf: _mushaf,
                                         );
                                       },
-                                      onJumpToBookmark: (b) {
-                                        Navigator.pop(context);
+                                    ),
+                                    const SizedBox(width: 6),
+                                    IconButton(
+                                      icon: const Icon(Icons.bookmarks_rounded),
+                                      color: palette.readerIcon,
+                                      onPressed: () {
+                                        BookmarksModal.show(
+                                          context: context,
+                                          bookmarks: _bookmarks,
+                                          isPortrait: _isPortrait,
+                                          onAddBookmark: _addBookmark,
+                                          onRemoveBookmark: (b) {
+                                            setState(
+                                              () => _bookmarks.remove(b),
+                                            );
+                                            StorageManager.saveBookmarks(
+                                              _bookmarks,
+                                              mushaf: _mushaf,
+                                            );
+                                          },
+                                          onJumpToBookmark: (b) {
+                                            Navigator.pop(context);
 
-                                        final page =
-                                            PageMapper.bookmarkGoToMapper(
-                                              b.pageNumber,
-                                              _isPortrait,
+                                            final page =
+                                                PageMapper.bookmarkGoToMapper(
+                                                  b.pageNumber,
+                                                  _isPortrait,
+                                                );
+
+                                            _pageController.jumpToPage(page);
+
+                                            final logical =
+                                                PageMapper.logicalFromPageIndex(
+                                                  page,
+                                                  _isPortrait,
+                                                );
+
+                                            debugPrint(
+                                              '[BOOKMAKR] page returned $page',
+                                            );
+                                            debugPrint(
+                                              '[BOOKMAKR] logical page returned $logical',
                                             );
 
-                                        _pageController.jumpToPage(page);
-
-                                        final logical =
-                                            PageMapper.logicalFromPageIndex(
-                                              page,
-                                              _isPortrait,
+                                            setState(
+                                              () => _logicalPage = logical,
                                             );
-
-                                        debugPrint(
-                                          '[BOOKMAKR] page returned $page',
+                                          },
                                         );
-                                        debugPrint(
-                                          '[BOOKMAKR] logical page returned $logical',
-                                        );
-
-                                        setState(() => _logicalPage = logical);
                                       },
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 10),
-                                IconButton(
-                                  icon: const Icon(Icons.settings),
-                                  color: palette.readerIcon,
-                                  onPressed: () async {
-                                    debugPrint('[SETTINGS] open');
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const Settings(),
-                                      ),
-                                    );
-                                    if (!context.mounted) return;
-                                    debugPrint(
-                                      '[SETTINGS] changed, reloading flags',
-                                    );
-                                    await MyApp.of(context)?.reloadTheme();
+                                    ),
+                                    const SizedBox(width: 6),
+                                    IconButton(
+                                      icon: const Icon(Icons.settings),
+                                      color: palette.readerIcon,
+                                      onPressed: () async {
+                                        debugPrint('[SETTINGS] open');
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => const Settings(),
+                                          ),
+                                        );
+                                        if (!context.mounted) return;
+                                        debugPrint(
+                                          '[SETTINGS] changed, reloading flags',
+                                        );
+                                        await MyApp.of(context)?.reloadTheme();
 
-                                    final mushaf =
-                                        await StorageManager.getMushaf();
-                                    if (!context.mounted) return;
-                                    debugPrint(
-                                      '[MUSHAF] Current mushaf $_mushaf',
-                                    );
+                                        final mushaf =
+                                            await StorageManager.getMushaf();
+                                        if (!context.mounted) return;
+                                        debugPrint(
+                                          '[MUSHAF] Current mushaf $_mushaf',
+                                        );
 
-                                    if (mushaf != _mushaf) {
-                                      debugPrint(
-                                        '[MUSHAF] Mushaf changed: $_mushaf -> $mushaf',
-                                      );
-
-                                      // convert page BEFORE switching mushaf
-                                      if (_mushaf == 'indopak_tajweed' &&
-                                          mushaf == 'madani') {
-                                        _logicalPage =
-                                            PageMapper.indoPakToMadani(
-                                              _logicalPage,
-                                            );
-                                      }
-
-                                      if (_mushaf == 'madani' &&
-                                          mushaf == 'indopak_tajweed') {
-                                        _logicalPage =
-                                            PageMapper.madaniToIndoPak(
-                                              _logicalPage,
-                                            );
-                                      }
-
-                                      final newIndex =
-                                          PageMapper.pageIndexFromLogical(
-                                            _logicalPage,
-                                            _isPortrait,
+                                        if (mushaf != _mushaf) {
+                                          debugPrint(
+                                            '[MUSHAF] Mushaf changed: $_mushaf -> $mushaf',
                                           );
 
-                                      setState(() {
-                                        _mushaf = mushaf;
-                                      });
-                                      await _loadBookmarks();
-                                      _pageController.jumpToPage(newIndex);
-                                    }
-                                    setState(() {});
-                                  },
+                                          // convert page BEFORE switching mushaf
+                                          if (_mushaf == 'indopak_tajweed' &&
+                                              mushaf == 'madani') {
+                                            _logicalPage =
+                                                PageMapper.indoPakToMadani(
+                                                  _logicalPage,
+                                                );
+                                          }
+
+                                          if (_mushaf == 'madani' &&
+                                              mushaf == 'indopak_tajweed') {
+                                            _logicalPage =
+                                                PageMapper.madaniToIndoPak(
+                                                  _logicalPage,
+                                                );
+                                          }
+
+                                          final newIndex =
+                                              PageMapper.pageIndexFromLogical(
+                                                _logicalPage,
+                                                _isPortrait,
+                                              );
+
+                                          setState(() {
+                                            _mushaf = mushaf;
+                                          });
+                                          await _loadBookmarks();
+                                          _pageController.jumpToPage(newIndex);
+                                        }
+                                        setState(() {});
+                                      },
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
@@ -582,6 +641,116 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _miniAudioPlayer(AppPalette palette) {
+    final controller = QuranAudioController.instance;
+    final plan = controller.plan;
+    final ayah = controller.currentAyah;
+    final repeat = controller.currentRepeat;
+
+    if (plan == null ||
+        controller.processingState == ProcessingState.idle ||
+        controller.processingState == ProcessingState.completed) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      left: 12,
+      right: 12,
+      bottom: _isScrollbarVisible ? 98 : 22,
+      child: Material(
+        color: palette.readerBar,
+        borderRadius: BorderRadius.circular(18),
+        elevation: 8,
+        shadowColor: palette.shadow,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: _showAudioModal,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: palette.accentSoft,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    Icons.headphones_rounded,
+                    color: palette.accent,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        ayah == null
+                            ? plan.surahInfo.name
+                            : '${plan.surahInfo.name}:$ayah',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.readerIcon,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '${plan.reciter.name}'
+                        '${repeat == null ? '' : ' \u2022 $repeat/${plan.repeatLabel}'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.readerIcon.withValues(alpha: .72),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Previous ayah',
+                  icon: const Icon(Icons.skip_previous_rounded),
+                  color: palette.readerIcon,
+                  onPressed: controller.seekPrevious,
+                ),
+                IconButton(
+                  tooltip: controller.playing ? 'Pause' : 'Play',
+                  icon: Icon(
+                    controller.playing
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                  ),
+                  color: palette.readerIcon,
+                  onPressed: controller.togglePlayPause,
+                ),
+                IconButton(
+                  tooltip: 'Next ayah',
+                  icon: const Icon(Icons.skip_next_rounded),
+                  color: palette.readerIcon,
+                  onPressed: controller.seekNext,
+                ),
+                IconButton(
+                  tooltip: 'Audio settings',
+                  icon: const Icon(Icons.tune_rounded),
+                  color: palette.readerIcon,
+                  onPressed: _showAudioModal,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
