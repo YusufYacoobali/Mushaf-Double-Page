@@ -2,15 +2,17 @@ import 'package:flutter/services.dart' show rootBundle;
 
 class TranslationManager {
   static const Map<String, String> sources = {
-    "Sahih Int'l": 'assets/translations/en.sahih.txt',
-    'Pickthall': 'assets/translations/en.pickthall.txt',
-    'Hilali': 'assets/translations/en.hilali.txt',
-    'Transliteration': 'assets/translations/en.transliteration.txt',
+    'Saheeh International': 'assets/translations/en.sahih.txt',
+    'Muhammad M. Pickthall': 'assets/translations/en.pickthall.txt',
+    'Hilali & Muhsin Khan': 'assets/translations/en.hilali.txt',
+    'English Transliteration': 'assets/translations/en.transliteration.txt',
+    'Farooq Khan (Hindi)': 'assets/translations/hi.farooq.txt',
+    'Fateh Jalandhry (Urdu)': 'assets/translations/ur.jalandhry.txt',
   };
 
   static final Map<String, Map<int, Map<int, String>>> _cache = {};
 
-  static Future<void> load() => loadSource("Sahih Int'l");
+  static Future<void> load() => loadSource('Saheeh International');
 
   static Future<void> loadSource(String source) async {
     if (_cache.containsKey(source)) return;
@@ -33,7 +35,7 @@ class TranslationManager {
     _cache[source] = surahs;
   }
 
-  static Map<int, String> getSurah(int surah, {String source = "Sahih Int'l"}) {
+  static Map<int, String> getSurah(int surah, {String source = 'Saheeh International'}) {
     return _cache[source]?[surah] ?? {};
   }
 

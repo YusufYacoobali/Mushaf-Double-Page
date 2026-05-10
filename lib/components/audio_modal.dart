@@ -27,7 +27,7 @@ class _AudioModalState extends State<AudioModal> {
   late int _surah;
   int _fromAyah = 1;
   int _toAyah = 7;
-  int? _repeatCount = 3;
+  int? _repeatCount = 20;
   AudioRepeatMode _repeatMode = AudioRepeatMode.range;
   AudioSourceMode _sourceMode = AudioSourceMode.range;
   QuranAudioErrorKind _lastHandledErrorKind = QuranAudioErrorKind.none;
@@ -317,7 +317,7 @@ class _AudioModalState extends State<AudioModal> {
                         child: _modeChip(
                           palette,
                           mode: AudioRepeatMode.range,
-                          title: 'Repeat',
+                          title: 'Range repeat',
                           subtitle: '1-5, 1-5',
                         ),
                       ),

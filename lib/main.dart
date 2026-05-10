@@ -15,6 +15,7 @@ import 'package:mushaf_two_page/utils/navigator.dart';
 import 'package:mushaf_two_page/utils/reminder_notifications.dart';
 import 'package:mushaf_two_page/utils/surah_mapper.dart' as surah_mapper;
 import 'package:mushaf_two_page/utils/translation_manager.dart';
+import 'package:mushaf_two_page/utils/surah_summary_manager.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:mushaf_two_page/pages/settings.dart';
@@ -162,6 +163,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
     _startHideScrollbarTimer();
     await TranslationManager.load();
+    await SurahSummaryManager.load();
     setState(() => _ready = true);
   }
 

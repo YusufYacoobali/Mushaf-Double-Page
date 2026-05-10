@@ -5,10 +5,12 @@ import 'package:sqflite/sqflite.dart';
 
 class TafseerManager {
   static const Map<String, String> sources = {
-    'Ibn Kathir': 'en-tafisr-ibn-kathir.db',
-    'Maarif ul Quran': 'en-tafsir-maarif-ul-quran.db',
-    'Al-Jalalayn': 'tafsir-al-jalalayn.db',
-    'Abridged': 'abridged-explanation-of-the-quran.db',
+    'Tafseer Ibn Kathir': 'en-tafisr-ibn-kathir.db',
+    'Maarif ul Quran – Mufti Shafi': 'en-tafsir-maarif-ul-quran.db',
+    'Tafseer Al-Jalalayn': 'tafsir-al-jalalayn.db',
+    'Abridged Explanation': 'abridged-explanation-of-the-quran.db',
+    'Tafseer Ibn Kathir (Urdu)': 'tafseer-ibn-e-kaseer-urdu.db',
+    'Al-Mokhtasar (Hindi)': 'hindi-mokhtasar.db',
   };
 
   static final Map<String, Database> _dbs = {};
