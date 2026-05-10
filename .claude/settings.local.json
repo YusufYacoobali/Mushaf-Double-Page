@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\yyaco\\\\AndroidStudioProjects\\\\mushaf_two_page\\\\assets\\\\translations\" -File | Select-Object Name, @{Label=\"Size \\(bytes\\)\";Expression={$_.Length}} | Format-Table -AutoSize)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\yyaco\\\\AndroidStudioProjects\\\\mushaf_two_page\\\\assets\\\\translations\")",
+      "Bash(Select-Object Name, Length)",
+      "Bash(python3 -c ' *)",
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)"
+    ]
+  }
+}
