@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 
 class Settings extends StatefulWidget {
   const Settings({super.key});
@@ -9,10 +10,6 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
-  static const _darkBg = Color.fromARGB(255, 17, 38, 8);
-  static const _lightBg = Color.fromARGB(255, 235, 243, 236);
-  static const _accent = Color.fromARGB(255, 2, 92, 50);
-
   bool isDarkMode = false;
   String selectedMushaf = 'indopak_tajweed';
   bool _loaded = false;
@@ -129,8 +126,10 @@ class _SettingsState extends State<Settings> {
                       value: value.value,
                       minHeight: 6,
                       borderRadius: BorderRadius.circular(999),
-                      backgroundColor: _accent.withValues(alpha: .12),
-                      color: _accent,
+                      backgroundColor: AppPalette.forDarkMode(
+                        isDarkMode,
+                      ).accent.withValues(alpha: .12),
+                      color: AppPalette.forDarkMode(isDarkMode).accent,
                     ),
                   ],
                 );
@@ -179,16 +178,17 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  Widget _settingsCard(Widget child, Color cardColor) {
+  Widget _settingsCard(Widget child, AppPalette palette) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border.withValues(alpha: .7)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .08),
+            color: palette.shadow,
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -198,13 +198,13 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  Widget _buildSwitch(String title, bool value, Color textColor) {
+  Widget _buildSwitch(String title, bool value, AppPalette palette) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => _updateDarkMode(!value),
       child: Row(
         children: [
-          const Icon(Icons.dark_mode_rounded, color: _accent),
+          Icon(Icons.dark_mode_rounded, color: palette.accent),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -212,14 +212,14 @@ class _SettingsState extends State<Settings> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: textColor,
+                color: palette.surfaceText,
               ),
             ),
           ),
           Switch(
             value: value,
             onChanged: _updateDarkMode,
-            activeThumbColor: _accent,
+            activeThumbColor: palette.accent,
           ),
         ],
       ),
@@ -230,8 +230,7 @@ class _SettingsState extends State<Settings> {
     required String title,
     required String value,
     required String previewImage,
-    required bool isDark,
-    required Color textPrimary,
+    required AppPalette palette,
   }) {
     final bool isSelected = selectedMushaf == value;
 
@@ -243,10 +242,10 @@ class _SettingsState extends State<Settings> {
         margin: const EdgeInsets.only(right: 16),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E2A1B) : Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isSelected ? _accent : Colors.grey.withValues(alpha: .2),
+            color: isSelected ? palette.accent : palette.border,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -267,7 +266,7 @@ class _SettingsState extends State<Settings> {
             Row(
               children: [
                 if (isSelected)
-                  const Icon(Icons.check_circle, size: 18, color: _accent),
+                  Icon(Icons.check_circle, size: 18, color: palette.accent),
 
                 if (isSelected) const SizedBox(width: 6),
 
@@ -277,7 +276,7 @@ class _SettingsState extends State<Settings> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: textPrimary,
+                      color: palette.surfaceText,
                     ),
                   ),
                 ),
@@ -294,9 +293,8 @@ class _SettingsState extends State<Settings> {
     required String title,
     required String text,
     required Color color,
+    required AppPalette palette,
   }) {
-    final textPrimary = Colors.black87;
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -320,13 +318,16 @@ class _SettingsState extends State<Settings> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: textPrimary,
+                  color: palette.surfaceText,
                 ),
               ),
 
               const SizedBox(height: 4),
 
-              Text(text, style: TextStyle(fontSize: 14, color: textPrimary)),
+              Text(
+                text,
+                style: TextStyle(fontSize: 14, color: palette.surfaceMuted),
+              ),
             ],
           ),
         ),
@@ -340,10 +341,9 @@ class _SettingsState extends State<Settings> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final isDark = isDarkMode;
-    final bg = isDark ? _darkBg : _lightBg;
-    final textPrimary = isDark ? Colors.white : Colors.black87;
-    final cardColor = isDark ? _lightBg : Colors.white;
+    final palette = AppPalette.forDarkMode(isDarkMode);
+    final bg = palette.scaffold;
+    final textPrimary = palette.text;
 
     return Scaffold(
       backgroundColor: bg,
@@ -395,7 +395,8 @@ class _SettingsState extends State<Settings> {
                     title: 'Bookmarks',
                     text:
                         'Save pages while reading and jump back to them later.',
-                    color: _accent,
+                    color: palette.accent,
+                    palette: palette,
                   ),
 
                   const SizedBox(height: 18),
@@ -405,17 +406,18 @@ class _SettingsState extends State<Settings> {
                     title: 'Support the app',
                     text: 'Leaving a positive review helps the project grow.',
                     color: const Color(0xFFD9B44A),
+                    palette: palette,
                   ),
                 ],
               ),
-              cardColor,
+              palette,
             ),
 
             _sectionTitle('APPEARANCE', textPrimary),
 
             _settingsCard(
-              _buildSwitch('Dark Mode', isDarkMode, Colors.black87),
-              cardColor,
+              _buildSwitch('Dark Mode', isDarkMode, palette),
+              palette,
             ),
 
             _sectionTitle('QURAN LAYOUT', textPrimary),
@@ -426,7 +428,7 @@ class _SettingsState extends State<Settings> {
                 children: [
                   Text(
                     'Choose the Mushaf layout you prefer.',
-                    style: TextStyle(fontSize: 14, color: Colors.black87),
+                    style: TextStyle(fontSize: 14, color: palette.surfaceMuted),
                   ),
 
                   const SizedBox(height: 16),
@@ -441,23 +443,21 @@ class _SettingsState extends State<Settings> {
                           value: 'indopak_tajweed',
                           previewImage:
                               'assets/mushaf/indopak_tajweed_preview.png',
-                          isDark: isDark,
-                          textPrimary: textPrimary,
+                          palette: palette,
                         ),
 
                         _buildMushafOption(
                           title: 'Madani (15 lines)',
                           value: 'madani',
                           previewImage: 'assets/mushaf/madani_preview.png',
-                          isDark: isDark,
-                          textPrimary: textPrimary,
+                          palette: palette,
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              cardColor,
+              palette,
             ),
           ],
         ),

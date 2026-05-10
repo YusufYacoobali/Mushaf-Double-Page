@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 
 class NavTile extends StatelessWidget {
   final int number;
@@ -17,11 +18,12 @@ class NavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: theme.colorScheme.surface,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -30,33 +32,29 @@ class NavTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: theme.dividerColor.withValues(alpha: .15),
-              ),
+              border: Border.all(color: palette.border.withValues(alpha: .9)),
             ),
             child: Row(
               children: [
-                /// Number badge
                 Container(
                   width: 42,
                   height: 42,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: theme.colorScheme.primary.withValues(alpha: .10),
+                    color: palette.accentSoft,
                   ),
                   child: Text(
                     number.toString(),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.primary,
+                      color: palette.accent,
                     ),
                   ),
                 ),
 
                 const SizedBox(width: 16),
 
-                /// Titles
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,6 +64,7 @@ class NavTile extends StatelessWidget {
                         title,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w500,
+                          color: palette.surfaceText,
                         ),
                       ),
 
@@ -73,20 +72,17 @@ class NavTile extends StatelessWidget {
                         Text(
                           englishTitle!,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(
-                              alpha: .6,
-                            ),
+                            color: palette.surfaceMuted,
                           ),
                         ),
                     ],
                   ),
                 ),
 
-                /// Arrow
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 16,
-                  color: theme.colorScheme.onSurface.withValues(alpha: .45),
+                  color: palette.surfaceMuted,
                 ),
               ],
             ),

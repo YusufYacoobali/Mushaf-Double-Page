@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/surah_mapper.dart';
 import '../utils/translation_manager.dart';
@@ -11,8 +12,37 @@ class TranslationModal extends StatelessWidget {
 
   const TranslationModal({super.key, required this.surahs});
 
+  Future<void> _copyAyah(
+    BuildContext context,
+    AppPalette palette,
+    String text,
+  ) {
+    return Clipboard.setData(ClipboardData(text: text)).then((_) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: palette.accent,
+          behavior: SnackBarBehavior.floating,
+          content: const Text('Ayah copied'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    });
+  }
+
+  BorderRadius _rowRadius({required bool first, required bool last}) {
+    const radius = Radius.circular(18);
+    return BorderRadius.vertical(
+      top: first ? radius : Radius.zero,
+      bottom: last ? radius : Radius.zero,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+
     // Flatten surah headers + ayahs into one list for lazy building
     final List<dynamic> items = [];
 
@@ -33,13 +63,9 @@ class TranslationModal extends StatelessWidget {
       maxChildSize: 0.95,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            gradient: LinearGradient(
-              colors: [Color(0xFFE8F5E9), Colors.white],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            color: palette.scaffold,
           ),
 
           child: Column(
@@ -51,9 +77,46 @@ class TranslationModal extends StatelessWidget {
                   width: 40,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
+                    color: palette.border,
                     borderRadius: BorderRadius.circular(10),
                   ),
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: palette.accentSoft,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.chat_outlined,
+                        color: palette.accent,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Translation',
+                            style: TextStyle(
+                              color: palette.text,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -63,37 +126,50 @@ class TranslationModal extends StatelessWidget {
                   thumbVisibility: true,
                   interactive: true,
                   radius: const Radius.circular(10),
-                  thickness: 15,
-
+                  thickness: 6,
                   child: ListView.builder(
                     controller: scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 12,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 22),
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final item = items[index];
 
-                      /// Surah header
                       if (item is SurahRange) {
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 12, top: 10),
-                          child: Column(
+                          padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
+                          child: Row(
                             children: [
-                              Text(
-                                item.name,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF025C32),
+                              Container(
+                                width: 4,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: palette.accent,
+                                  borderRadius: BorderRadius.circular(99),
                                 ),
                               ),
-                              Text(
-                                item.english,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.name,
+                                      style: TextStyle(
+                                        color: palette.text,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      item.english,
+                                      style: TextStyle(
+                                        color: palette.muted,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -101,91 +177,130 @@ class TranslationModal extends StatelessWidget {
                         );
                       }
 
-                      /// Ayah card
-                      final ayahNumber = item["ayah"];
-                      final text = item["text"];
+                      final ayahNumber = item["ayah"] as int;
+                      final text = (item["text"] as String?) ?? '';
+                      final previousStartsSection =
+                          index == 0 || items[index - 1] is SurahRange;
+                      final nextStartsSection =
+                          index == items.length - 1 ||
+                          items[index + 1] is SurahRange;
 
                       return Container(
-                        margin: const EdgeInsets.symmetric(
-                          vertical: 6,
-                          horizontal: 4,
-                        ),
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFF025C32),
-                            width: 1,
+                          color: palette.surface,
+                          borderRadius: _rowRadius(
+                            first: previousStartsSection,
+                            last: nextStartsSection,
                           ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x22000000),
-                              blurRadius: 4,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
+                          border: Border(
+                            left: BorderSide(color: palette.border),
+                            right: BorderSide(color: palette.border),
+                            top: previousStartsSection
+                                ? BorderSide(color: palette.border)
+                                : BorderSide.none,
+                            bottom: BorderSide(color: palette.border),
+                          ),
                         ),
-                        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
-
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            CircleAvatar(
-                              radius: 15,
-                              backgroundColor: const Color(0xFF025C32),
-                              child: Text(
-                                ayahNumber.toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 28,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 5,
+                                ),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: palette.accentSoft,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: palette.accent.withValues(
+                                      alpha: .18,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  ayahNumber.toString(),
+                                  style: TextStyle(
+                                    color: palette.accent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1,
+                                  ),
                                 ),
                               ),
-                            ),
-
-                            const SizedBox(width: 12),
-
-                            Expanded(
-                              child: SelectableText(
-                                text ?? '',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  height: 1.5,
-                                  color: Color(0xFF1B5E20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: SelectableText(
+                                  text,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    height: 1.42,
+                                    color: palette.surfaceText,
+                                  ),
                                 ),
                               ),
-                            ),
-
-                            /// Copy + Share buttons
-                            Column(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.copy, size: 18),
-                                  onPressed: () {
-                                    Clipboard.setData(
-                                      ClipboardData(text: text ?? ''),
-                                    );
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text("Ayah copied"),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                  },
+                              PopupMenuButton<String>(
+                                icon: Icon(
+                                  Icons.more_vert_rounded,
+                                  color: palette.surfaceMuted,
+                                  size: 20,
                                 ),
-
-                                IconButton(
-                                  icon: const Icon(Icons.share, size: 18),
-                                  onPressed: () {
-                                    SharePlus.instance.share(
-                                      ShareParams(text: text ?? ''),
-                                    );
-                                  },
+                                padding: EdgeInsets.zero,
+                                tooltip: 'Ayah actions',
+                                color: palette.surfaceRaised,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
-                              ],
-                            ),
-                          ],
+                                onSelected: (value) {
+                                  if (value == 'copy') {
+                                    _copyAyah(context, palette, text);
+                                    return;
+                                  }
+
+                                  SharePlus.instance.share(
+                                    ShareParams(text: text),
+                                  );
+                                },
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'copy',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.copy_rounded,
+                                          color: palette.accent,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text('Copy'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'share',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.ios_share_rounded,
+                                          color: palette.accent,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text('Share'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },

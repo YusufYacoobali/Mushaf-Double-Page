@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/surah_list.dart';
 import 'juz_list.dart';
 
@@ -67,10 +68,12 @@ class _PanelState extends State<_Panel> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height;
+    final palette = AppPalette.of(context);
 
     return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: palette.scaffold,
       elevation: 12,
+      shadowColor: palette.shadow,
       child: SizedBox(
         width: 320,
         height: height,
@@ -117,13 +120,13 @@ class _BottomSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color.fromARGB(255, 220, 232, 224);
+    final palette = AppPalette.of(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: bg,
+        color: palette.accentSoft,
         borderRadius: BorderRadius.circular(30),
       ),
       child: LayoutBuilder(
@@ -142,20 +145,25 @@ class _BottomSelector extends StatelessWidget {
                   width: segmentWidth,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: palette.surface,
                     borderRadius: BorderRadius.circular(22),
-                    boxShadow: const [
+                    boxShadow: [
                       BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 6,
-                        offset: Offset(0, 2),
+                        color: palette.shadow,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                 ),
               ),
 
-              Row(children: [_item("Surah", 0), _item("Juz", 1)]),
+              Row(
+                children: [
+                  _item("Surah", 0, palette),
+                  _item("Juz", 1, palette),
+                ],
+              ),
             ],
           );
         },
@@ -163,7 +171,7 @@ class _BottomSelector extends StatelessWidget {
     );
   }
 
-  Widget _item(String text, int i) {
+  Widget _item(String text, int i, AppPalette palette) {
     final selected = index == i;
 
     return Expanded(
@@ -175,7 +183,7 @@ class _BottomSelector extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                color: selected ? const Color(0xFF025C32) : Colors.black54,
+                color: selected ? palette.accent : palette.muted,
                 fontWeight: FontWeight.w600,
               ),
             ),

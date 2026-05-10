@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/main.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 import '../logic/storage_manager.dart';
 
 class LoadingScreen extends StatefulWidget {
@@ -52,8 +53,10 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppPalette.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF2A6767),
+      backgroundColor: palette.scaffold,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -62,10 +65,10 @@ class _LoadingScreenState extends State<LoadingScreen> {
               children: [
                 const Spacer(flex: 3),
 
-                const Text(
+                Text(
                   'Quran',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: palette.text,
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.8,
@@ -77,7 +80,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
                 Text(
                   _status,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(color: palette.muted, fontSize: 14),
                 ),
 
                 const Spacer(flex: 2),
@@ -88,8 +91,8 @@ class _LoadingScreenState extends State<LoadingScreen> {
                     value: _progress,
                     minHeight: 6,
                     borderRadius: BorderRadius.circular(999),
-                    backgroundColor: Colors.white.withValues(alpha: .18),
-                    color: const Color(0xFFD6D85F),
+                    backgroundColor: palette.accentSoft,
+                    color: palette.accent,
                   ),
                 ),
 
@@ -115,16 +118,16 @@ class _LoadingScreenState extends State<LoadingScreen> {
                       });
                       _prepareApp();
                     },
-                    style: TextButton.styleFrom(foregroundColor: Colors.white),
+                    style: TextButton.styleFrom(foregroundColor: palette.text),
                     child: const Text('Retry'),
                   ),
                 ],
 
                 const Spacer(flex: 3),
 
-                const Text(
+                Text(
                   'Can take a few minutes!',
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                  style: TextStyle(color: palette.muted, fontSize: 12),
                 ),
 
                 const SizedBox(height: 24),

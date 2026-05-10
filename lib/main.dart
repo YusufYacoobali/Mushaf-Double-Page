@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mushaf_two_page/components/bookmark_modal.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/navigator.dart';
 import 'package:mushaf_two_page/utils/surah_mapper.dart' as surah_mapper;
 import 'package:mushaf_two_page/utils/translation_manager.dart';
@@ -40,6 +41,8 @@ class MyAppState extends State<MyApp> {
   bool _darkMode = false;
   bool _loaded = false;
 
+  bool get darkMode => _darkMode;
+
   @override
   void initState() {
     super.initState();
@@ -62,9 +65,7 @@ class MyAppState extends State<MyApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: _darkMode
-          ? ThemeData.dark()
-          : ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.black),
+      theme: AppPalette.forDarkMode(_darkMode).toThemeData(),
       home: const LoadingScreen(),
     );
   }
@@ -276,9 +277,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final darkMode = MyApp.of(context)?._darkMode ?? false;
+    final darkMode = MyApp.of(context)?.darkMode ?? false;
+    final palette = AppPalette.of(context);
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: OrientationBuilder(
         builder: (context, orientation) {
           final portraitNow = orientation == Orientation.portrait;
@@ -359,9 +362,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   left: 10,
                   right: 10,
                   child: Material(
-                    color: const Color.fromARGB(255, 235, 243, 236),
+                    color: palette.readerBar,
                     borderRadius: BorderRadius.circular(16),
                     elevation: 4,
+                    shadowColor: palette.shadow,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 2,
@@ -375,7 +379,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                               children: [
                                 IconButton(
                                   icon: const Icon(Icons.remove),
-                                  color: const Color(0xFF025C32),
+                                  color: palette.readerIcon,
                                   onPressed:
                                       (_isPortrait
                                               ? _pageScalePortrait
@@ -391,15 +395,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
                                 Text(
                                   "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
-                                  style: const TextStyle(
-                                    color: Color(0xFF025C32),
+                                  style: TextStyle(
+                                    color: palette.readerIcon,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
 
                                 IconButton(
                                   icon: const Icon(Icons.add),
-                                  color: const Color(0xFF025C32),
+                                  color: palette.readerIcon,
                                   onPressed:
                                       (_isPortrait
                                               ? _pageScalePortrait
@@ -418,7 +422,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                               children: [
                                 IconButton(
                                   icon: const Icon(Icons.chat_outlined),
-                                  color: const Color(0xFF025C32),
+                                  color: palette.readerIcon,
                                   onPressed: () {
                                     _showTranslationModal();
                                   },
@@ -426,7 +430,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 const SizedBox(width: 10),
                                 IconButton(
                                   icon: const Icon(Icons.menu_book_outlined),
-                                  color: Color(0xFF025C32),
+                                  color: palette.readerIcon,
                                   onPressed: () {
                                     SurahJuzNavigator.show(
                                       context: context,
@@ -460,7 +464,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 const SizedBox(width: 10),
                                 IconButton(
                                   icon: const Icon(Icons.bookmarks_rounded),
-                                  color: Color(0xFF025C32),
+                                  color: palette.readerIcon,
                                   onPressed: () {
                                     BookmarksModal.show(
                                       context: context,
@@ -506,7 +510,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                 const SizedBox(width: 10),
                                 IconButton(
                                   icon: const Icon(Icons.settings),
-                                  color: Color(0xFF025C32),
+                                  color: palette.readerIcon,
                                   onPressed: () async {
                                     debugPrint('[SETTINGS] open');
                                     await Navigator.push(
