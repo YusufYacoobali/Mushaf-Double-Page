@@ -6,7 +6,8 @@
       "Bash(Select-Object Name, Length)",
       "Bash(python3 -c ' *)",
       "Bash(flutter pub *)",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

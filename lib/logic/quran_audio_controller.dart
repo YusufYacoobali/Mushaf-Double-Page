@@ -200,6 +200,7 @@ class QuranAudioController extends ChangeNotifier {
   ) async {
     await _ensureCached(plan, requestId, cancelToken);
     _throwIfStale(requestId);
+    _backgroundCacheSurah(plan, cancelToken);
     return [
       for (final verse in plan.playbackVerses())
         AudioSource.file(
@@ -220,6 +221,25 @@ class QuranAudioController extends ChangeNotifier {
           ),
         ),
     ];
+  }
+
+  void _backgroundCacheSurah(AudioPlaybackPlan plan, CancelToken cancelToken) {
+    final played = {
+      for (var a = plan.effectiveFromAyah; a <= plan.effectiveToAyah; a++) a,
+    };
+    () async {
+      for (var ayah = 1; ayah <= plan.ayahCount; ayah++) {
+        if (cancelToken.isCancelled) return;
+        if (played.contains(ayah)) continue;
+        try {
+          final file = File(await _pathFor(plan.reciter, plan.surah, ayah));
+          if (await file.exists() && await file.length() > 0) continue;
+          await _downloadVerse(plan.reciter, plan.surah, ayah, cancelToken);
+        } catch (_) {
+          return;
+        }
+      }
+    }();
   }
 
   Future<void> _ensureCached(
