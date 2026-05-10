@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,8 +31,32 @@ class _TranslationModalState extends State<TranslationModal> {
   final List<String> _selectedTrans = ['Saheeh International'];
   final List<String> _selectedTafseer = ['Tafseer Ibn Kathir'];
   bool _showArabic = true;
+  String _fontSize = 'Medium';
   bool _loading = true;
   List<dynamic> _items = [];
+  final Set<int> _collapsedSurahs = {};
+  final Set<String> _collapsedTrans = {};
+  final Set<String> _collapsedTafseers = {};
+
+  List<dynamic> get _visibleItems {
+    final result = <dynamic>[];
+    int? currentSurah;
+    for (final item in _items) {
+      if (item is SurahRange) {
+        currentSurah = item.surah;
+        result.add(item);
+      } else if (!_collapsedSurahs.contains(currentSurah)) {
+        result.add(item);
+      }
+    }
+    return result;
+  }
+
+  static const Map<String, ({double arabic, double trans, double tafseer})> _fontSizeMap = {
+    'Small': (arabic: 18.0, trans: 13.0, tafseer: 12.5),
+    'Medium': (arabic: 22.0, trans: 16.0, tafseer: 15.0),
+    'Large': (arabic: 26.0, trans: 19.0, tafseer: 17.5),
+  };
 
   @override
   void initState() {
@@ -46,9 +69,11 @@ class _TranslationModalState extends State<TranslationModal> {
     final trans = prefs.getStringList('trans_selected') ?? ['Saheeh International'];
     final tafseer = prefs.getStringList('tafseer_selected') ?? ['Tafseer Ibn Kathir'];
     final showArabic = prefs.getBool('show_arabic') ?? true;
+    final fontSize = prefs.getString('font_size') ?? 'Medium';
     _selectedTrans..clear()..addAll(trans);
     _selectedTafseer..clear()..addAll(tafseer);
     _showArabic = showArabic;
+    _fontSize = fontSize;
     _load();
   }
 
@@ -57,6 +82,7 @@ class _TranslationModalState extends State<TranslationModal> {
     await prefs.setStringList('trans_selected', _selectedTrans);
     await prefs.setStringList('tafseer_selected', _selectedTafseer);
     await prefs.setBool('show_arabic', _showArabic);
+    await prefs.setString('font_size', _fontSize);
   }
 
   Future<void> _load() async {
@@ -86,8 +112,7 @@ class _TranslationModalState extends State<TranslationModal> {
 
       final arabicData = await ArabicTextManager.getSurah(surah.surah);
 
-      final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()
-        ..sort();
+      final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()..sort();
 
       for (final ayah in ayahs) {
         final trans = <String, String>{};
@@ -99,6 +124,7 @@ class _TranslationModalState extends State<TranslationModal> {
           tafseer[src] = tafseerData[src]?[ayah] ?? '';
         }
         items.add({
+          'surah': surah.surah,
           'ayah': ayah,
           'trans': trans,
           'tafseer': tafseer,
@@ -119,7 +145,7 @@ class _TranslationModalState extends State<TranslationModal> {
       context: outerContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SummarySheet(surah: surah),
+      builder: (_) => _SummarySheet(surah: surah, fontSize: _fontSize),
     );
   }
 
@@ -127,6 +153,7 @@ class _TranslationModalState extends State<TranslationModal> {
     final tempTrans = List<String>.from(_selectedTrans);
     final tempTafseer = List<String>.from(_selectedTafseer);
     var tempShowArabic = _showArabic;
+    var tempFontSize = _fontSize;
 
     showModalBottomSheet(
       context: context,
@@ -194,6 +221,7 @@ class _TranslationModalState extends State<TranslationModal> {
                               ..clear()
                               ..addAll(tempTafseer);
                             _showArabic = tempShowArabic;
+                            _fontSize = tempFontSize;
                           });
                           _savePrefs();
                           _load();
@@ -227,6 +255,41 @@ class _TranslationModalState extends State<TranslationModal> {
                     label: 'Show Arabic text',
                     checked: tempShowArabic,
                     onTap: () => setS(() => tempShowArabic = !tempShowArabic),
+                  ),
+                  const SizedBox(height: 16),
+                  _SectionLabel(palette: palette, label: 'Font Size'),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      for (final size in ['Small', 'Medium', 'Large'])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: GestureDetector(
+                            onTap: () => setS(() => tempFontSize = size),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: tempFontSize == size ? palette.accent : palette.surface,
+                                borderRadius: BorderRadius.circular(99),
+                                border: Border.all(
+                                  color: tempFontSize == size
+                                      ? palette.accent
+                                      : palette.border,
+                                ),
+                              ),
+                              child: Text(
+                                size,
+                                style: TextStyle(
+                                  color: tempFontSize == size ? Colors.white : palette.text,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   _SectionLabel(palette: palette, label: 'Translation'),
@@ -364,9 +427,10 @@ class _TranslationModalState extends State<TranslationModal> {
                         child: ListView.builder(
                           controller: scrollController,
                           padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
-                          itemCount: _items.length,
+                          itemCount: _visibleItems.length,
                           itemBuilder: (context, index) {
-                            final item = _items[index];
+                            final items = _visibleItems;
+                            final item = items[index];
 
                             if (item is SurahRange) {
                               return Padding(
@@ -443,11 +507,37 @@ class _TranslationModalState extends State<TranslationModal> {
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      onTap: () => setState(() {
+                                        if (_collapsedSurahs.contains(item.surah)) {
+                                          _collapsedSurahs.remove(item.surah);
+                                        } else {
+                                          _collapsedSurahs.add(item.surah);
+                                        }
+                                      }),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(5),
+                                        decoration: BoxDecoration(
+                                          color: palette.surface,
+                                          borderRadius: BorderRadius.circular(99),
+                                          border: Border.all(color: palette.border),
+                                        ),
+                                        child: Icon(
+                                          _collapsedSurahs.contains(item.surah)
+                                              ? Icons.keyboard_arrow_down_rounded
+                                              : Icons.keyboard_arrow_up_rounded,
+                                          size: 16,
+                                          color: palette.muted,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               );
                             }
 
+                            final surahNum = item['surah'] as int;
                             final ayahNumber = item['ayah'] as int;
                             final trans =
                                 item['trans'] as Map<String, String>;
@@ -456,10 +546,10 @@ class _TranslationModalState extends State<TranslationModal> {
                             final arabic = item['arabic'] as String;
                             final prevIsHeader =
                                 index == 0 ||
-                                _items[index - 1] is SurahRange;
+                                items[index - 1] is SurahRange;
                             final nextIsHeader =
-                                index == _items.length - 1 ||
-                                _items[index + 1] is SurahRange;
+                                index == items.length - 1 ||
+                                items[index + 1] is SurahRange;
 
                             final allText = [
                               ...trans.values,
@@ -589,10 +679,10 @@ class _TranslationModalState extends State<TranslationModal> {
                                                 textDirection: TextDirection.rtl,
                                                 textAlign: TextAlign.right,
                                                 style: TextStyle(
-                                                  fontSize: 22,
+                                                  fontSize: _fontSizeMap[_fontSize]!.arabic,
                                                   height: 1.8,
                                                   color: palette.text,
-                                                  fontFamily: 'Scheherazade',
+                                                  fontFamily: 'UthmanicHafs',
                                                 ),
                                               ),
                                             ),
@@ -605,38 +695,57 @@ class _TranslationModalState extends State<TranslationModal> {
                                               .map((e) {
                                             final src = e.value;
                                             final text = trans[src] ?? '';
+                                            final srcKey = '$surahNum:$ayahNumber:$src';
+                                            final srcCollapsed = _collapsedTrans.contains(srcKey);
                                             return Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 if (e.key > 0)
                                                   Divider(
-                                                    height: 20,
+                                                    height: 16,
                                                     color: palette.border,
                                                   ),
-                                                if (_selectedTrans.length >
-                                                    1) ...[
-                                                  Text(
-                                                    src,
-                                                    style: TextStyle(
-                                                      color: palette.accent,
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      letterSpacing: 0.3,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                ],
-                                                SelectableText(
-                                                  text,
-                                                  style: TextStyle(
-                                                    fontSize: 16,
-                                                    height: 1.45,
-                                                    color:
-                                                        palette.surfaceText,
+                                                GestureDetector(
+                                                  behavior: HitTestBehavior.opaque,
+                                                  onTap: () => setState(() {
+                                                    srcCollapsed
+                                                        ? _collapsedTrans.remove(srcKey)
+                                                        : _collapsedTrans.add(srcKey);
+                                                  }),
+                                                  child: Row(
+                                                    children: [
+                                                      Text(
+                                                        src,
+                                                        style: TextStyle(
+                                                          color: palette.accent,
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w700,
+                                                          letterSpacing: 0.3,
+                                                        ),
+                                                      ),
+                                                      const Spacer(),
+                                                      Icon(
+                                                        srcCollapsed
+                                                            ? Icons.keyboard_arrow_down_rounded
+                                                            : Icons.keyboard_arrow_up_rounded,
+                                                        size: 16,
+                                                        color: palette.accent,
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
+                                                if (!srcCollapsed) ...[
+                                                  const SizedBox(height: 4),
+                                                  SelectableText(
+                                                    text,
+                                                    style: TextStyle(
+                                                      fontSize: _fontSizeMap[_fontSize]!.trans,
+                                                      height: 1.45,
+                                                      color: palette.surfaceText,
+                                                    ),
+                                                  ),
+                                                ],
                                               ],
                                             );
                                           }),
@@ -653,8 +762,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                               decoration: BoxDecoration(
                                                 color: palette.scaffold,
                                                 borderRadius:
-                                                    BorderRadius.circular(
-                                                        8),
+                                                    BorderRadius.circular(8),
                                                 border: Border(
                                                   left: BorderSide(
                                                     color: palette.accent
@@ -669,47 +777,57 @@ class _TranslationModalState extends State<TranslationModal> {
                                                 children: _selectedTafseer
                                                     .asMap()
                                                     .entries
-                                                    .map((e) {
+                                                    .map<Widget>((e) {
                                                   final src = e.value;
-                                                  final text =
-                                                      tafseer[src] ?? '';
-                                                  if (text.isEmpty) {
-                                                    return const SizedBox
-                                                        .shrink();
-                                                  }
+                                                  final text = tafseer[src] ?? '';
+                                                  if (text.isEmpty) return const SizedBox.shrink();
+                                                  final srcKey = '$surahNum:$ayahNumber:$src';
+                                                  final srcCollapsed = _collapsedTafseers.contains(srcKey);
                                                   return Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
                                                       if (e.key > 0)
-                                                        Divider(
-                                                          height: 20,
-                                                          color:
-                                                              palette.border,
-                                                        ),
-                                                      Text(
-                                                        src,
-                                                        style: TextStyle(
-                                                          color:
-                                                              palette.muted,
-                                                          fontSize: 11,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          letterSpacing: 0.3,
+                                                        Divider(height: 16, color: palette.border),
+                                                      GestureDetector(
+                                                        behavior: HitTestBehavior.opaque,
+                                                        onTap: () => setState(() {
+                                                          srcCollapsed
+                                                              ? _collapsedTafseers.remove(srcKey)
+                                                              : _collapsedTafseers.add(srcKey);
+                                                        }),
+                                                        child: Row(
+                                                          children: [
+                                                            Text(
+                                                              src,
+                                                              style: TextStyle(
+                                                                color: palette.muted,
+                                                                fontSize: 11,
+                                                                fontWeight: FontWeight.w700,
+                                                                letterSpacing: 0.3,
+                                                              ),
+                                                            ),
+                                                            const Spacer(),
+                                                            Icon(
+                                                              srcCollapsed
+                                                                  ? Icons.keyboard_arrow_down_rounded
+                                                                  : Icons.keyboard_arrow_up_rounded,
+                                                              size: 16,
+                                                              color: palette.muted,
+                                                            ),
+                                                          ],
                                                         ),
                                                       ),
-                                                      const SizedBox(
-                                                          height: 4),
-                                                      SelectableText(
-                                                        text,
-                                                        style: TextStyle(
-                                                          fontSize: 14,
-                                                          height: 1.5,
-                                                          color: palette.text
-                                                              .withValues(alpha: .95),
+                                                      if (!srcCollapsed) ...[
+                                                        const SizedBox(height: 4),
+                                                        SelectableText(
+                                                          text,
+                                                          style: TextStyle(
+                                                            fontSize: _fontSizeMap[_fontSize]!.tafseer,
+                                                            height: 1.5,
+                                                            color: palette.text.withValues(alpha: .95),
+                                                          ),
                                                         ),
-                                                      ),
+                                                      ],
                                                     ],
                                                   );
                                                 }).toList(),
@@ -736,7 +854,14 @@ class _TranslationModalState extends State<TranslationModal> {
 
 class _SummarySheet extends StatefulWidget {
   final SurahRange surah;
-  const _SummarySheet({required this.surah});
+  final String fontSize;
+  const _SummarySheet({required this.surah, required this.fontSize});
+
+  static const Map<String, ({double heading, double body})> _sizes = {
+    'Small': (heading: 13.0, body: 13.0),
+    'Medium': (heading: 14.0, body: 15.0),
+    'Large': (heading: 16.0, body: 17.0),
+  };
 
   @override
   State<_SummarySheet> createState() => _SummarySheetState();
@@ -749,6 +874,7 @@ class _SummarySheetState extends State<_SummarySheet> {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
     final summary = SurahSummaryManager.get(widget.surah.surah, urdu: _urdu);
+    final sizes = _SummarySheet._sizes[widget.fontSize]!;
 
     return DraggableScrollableSheet(
       expand: false,
@@ -866,7 +992,7 @@ class _SummarySheetState extends State<_SummarySheet> {
                                       : TextDirection.ltr,
                                   style: TextStyle(
                                     color: palette.accent,
-                                    fontSize: 14,
+                                    fontSize: sizes.heading,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.2,
                                   ),
@@ -891,7 +1017,7 @@ class _SummarySheetState extends State<_SummarySheet> {
                                           : TextDirection.ltr,
                                       style: TextStyle(
                                         color: palette.text,
-                                        fontSize: 15,
+                                        fontSize: sizes.body,
                                         height: 1.6,
                                       ),
                                     ),
