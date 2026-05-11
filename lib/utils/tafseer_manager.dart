@@ -68,7 +68,7 @@ class TafseerManager {
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(
           RegExp(r'</(p|div|h[1-6]|li)>', caseSensitive: false),
-          '\n',
+          '\n\n',
         )
         .replaceAll(RegExp(r'<[^>]+>'), '')
         .replaceAll('&amp;', '&')
@@ -77,6 +77,13 @@ class TafseerManager {
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'")
         .replaceAll('&nbsp;', ' ')
+        // sentence boundary before capital letter → paragraph break
+        .replaceAllMapped(RegExp(r'\. ([A-Z])'), (m) => '.\n\n${m.group(1)}')
+        // Urdu/Arabic full stop
+        .replaceAll('۔ ', '۔\n\n')
+        // single newlines → paragraph break
+        .replaceAll(RegExp(r'\n(?!\n)'), '\n\n')
+        // normalize excess blank lines
         .replaceAll(RegExp(r'\n{3,}'), '\n\n')
         .trim();
   }

@@ -64,9 +64,11 @@ class MyApp extends StatefulWidget {
 
 class MyAppState extends State<MyApp> {
   bool _darkMode = false;
+  bool _appDarkMode = false;
   bool _loaded = false;
 
   bool get darkMode => _darkMode;
+  bool get appDarkMode => _appDarkMode;
 
   @override
   void initState() {
@@ -76,12 +78,17 @@ class MyAppState extends State<MyApp> {
 
   Future<void> _loadTheme() async {
     _darkMode = await StorageManager.getDarkMode();
+    _appDarkMode = await StorageManager.getAppDarkMode();
     setState(() => _loaded = true);
   }
 
   Future<void> reloadTheme() async {
     final dark = await StorageManager.getDarkMode();
-    setState(() => _darkMode = dark);
+    final appDark = await StorageManager.getAppDarkMode();
+    setState(() {
+      _darkMode = dark;
+      _appDarkMode = appDark;
+    });
   }
 
   @override
@@ -90,7 +97,7 @@ class MyAppState extends State<MyApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: AppPalette.forDarkMode(_darkMode).toThemeData(),
+      theme: AppPalette.forTheme(mushafDark: _darkMode, appDark: _appDarkMode).toThemeData(),
       home: const LoadingScreen(),
     );
   }

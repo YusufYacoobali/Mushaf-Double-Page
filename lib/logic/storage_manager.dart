@@ -86,6 +86,7 @@ class StorageManager {
   static const _kCurrentPageKey = 'CurrentPage1';
   static const _kBookmarkKey = 'bookmarks1';
   static const _darkModeKey = 'dark_mode';
+  static const _appDarkModeKey = 'app_dark_mode';
   static const _pageScalePortraitKey = 'quran_single_page_scale';
   static const _pageScaleLandscapeKey = 'quran_landscape_page_scale';
 
@@ -183,6 +184,16 @@ class StorageManager {
   static Future<void> saveDarkMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_darkModeKey, value);
+  }
+
+  static Future<bool> getAppDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_appDarkModeKey) ?? false;
+  }
+
+  static Future<void> saveAppDarkMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_appDarkModeKey, value);
   }
 
   static Future<void> savePageScalePortrait(double value) async {

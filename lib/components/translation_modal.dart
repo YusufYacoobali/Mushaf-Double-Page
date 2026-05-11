@@ -15,11 +15,9 @@ class TranslationModal extends StatefulWidget {
   const TranslationModal({super.key, required this.surahs});
 
   static void show(BuildContext context, List<SurahRange> surahs) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => TranslationModal(surahs: surahs),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TranslationModal(surahs: surahs)),
     );
   }
 
@@ -37,30 +35,51 @@ class _TranslationModalState extends State<TranslationModal> {
   final Set<int> _collapsedSurahs = {};
   final Set<String> _collapsedTrans = {};
   final Set<String> _collapsedTafseers = {};
+  final _scrollController = ScrollController();
+  int _currentPage = 0;
+  static const int _pageSize = 20;
+  late SurahRange _activeSurah;
 
-  List<dynamic> get _visibleItems {
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  List<Map> get _allAyahs => _items.whereType<Map>().toList();
+
+  int get _totalPages => (_allAyahs.length / _pageSize).ceil().clamp(1, 99999);
+
+  List<dynamic> get _pageContent {
+    final ayahs = _allAyahs;
+    final start = _currentPage * _pageSize;
+    if (start >= ayahs.length) return [];
+    final end = (start + _pageSize).clamp(0, ayahs.length);
     final result = <dynamic>[];
-    int? currentSurah;
-    for (final item in _items) {
-      if (item is SurahRange) {
-        currentSurah = item.surah;
-        result.add(item);
-      } else if (!_collapsedSurahs.contains(currentSurah)) {
-        result.add(item);
+    bool headerAdded = false;
+    for (final ayah in ayahs.sublist(start, end)) {
+      final surahNum = ayah['surah'] as int;
+      if (!headerAdded) {
+        result.add(_activeSurah);
+        headerAdded = true;
+      }
+      if (!_collapsedSurahs.contains(surahNum)) {
+        result.add(ayah);
       }
     }
     return result;
   }
 
   static const Map<String, ({double arabic, double trans, double tafseer})> _fontSizeMap = {
-    'Small': (arabic: 18.0, trans: 13.0, tafseer: 12.5),
-    'Medium': (arabic: 22.0, trans: 16.0, tafseer: 15.0),
-    'Large': (arabic: 26.0, trans: 19.0, tafseer: 17.5),
+    'Small': (arabic: 18.0, trans: 13.0, tafseer: 14.5),
+    'Medium': (arabic: 22.0, trans: 16.0, tafseer: 17.0),
+    'Large': (arabic: 26.0, trans: 19.0, tafseer: 19.5),
   };
 
   @override
   void initState() {
     super.initState();
+    _activeSurah = widget.surahs.first;
     _initFromPrefs();
   }
 
@@ -95,7 +114,7 @@ class _TranslationModalState extends State<TranslationModal> {
 
     final items = <dynamic>[];
 
-    for (final surah in widget.surahs) {
+    for (final surah in [_activeSurah]) {
       items.add(surah);
 
       final transData = <String, Map<int, String>>{};
@@ -137,12 +156,13 @@ class _TranslationModalState extends State<TranslationModal> {
     setState(() {
       _items = items;
       _loading = false;
+      _currentPage = 0;
     });
   }
 
-  void _showSummary(BuildContext outerContext, SurahRange surah) {
+  void _showSummary(SurahRange surah) {
     showModalBottomSheet(
-      context: outerContext,
+      context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _SummarySheet(surah: surah, fontSize: _fontSize),
@@ -340,6 +360,189 @@ class _TranslationModalState extends State<TranslationModal> {
     });
   }
 
+  void _showSurahPicker() {
+    final all = indopakSurahRanges.where((s) => s.surah >= 1).toList();
+    final palette = AppPalette.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.78,
+          decoration: BoxDecoration(
+            color: palette.scaffold,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 4),
+                child: Container(
+                  width: 40, height: 5,
+                  decoration: BoxDecoration(
+                    color: palette.border,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: Row(
+                  children: [
+                    Text(
+                      'Select Surah',
+                      style: TextStyle(
+                        color: palette.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: palette.border),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  itemCount: all.length,
+                  itemBuilder: (_, i) {
+                    final s = all[i];
+                    final active = s.surah == _activeSurah.surah;
+                    return ListTile(
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() => _activeSurah = s);
+                        _load();
+                      },
+                      leading: Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: active ? palette.accent : palette.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: active ? palette.accent : palette.border,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${s.surah}',
+                            style: TextStyle(
+                              color: active ? Colors.white : palette.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        s.name,
+                        style: TextStyle(
+                          color: palette.text,
+                          fontSize: 15,
+                          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: Text(
+                        s.english,
+                        style: TextStyle(color: palette.muted, fontSize: 12),
+                      ),
+                      trailing: active
+                          ? Icon(Icons.check_rounded, color: palette.accent, size: 18)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPageNav(AppPalette palette) {
+    final ayahCount = _allAyahs.length;
+    final onFirst = _currentPage == 0;
+    final onLast = (_currentPage + 1) * _pageSize >= ayahCount;
+    final displayStart = _currentPage * _pageSize + 1;
+    final displayEnd = ((_currentPage + 1) * _pageSize).clamp(0, ayahCount);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: palette.scaffold,
+        border: Border(top: BorderSide(color: palette.border.withValues(alpha: .6))),
+      ),
+      child: Row(
+        children: [
+          _navBtn(Icons.chevron_left_rounded, !onFirst, () {
+            setState(() => _currentPage--);
+            _scrollController.jumpTo(0);
+          }, palette),
+          const Spacer(),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Page ${_currentPage + 1} of $_totalPages',
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '$displayStart–$displayEnd of $ayahCount ayahs',
+                style: TextStyle(color: palette.muted, fontSize: 11),
+              ),
+            ],
+          ),
+          const Spacer(),
+          _navBtn(Icons.chevron_right_rounded, !onLast, () {
+            final next = _currentPage + 1;
+            if (next * _pageSize < ayahCount) {
+              setState(() => _currentPage = next);
+              _scrollController.jumpTo(0);
+            }
+          }, palette),
+        ],
+      ),
+    );
+  }
+
+  Widget _navBtn(IconData icon, bool enabled, VoidCallback onTap, AppPalette palette) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: enabled ? palette.accent.withValues(alpha: .12) : palette.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: enabled ? palette.accent.withValues(alpha: .35) : palette.border,
+          ),
+        ),
+        child: Icon(
+          icon,
+          color: enabled ? palette.accent : palette.muted.withValues(alpha: .4),
+          size: 22,
+        ),
+      ),
+    );
+  }
+
+  static bool _startsWithArabic(String text) {
+    for (final rune in text.runes) {
+      if (rune <= 0x20) continue;
+      return (rune >= 0x0600 && rune <= 0x06FF) ||
+             (rune >= 0xFB50 && rune <= 0xFDFF) ||
+             (rune >= 0xFE70 && rune <= 0xFEFF);
+    }
+    return false;
+  }
+
   BorderRadius _rowRadius({required bool first, required bool last}) {
     const r = Radius.circular(18);
     return BorderRadius.vertical(
@@ -352,85 +555,71 @@ class _TranslationModalState extends State<TranslationModal> {
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.65,
-      minChildSize: 0.3,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            color: palette.scaffold,
-          ),
-          child: Column(
+    return Scaffold(
+      backgroundColor: palette.scaffold,
+      appBar: AppBar(
+        backgroundColor: palette.scaffold,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        iconTheme: IconThemeData(color: palette.muted),
+        title: GestureDetector(
+          onTap: _showSurahPicker,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Drag handle
-              Padding(
-                padding: const EdgeInsets.only(top: 10, bottom: 6),
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: palette.border,
-                    borderRadius: BorderRadius.circular(10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _activeSurah.name,
+                    style: TextStyle(
+                      color: palette.text,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
+                  Text(
+                    _activeSurah.english,
+                    style: TextStyle(color: palette.muted, fontSize: 12),
+                  ),
+                ],
               ),
-
-              // Header row
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 2, 8, 10),
-                child: Row(
-                  children: [
-                    Text(
-                      'Translation',
-                      style: TextStyle(
-                        color: palette.text,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: _showSettings,
-                      icon: Icon(
-                        Icons.tune_rounded,
-                        color: palette.muted,
-                        size: 22,
-                      ),
-                      padding: const EdgeInsets.all(8),
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                    ),
-                  ],
-                ),
+              const SizedBox(width: 4),
+              Icon(Icons.keyboard_arrow_down_rounded, color: palette.muted, size: 20),
+            ],
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _showSettings,
+            icon: Icon(Icons.tune_rounded, color: palette.muted, size: 22),
+          ),
+        ],
+      ),
+      body: _loading
+          ? Center(
+              child: CircularProgressIndicator(
+                color: palette.accent,
+                strokeWidth: 2.5,
               ),
-
-              // Content
-              Expanded(
-                child: _loading
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: palette.accent,
-                          strokeWidth: 2.5,
-                        ),
-                      )
-                    : Scrollbar(
-                        controller: scrollController,
-                        thumbVisibility: true,
-                        interactive: true,
-                        radius: const Radius.circular(10),
-                        thickness: 6,
-                        child: ListView.builder(
-                          controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
-                          itemCount: _visibleItems.length,
-                          itemBuilder: (context, index) {
-                            final items = _visibleItems;
-                            final item = items[index];
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    interactive: true,
+                    radius: const Radius.circular(10),
+                    thickness: 6,
+                    child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
+                                itemCount: _pageContent.length,
+                                itemBuilder: (context, index) {
+                                  final items = _pageContent;
+                                  final item = items[index];
 
                             if (item is SurahRange) {
                               return Padding(
@@ -473,7 +662,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                       ),
                                     ),
                                     GestureDetector(
-                                      onTap: () => _showSummary(context, item),
+                                      onTap: () => _showSummary(item),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 10,
@@ -819,14 +1008,24 @@ class _TranslationModalState extends State<TranslationModal> {
                                                       ),
                                                       if (!srcCollapsed) ...[
                                                         const SizedBox(height: 4),
-                                                        SelectableText(
-                                                          text,
-                                                          style: TextStyle(
-                                                            fontSize: _fontSizeMap[_fontSize]!.tafseer,
-                                                            height: 1.5,
-                                                            color: palette.text.withValues(alpha: .95),
+                                                        for (final para in text.split('\n\n').map((p) => p.trim()).where((p) => p.isNotEmpty))
+                                                          Padding(
+                                                            padding: const EdgeInsets.only(bottom: 36),
+                                                            child: SelectableText(
+                                                              para,
+                                                              textDirection: _startsWithArabic(para)
+                                                                  ? TextDirection.rtl
+                                                                  : TextDirection.ltr,
+                                                              textAlign: _startsWithArabic(para)
+                                                                  ? TextAlign.right
+                                                                  : TextAlign.left,
+                                                              style: TextStyle(
+                                                                fontSize: _fontSizeMap[_fontSize]!.tafseer,
+                                                                height: 1.5,
+                                                                color: palette.text.withValues(alpha: .95),
+                                                              ),
+                                                            ),
                                                           ),
-                                                        ),
                                                       ],
                                                     ],
                                                   );
@@ -840,14 +1039,13 @@ class _TranslationModalState extends State<TranslationModal> {
                                 ),
                               ),
                             );
-                          },
-                        ),
-                      ),
+                                },
+                              ),
+                    ),
+                  ),
+                  _buildPageNav(palette),
+                ],
               ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

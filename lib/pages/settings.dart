@@ -11,6 +11,7 @@ class Settings extends StatefulWidget {
 
 class _SettingsState extends State<Settings> {
   bool isDarkMode = false;
+  bool isAppDarkMode = false;
   String selectedMushaf = 'indopak_tajweed';
   bool _loaded = false;
 
@@ -22,10 +23,12 @@ class _SettingsState extends State<Settings> {
 
   Future<void> _loadStates() async {
     final dark = await StorageManager.getDarkMode();
+    final appDark = await StorageManager.getAppDarkMode();
     final mushaf = await StorageManager.getMushaf();
 
     setState(() {
       isDarkMode = dark;
+      isAppDarkMode = appDark;
       selectedMushaf = mushaf;
       _loaded = true;
     });
@@ -33,10 +36,12 @@ class _SettingsState extends State<Settings> {
 
   Future<void> _updateDarkMode(bool value) async {
     await StorageManager.saveDarkMode(value);
+    setState(() => isDarkMode = value);
+  }
 
-    setState(() {
-      isDarkMode = value;
-    });
+  Future<void> _updateAppDarkMode(bool value) async {
+    await StorageManager.saveAppDarkMode(value);
+    setState(() => isAppDarkMode = value);
   }
 
   Future<void> _updateMushaf(String mushaf) async {
@@ -129,7 +134,7 @@ class _SettingsState extends State<Settings> {
                       backgroundColor: AppPalette.forDarkMode(
                         isDarkMode,
                       ).accent.withValues(alpha: .12),
-                      color: AppPalette.forDarkMode(isDarkMode).accent,
+                      color: AppPalette.forTheme(mushafDark: isDarkMode, appDark: isAppDarkMode).accent,
                     ),
                   ],
                 );
@@ -198,13 +203,13 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  Widget _buildSwitch(String title, bool value, AppPalette palette) {
+  Widget _buildSwitch(String title, bool value, AppPalette palette, ValueChanged<bool> onChanged, {IconData icon = Icons.dark_mode_rounded}) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => _updateDarkMode(!value),
+      onTap: () => onChanged(!value),
       child: Row(
         children: [
-          Icon(Icons.dark_mode_rounded, color: palette.accent),
+          Icon(icon, color: palette.accent),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -218,7 +223,7 @@ class _SettingsState extends State<Settings> {
           ),
           Switch(
             value: value,
-            onChanged: _updateDarkMode,
+            onChanged: onChanged,
             activeThumbColor: palette.accent,
           ),
         ],
@@ -341,7 +346,7 @@ class _SettingsState extends State<Settings> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final palette = AppPalette.forDarkMode(isDarkMode);
+    final palette = AppPalette.forTheme(mushafDark: isDarkMode, appDark: isAppDarkMode);
     final bg = palette.scaffold;
     final textPrimary = palette.text;
 
@@ -416,7 +421,12 @@ class _SettingsState extends State<Settings> {
             _sectionTitle('APPEARANCE', textPrimary),
 
             _settingsCard(
-              _buildSwitch('Dark Mode', isDarkMode, palette),
+              _buildSwitch('Dark Mode', isAppDarkMode, palette, _updateAppDarkMode, icon: Icons.nights_stay_rounded),
+              palette,
+            ),
+
+            _settingsCard(
+              _buildSwitch('Mushaf Dark Mode', isDarkMode, palette, _updateDarkMode),
               palette,
             ),
 

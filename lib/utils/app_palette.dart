@@ -74,8 +74,31 @@ class AppPalette extends ThemeExtension<AppPalette> {
     readerIcon: Color(0xFFF7FBF7),
   );
 
+  static const blackDark = AppPalette(
+    id: 'black_dark',
+    name: 'Dark',
+    scaffold: Color(0xFF121212),
+    surface: Color(0xFF1E1E1E),
+    surfaceRaised: Color(0xFF2A2A2A),
+    accent: Color(0xFF4CAF7D),
+    accentSoft: Color(0xFF163326),
+    text: Color(0xFFEEEEEE),
+    muted: Color(0xFF888888),
+    surfaceText: Color(0xFFDDDDDD),
+    surfaceMuted: Color(0xFF666666),
+    border: Color(0xFF333333),
+    shadow: Color(0x88000000),
+    readerBar: Color(0xFF1E1E1E),
+    readerIcon: Color(0xFF888888),
+  );
+
   static AppPalette forDarkMode(bool darkMode) {
     return darkMode ? darkEmerald : emerald;
+  }
+
+  static AppPalette forTheme({bool mushafDark = false, bool appDark = false}) {
+    if (appDark) return blackDark;
+    return emerald;
   }
 
   static AppPalette of(BuildContext context) {
