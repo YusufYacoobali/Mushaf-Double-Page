@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 
 class BookmarkWidget extends StatefulWidget {
   final Bookmark bookmark;
+  final AppPalette palette;
+
   /// Callback when bookmark icon is toggled (add/remove)
   final Function(Bookmark) onBookmarkToggled;
+
   /// Callback when the bookmark row itself is tapped
   /// Typically used to navigate to the bookmarked page
   final Function(Bookmark) onPagePressed;
@@ -12,6 +16,7 @@ class BookmarkWidget extends StatefulWidget {
   const BookmarkWidget({
     super.key,
     required this.bookmark,
+    required this.palette,
     required this.onBookmarkToggled,
     required this.onPagePressed,
   });
@@ -31,28 +36,26 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
     // Inform parent so it can update storage / list state
     widget.onBookmarkToggled(widget.bookmark);
   }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final palette = widget.palette;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
       child: Material(
-        color:  Color.fromARGB(255, 235, 243, 236),
+        color: palette.surface,
         borderRadius: BorderRadius.circular(16),
+        shadowColor: palette.shadow,
+        elevation: 1,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => widget.onPagePressed(widget.bookmark),
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: theme.dividerColor.withOpacity(.15),
-              ),
+              border: Border.all(color: palette.border.withValues(alpha: .65)),
             ),
             child: Row(
               children: [
@@ -63,12 +66,9 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: const Color(0xFF025C32).withOpacity(.15),
+                    color: palette.accentSoft,
                   ),
-                  child: const Icon(
-                    Icons.bookmark_rounded,
-                    color: Color(0xFF025C32),
-                  ),
+                  child: Icon(Icons.bookmark_rounded, color: palette.accent),
                 ),
 
                 const SizedBox(width: 16),
@@ -83,16 +83,17 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                         widget.bookmark.surah ?? 'Unknown Surah',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: palette.surfaceText,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Page ${widget.bookmark.pageNumber}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.black,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: palette.surfaceMuted,
                         ),
                       ),
                     ],
@@ -108,7 +109,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                     child: Icon(
                       Icons.close_rounded,
                       size: 20,
-                      color: Colors.black.withOpacity(.45),
+                      color: palette.surfaceMuted,
                     ),
                   ),
                 ),

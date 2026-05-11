@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/surah_list.dart';
 import 'juz_list.dart';
 
@@ -14,23 +15,18 @@ class SurahJuzNavigator {
       barrierLabel: "Surah and Juz navigation",
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (_, __, ___) => const SizedBox(),
-      transitionBuilder: (context, anim, _, __) {
+      pageBuilder: (_, _, _) => const SizedBox(),
+      transitionBuilder: (context, anim, _, _) {
         final slide = Tween(
           begin: const Offset(1, 0),
           end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: anim,
-            curve: Curves.easeOutCubic,
-          ),
-        );
+        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
 
         return SlideTransition(
           position: slide,
           child: Align(
             alignment: Alignment.centerRight,
-            child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf,),
+            child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf),
           ),
         );
       },
@@ -48,8 +44,7 @@ class _Panel extends StatefulWidget {
   State<_Panel> createState() => _PanelState();
 }
 
-class _PanelState extends State<_Panel>
-    with SingleTickerProviderStateMixin {
+class _PanelState extends State<_Panel> with SingleTickerProviderStateMixin {
   late final TabController _tabs;
 
   @override
@@ -73,10 +68,12 @@ class _PanelState extends State<_Panel>
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height;
+    final palette = AppPalette.of(context);
 
     return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: palette.scaffold,
       elevation: 12,
+      shadowColor: palette.shadow,
       child: SizedBox(
         width: 320,
         height: height,
@@ -91,24 +88,21 @@ class _PanelState extends State<_Panel>
                 switchOutCurve: Curves.easeIn,
                 child: _tabs.index == 0
                     ? SurahList(
-                  key: const ValueKey("surah"),
-                  widget.onJumpToPage,
-                  mushaf: widget.mushaf,
-                  onJump: widget.onJumpToPage,
-                )
+                        key: const ValueKey("surah"),
+                        widget.onJumpToPage,
+                        mushaf: widget.mushaf,
+                        onJump: widget.onJumpToPage,
+                      )
                     : JuzList(
-                  key: const ValueKey("juz"),
-                  widget.onJumpToPage,
-                  onJump: widget.onJumpToPage,
-                  mushaf: widget.mushaf,
-                ),
+                        key: const ValueKey("juz"),
+                        widget.onJumpToPage,
+                        onJump: widget.onJumpToPage,
+                        mushaf: widget.mushaf,
+                      ),
               ),
             ),
 
-            _BottomSelector(
-              index: _tabs.index,
-              onTap: _tabs.animateTo,
-            ),
+            _BottomSelector(index: _tabs.index, onTap: _tabs.animateTo),
 
             const SizedBox(height: 20),
           ],
@@ -122,20 +116,17 @@ class _BottomSelector extends StatelessWidget {
   final int index;
   final void Function(int) onTap;
 
-  const _BottomSelector({
-    required this.index,
-    required this.onTap,
-  });
+  const _BottomSelector({required this.index, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color.fromARGB(255, 220, 232, 224);
+    final palette = AppPalette.of(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: bg,
+        color: palette.accentSoft,
         borderRadius: BorderRadius.circular(30),
       ),
       child: LayoutBuilder(
@@ -154,13 +145,13 @@ class _BottomSelector extends StatelessWidget {
                   width: segmentWidth,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: palette.surface,
                     borderRadius: BorderRadius.circular(22),
-                    boxShadow: const [
+                    boxShadow: [
                       BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 6,
-                        offset: Offset(0, 2),
+                        color: palette.shadow,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
@@ -169,8 +160,8 @@ class _BottomSelector extends StatelessWidget {
 
               Row(
                 children: [
-                  _item("Surah", 0),
-                  _item("Juz", 1),
+                  _item("Surah", 0, palette),
+                  _item("Juz", 1, palette),
                 ],
               ),
             ],
@@ -180,7 +171,7 @@ class _BottomSelector extends StatelessWidget {
     );
   }
 
-  Widget _item(String text, int i) {
+  Widget _item(String text, int i, AppPalette palette) {
     final selected = index == i;
 
     return Expanded(
@@ -192,9 +183,7 @@ class _BottomSelector extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                color: selected
-                    ? const Color(0xFF025C32)
-                    : Colors.black54,
+                color: selected ? palette.accent : palette.muted,
                 fontWeight: FontWeight.w600,
               ),
             ),

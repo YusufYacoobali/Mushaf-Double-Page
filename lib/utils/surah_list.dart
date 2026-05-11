@@ -7,7 +7,8 @@ class SurahList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
   final String mushaf;
 
-  const SurahList(void Function(int pageIndex) onJumpToPage,{
+  const SurahList(
+    void Function(int pageIndex) onJumpToPage, {
     super.key,
     required this.onJump,
     required this.mushaf,
@@ -16,7 +17,6 @@ class SurahList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surahs = getSurahRanges(mushaf).where((s) => s.surah > 0).toList();
-    final theme = Theme.of(context);
 
     return ListView.builder(
       padding: const EdgeInsets.all(12),

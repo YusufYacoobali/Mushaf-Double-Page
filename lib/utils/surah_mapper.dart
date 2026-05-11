@@ -1,14 +1,12 @@
-import 'package:mushaf_two_page/utils/page_mapper.dart';
-
 List<SurahRange> getSurahRanges(String mushaf) {
-  print("SURAH MAPPER ]] Surah lookup mushaf=$mushaf");
   switch (mushaf) {
     case "madani":
       return madaniSurahRanges;
     case "indopak":
-      return IndopakSurahRanges;
+    case "indopak_tajweed":
+      return indopakSurahRanges;
     default:
-      return IndopakSurahRanges;
+      return indopakSurahRanges;
   }
 }
 
@@ -34,7 +32,7 @@ List<SurahRange> surahsFromLogicalPage(int logicalPage, String mushaf) {
 int pageFromSurah(int surah, String mushaf) {
   final ranges = getSurahRanges(mushaf);
   final entry = ranges.firstWhere(
-        (e) => e.surah == surah,
+    (e) => e.surah == surah,
     orElse: () => ranges[0],
   );
   return entry.start;
@@ -50,7 +48,7 @@ class SurahRange {
   const SurahRange(this.surah, this.start, this.end, this.name, this.english);
 }
 
-const List<SurahRange> IndopakSurahRanges = [
+const List<SurahRange> indopakSurahRanges = [
   SurahRange(0, 0, 3, "Start", "Start"),
   SurahRange(1, 4, 4, "Al-Fatiha", "The Opening"),
   SurahRange(2, 5, 69, "Al-Baqarah", "The Cow"),
@@ -168,7 +166,6 @@ const List<SurahRange> IndopakSurahRanges = [
   SurahRange(114, 850, 850, "An-Nas", "Mankind"),
 ];
 
-
 const List<SurahRange> madaniSurahRanges = [
   SurahRange(0, 0, 3, "Start", "Start"),
   SurahRange(1, 4, 4, "Al-Fatiha", "The Opening"),
@@ -252,7 +249,6 @@ const List<SurahRange> madaniSurahRanges = [
   SurahRange(79, 586, 587, "An-Naziat", "Those Who Drag Forth"),
   SurahRange(80, 588, 588, "Abasa", "He Frowned"),
   SurahRange(81, 589, 589, "At-Takwir", "The Overthrowing"),
-  SurahRange(82, 590, 590, "Al-Infitar", "The Cleaving"),
   SurahRange(82, 590, 590, "Al-Infitar", "The Cleaving"),
   SurahRange(83, 590, 591, "Al-Mutaffifin", "Defrauding"),
   SurahRange(84, 592, 592, "Al-Inshiqaq", "The Splitting Open"),

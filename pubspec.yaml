@@ -44,6 +44,12 @@ dependencies:
   dio: ^5.9.0
   archive: ^4.0.9
   share_plus: ^12.0.2
+  flutter_local_notifications: ^21.0.0
+  timezone: ^0.11.0
+  flutter_timezone: ^5.0.2
+  just_audio: ^0.10.5
+  just_audio_background: ^0.0.1-beta.17
+  sqflite: ^2.4.1
 
 dev_dependencies:
   flutter_test:
@@ -83,6 +89,29 @@ flutter:
     - assets/
     - assets/mushaf/
     - assets/translations/
+    - assets/tafseer/
+    - assets/summary/
+    - assets/arabic-text/
+    - assets/fonts/
+
+  fonts:
+    - family: UthmanicHafs
+      fonts:
+        - asset: assets/fonts/UthmanicHafs_V22.ttf
+    - family: Uthmani2
+      fonts:
+        - asset: assets/fonts/uthmani2.ttf
+    - family: IndoPak
+      fonts:
+        - asset: assets/fonts/DigitalKhattIndoPak.otf
+    - family: NotoNaskh
+      fonts:
+        - asset: assets/fonts/NotoNaskhArabic-VariableFont_wght.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-VariableFont_opsz,wght.ttf
+        - asset: assets/fonts/Inter-Italic-VariableFont_opsz,wght.ttf
+          style: italic
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

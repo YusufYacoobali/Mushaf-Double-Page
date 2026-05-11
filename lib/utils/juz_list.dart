@@ -6,7 +6,12 @@ class JuzList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
   final String mushaf;
 
-  const JuzList(void Function(int pageIndex) onJumpToPage, {super.key, required this.onJump,  required this.mushaf});
+  const JuzList(
+    void Function(int pageIndex) onJumpToPage, {
+    super.key,
+    required this.onJump,
+    required this.mushaf,
+  });
 
   @override
   Widget build(BuildContext context) {

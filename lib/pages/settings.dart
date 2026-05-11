@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 
 class Settings extends StatefulWidget {
   const Settings({super.key});
@@ -9,13 +10,9 @@ class Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<Settings> {
-
-  static const _darkBg = Color.fromARGB(255, 17, 38, 8);
-  static const _lightBg = Color.fromARGB(255, 235, 243, 236);
-  static const _accent = Color.fromARGB(255, 2, 92, 50);
-
   bool isDarkMode = false;
-  String selectedMushaf = 'indopak';
+  bool isAppDarkMode = false;
+  String selectedMushaf = 'indopak_tajweed';
   bool _loaded = false;
 
   @override
@@ -26,10 +23,12 @@ class _SettingsState extends State<Settings> {
 
   Future<void> _loadStates() async {
     final dark = await StorageManager.getDarkMode();
+    final appDark = await StorageManager.getAppDarkMode();
     final mushaf = await StorageManager.getMushaf();
 
     setState(() {
       isDarkMode = dark;
+      isAppDarkMode = appDark;
       selectedMushaf = mushaf;
       _loaded = true;
     });
@@ -37,20 +36,57 @@ class _SettingsState extends State<Settings> {
 
   Future<void> _updateDarkMode(bool value) async {
     await StorageManager.saveDarkMode(value);
+    setState(() => isDarkMode = value);
+  }
 
-    setState(() {
-      isDarkMode = value;
-    });
+  Future<void> _updateAppDarkMode(bool value) async {
+    await StorageManager.saveAppDarkMode(value);
+    setState(() => isAppDarkMode = value);
   }
 
   Future<void> _updateMushaf(String mushaf) async {
     if (mushaf == selectedMushaf) return;
 
-    if (mushaf == 'madani') {
-      _showDownloadingDialog();
-      await StorageManager.ensureMushafDownloaded("madani", 2);
-      Navigator.pop(context);
+    final version = _versionForMushaf(mushaf);
+    final needsDownload =
+        !await StorageManager.isMushafUpToDate(mushaf, version) ||
+        !await StorageManager.isMushafAvailable(mushaf);
+
+    if (!mounted) return;
+
+    ValueNotifier<MushafDownloadProgress>? progress;
+
+    if (needsDownload) {
+      progress = ValueNotifier(
+        const MushafDownloadProgress('Preparing download'),
+      );
+      _showDownloadingDialog(progress);
+
+      var downloadSucceeded = false;
+      try {
+        await StorageManager.ensureMushafDownloaded(
+          mushaf,
+          version,
+          onProgress: (value) {
+            progress?.value = value;
+          },
+        );
+        downloadSucceeded = true;
+      } catch (_) {
+      } finally {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+        progress.dispose();
+      }
+
+      if (!downloadSucceeded) {
+        await _showDownloadErrorDialog();
+        return;
+      }
     }
+
+    if (!mounted) return;
 
     await StorageManager.saveMushaf(mushaf);
 
@@ -59,29 +95,73 @@ class _SettingsState extends State<Settings> {
     });
   }
 
-  void _showDownloadingDialog() {
+  int _versionForMushaf(String mushaf) {
+    return mushaf == 'indopak_tajweed' ? 1 : 2;
+  }
+
+  void _showDownloadingDialog(ValueNotifier<MushafDownloadProgress> progress) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                CircularProgressIndicator(),
-                SizedBox(width: 20),
-                Expanded(
-                  child: Text(
-                    'Downloading Mushaf...',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ],
+            child: ValueListenableBuilder<MushafDownloadProgress>(
+              valueListenable: progress,
+              builder: (context, value, _) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      value.message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    LinearProgressIndicator(
+                      value: value.value,
+                      minHeight: 6,
+                      borderRadius: BorderRadius.circular(999),
+                      backgroundColor: AppPalette.forDarkMode(
+                        isDarkMode,
+                      ).accent.withValues(alpha: .12),
+                      color: AppPalette.forTheme(mushafDark: isDarkMode, appDark: isAppDarkMode).accent,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showDownloadErrorDialog() async {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Download failed'),
+          content: const Text(
+            'Please check your connection and try changing Mushaf again.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
         );
       },
     );
@@ -96,38 +176,39 @@ class _SettingsState extends State<Settings> {
           fontSize: 15,
           fontWeight: FontWeight.w700,
           letterSpacing: .3,
-          color: color.withOpacity(.8),
+          color: color.withValues(alpha: .8),
         ),
       ),
     );
   }
 
-  Widget _settingsCard(Widget child, Color cardColor) {
+  Widget _settingsCard(Widget child, AppPalette palette) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.border.withValues(alpha: .7)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.08),
+            color: palette.shadow,
             blurRadius: 16,
             offset: const Offset(0, 6),
-          )
+          ),
         ],
       ),
       child: child,
     );
   }
 
-  Widget _buildSwitch(String title, bool value, Color textColor) {
+  Widget _buildSwitch(String title, bool value, AppPalette palette, ValueChanged<bool> onChanged, {IconData icon = Icons.dark_mode_rounded}) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => _updateDarkMode(!value),
+      onTap: () => onChanged(!value),
       child: Row(
         children: [
-          const Icon(Icons.dark_mode_rounded, color: _accent),
+          Icon(icon, color: palette.accent),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -135,14 +216,14 @@ class _SettingsState extends State<Settings> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: textColor,
+                color: palette.surfaceText,
               ),
             ),
           ),
           Switch(
             value: value,
-            onChanged: _updateDarkMode,
-            activeColor: _accent,
+            onChanged: onChanged,
+            activeThumbColor: palette.accent,
           ),
         ],
       ),
@@ -153,10 +234,8 @@ class _SettingsState extends State<Settings> {
     required String title,
     required String value,
     required String previewImage,
-    required bool isDark,
-    required Color textPrimary,
+    required AppPalette palette,
   }) {
-
     final bool isSelected = selectedMushaf == value;
 
     return GestureDetector(
@@ -167,16 +246,15 @@ class _SettingsState extends State<Settings> {
         margin: const EdgeInsets.only(right: 16),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E2A1B) : Colors.white,
+          color: palette.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isSelected ? _accent : Colors.grey.withOpacity(.2),
+            color: isSelected ? palette.accent : palette.border,
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Column(
           children: [
-
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
@@ -191,9 +269,8 @@ class _SettingsState extends State<Settings> {
 
             Row(
               children: [
-
                 if (isSelected)
-                  const Icon(Icons.check_circle, size: 18, color: _accent),
+                  Icon(Icons.check_circle, size: 18, color: palette.accent),
 
                 if (isSelected) const SizedBox(width: 6),
 
@@ -203,7 +280,7 @@ class _SettingsState extends State<Settings> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: textPrimary,
+                      color: palette.surfaceText,
                     ),
                   ),
                 ),
@@ -220,17 +297,15 @@ class _SettingsState extends State<Settings> {
     required String title,
     required String text,
     required Color color,
+    required AppPalette palette,
   }) {
-    final textPrimary = Colors.black87;
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(.12),
+            color: color.withValues(alpha: .12),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: color),
@@ -242,13 +317,12 @@ class _SettingsState extends State<Settings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               Text(
                 title,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: textPrimary,
+                  color: palette.surfaceText,
                 ),
               ),
 
@@ -256,28 +330,24 @@ class _SettingsState extends State<Settings> {
 
               Text(
                 text,
-                style: TextStyle(fontSize: 14, color: textPrimary),
+                style: TextStyle(fontSize: 14, color: palette.surfaceMuted),
               ),
             ],
           ),
-        )
+        ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-
     if (!_loaded) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final isDark = isDarkMode;
-    final bg = isDark ? _darkBg : _lightBg;
-    final textPrimary = isDark ? Colors.white : Colors.black87;
-    final cardColor = isDark ? _lightBg : Colors.white;
+    final palette = AppPalette.forTheme(mushafDark: isDarkMode, appDark: isAppDarkMode);
+    final bg = palette.scaffold;
+    final textPrimary = palette.text;
 
     return Scaffold(
       backgroundColor: bg,
@@ -305,7 +375,6 @@ class _SettingsState extends State<Settings> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             Center(
               child: Text(
                 'السلام عليكم ورحمة الله وبركاته',
@@ -325,13 +394,13 @@ class _SettingsState extends State<Settings> {
             _settingsCard(
               Column(
                 children: [
-
                   _infoTile(
                     icon: Icons.bookmark_rounded,
                     title: 'Bookmarks',
                     text:
-                    'Save pages while reading and jump back to them later.',
-                    color: _accent,
+                        'Save pages while reading and jump back to them later.',
+                    color: palette.accent,
+                    palette: palette,
                   ),
 
                   const SizedBox(height: 18),
@@ -339,20 +408,25 @@ class _SettingsState extends State<Settings> {
                   _infoTile(
                     icon: Icons.star_rounded,
                     title: 'Support the app',
-                    text:
-                    'Leaving a positive review helps the project grow.',
+                    text: 'Leaving a positive review helps the project grow.',
                     color: const Color(0xFFD9B44A),
+                    palette: palette,
                   ),
                 ],
               ),
-              cardColor,
+              palette,
             ),
 
             _sectionTitle('APPEARANCE', textPrimary),
 
             _settingsCard(
-              _buildSwitch('Dark Mode', isDarkMode, Colors.black87),
-              cardColor,
+              _buildSwitch('Dark Mode', isAppDarkMode, palette, _updateAppDarkMode, icon: Icons.nights_stay_rounded),
+              palette,
+            ),
+
+            _settingsCard(
+              _buildSwitch('Mushaf Dark Mode', isDarkMode, palette, _updateDarkMode),
+              palette,
             ),
 
             _sectionTitle('QURAN LAYOUT', textPrimary),
@@ -361,10 +435,9 @@ class _SettingsState extends State<Settings> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   Text(
                     'Choose the Mushaf layout you prefer.',
-                    style: TextStyle(fontSize: 14, color: Colors.black87),
+                    style: TextStyle(fontSize: 14, color: palette.surfaceMuted),
                   ),
 
                   const SizedBox(height: 16),
@@ -374,30 +447,26 @@ class _SettingsState extends State<Settings> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
-
                         _buildMushafOption(
                           title: 'Indo-Pak Tajweed (13 lines)',
                           value: 'indopak_tajweed',
                           previewImage:
-                          'assets/mushaf/indopak_tajweed_preview.png',
-                          isDark: isDark,
-                          textPrimary: textPrimary,
+                              'assets/mushaf/indopak_tajweed_preview.png',
+                          palette: palette,
                         ),
 
                         _buildMushafOption(
                           title: 'Madani (15 lines)',
                           value: 'madani',
-                          previewImage:
-                          'assets/mushaf/madani_preview.png',
-                          isDark: isDark,
-                          textPrimary: textPrimary,
+                          previewImage: 'assets/mushaf/madani_preview.png',
+                          palette: palette,
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              cardColor,
+              palette,
             ),
           ],
         ),
