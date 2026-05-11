@@ -24,7 +24,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
   Future<void> _prepareApp() async {
     try {
       final mushaf = await StorageManager.getMushaf();
-      debugPrint('[LOADING] Current mushaf $mushaf ');
 
       await StorageManager.ensureMushafDownloaded(
         mushaf,

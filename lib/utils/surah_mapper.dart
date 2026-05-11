@@ -1,7 +1,4 @@
-import 'package:flutter/foundation.dart';
-
 List<SurahRange> getSurahRanges(String mushaf) {
-  debugPrint("SURAH MAPPER ]] Surah lookup mushaf=$mushaf");
   switch (mushaf) {
     case "madani":
       return madaniSurahRanges;

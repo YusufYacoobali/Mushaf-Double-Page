@@ -72,8 +72,7 @@ class _SettingsState extends State<Settings> {
           },
         );
         downloadSucceeded = true;
-      } catch (e) {
-        debugPrint('[MUSHAF] Download failed: $e');
+      } catch (_) {
       } finally {
         if (mounted) {
           Navigator.pop(context);

@@ -5,7 +5,6 @@ import 'dart:async';
 
 import 'package:archive/archive.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
@@ -136,44 +135,19 @@ class StorageManager {
     final jsonList = existing.map((b) => jsonEncode(b.toMap())).toList();
 
     await prefs.setStringList(_kBookmarkKey, jsonList);
-
-    debugPrint('[BOOKMARK] saved total ${existing.length}');
   }
 
   /// Retrieves all saved bookmarks
   /// Returns an empty list if none exist
   static Future<List<Bookmark>> getBookmarks(String currentMushaf) async {
     final prefs = await SharedPreferences.getInstance();
-
-    debugPrint('[BOOKMARK] requested mushaf: $currentMushaf');
-
     final List<String>? jsonList = prefs.getStringList(_kBookmarkKey);
+    if (jsonList == null) return [];
 
-    if (jsonList == null) {
-      debugPrint('[BOOKMARK] no bookmarks stored');
-      return [];
-    }
-
-    debugPrint('[BOOKMARK] raw stored count: ${jsonList.length}');
-
-    final bookmarks = jsonList.map((jsonStr) {
-      final map = jsonDecode(jsonStr);
-      final bookmark = Bookmark.fromMap(map);
-
-      debugPrint(
-        '[BOOKMARK] loaded page=${bookmark.pageNumber} mushaf=${bookmark.mushaf}',
-      );
-
-      return bookmark;
-    }).toList();
-
-    final filtered = bookmarks.where((b) => b.mushaf == currentMushaf).toList();
-
-    debugPrint(
-      '[BOOKMARK] after filter for "$currentMushaf": ${filtered.length}',
-    );
-
-    return filtered;
+    return jsonList
+        .map((s) => Bookmark.fromMap(jsonDecode(s)))
+        .where((b) => b.mushaf == currentMushaf)
+        .toList();
   }
 
   static Future<bool> getDarkMode() async {
@@ -219,7 +193,6 @@ class StorageManager {
   static Future<void> saveMushaf(String mushaf) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('mushaf', mushaf);
-    debugPrint('[MUSHAF] Saved mushaf $mushaf');
   }
 
   static Future<String> getMushaf() async {
@@ -233,60 +206,26 @@ class StorageManager {
     MushafProgressCallback? onProgress,
   }) async {
     onProgress?.call(const MushafDownloadProgress('Checking local Mushaf'));
-    debugPrint('[STORAGE] ===== ENSURE MUSHAF =====');
-    debugPrint('[STORAGE] Mushaf: $mushaf');
-    debugPrint('[STORAGE] Target version: $version');
 
-    bool upToDate = await isMushafUpToDate(mushaf, version);
+    final upToDate = await isMushafUpToDate(mushaf, version);
     final filesReady = await isMushafAvailable(mushaf);
 
-    debugPrint('[STORAGE] Up to date: $upToDate');
-    debugPrint('[STORAGE] Files ready: $filesReady');
-
-    if (upToDate && filesReady) {
-      debugPrint('[STORAGE] Skipping download');
-      return;
-    }
+    if (upToDate && filesReady) return;
 
     onProgress?.call(const MushafDownloadProgress('Downloading Mushaf', 0));
-    debugPrint('[STORAGE] Downloading zip');
-    final downloadWatch = Stopwatch()..start();
     final zipFile = await downloadMushafZip(mushaf, onProgress: onProgress);
-    downloadWatch.stop();
 
     try {
-      debugPrint(
-        '[STORAGE] Zip downloaded at ${zipFile.path} in ${downloadWatch.elapsed}',
-      );
-
       onProgress?.call(const MushafDownloadProgress('Preparing pages', 0));
-      debugPrint('[STORAGE] Unzipping...');
-      final unzipWatch = Stopwatch()..start();
-      final tempDir = await unzipMushaf(
-        zipFile,
-        mushaf,
-        onProgress: onProgress,
-      );
-      unzipWatch.stop();
-      debugPrint('[STORAGE] Unzipped in ${unzipWatch.elapsed}');
+      final tempDir = await unzipMushaf(zipFile, mushaf, onProgress: onProgress);
 
       onProgress?.call(const MushafDownloadProgress('Installing pages'));
-      debugPrint('[STORAGE] Installing downloaded mushaf');
-      final installWatch = Stopwatch()..start();
       await installMushafDirectory(tempDir, mushaf);
-      installWatch.stop();
-      debugPrint('[STORAGE] Installed in ${installWatch.elapsed}');
-
-      debugPrint('[STORAGE] Marking version saved');
       await markMushafDownloaded(mushaf, version);
 
-      debugPrint('[STORAGE] DONE');
       onProgress?.call(const MushafDownloadProgress('Opening Mushaf', 1));
     } finally {
-      if (await zipFile.exists()) {
-        debugPrint('[STORAGE] Deleting zip');
-        await zipFile.delete();
-      }
+      if (await zipFile.exists()) await zipFile.delete();
     }
   }
 
@@ -329,9 +268,6 @@ class StorageManager {
 
     final file = File('${dir.path}/quran_$mushaf.zip');
 
-    debugPrint('[STORAGE] Downloading from Firebase: ${ref.fullPath}');
-    debugPrint('[STORAGE] Saving to: ${file.path}');
-
     final task = ref.writeToFile(file);
     final subscription = task.snapshotEvents.listen((snapshot) {
       final totalBytes = snapshot.totalBytes;
@@ -350,8 +286,6 @@ class StorageManager {
     } finally {
       await subscription.cancel();
     }
-
-    debugPrint('[STORAGE] Download complete');
 
     return file;
   }
@@ -376,8 +310,6 @@ class StorageManager {
     final outputDir = Directory('${dir.path}/${mushaf}_pending');
     final expectedPageCount = expectedMushafPageCount(mushaf);
 
-    debugPrint('[STORAGE] Extracting to ${outputDir.path}');
-
     if (outputDir.existsSync()) {
       await outputDir.delete(recursive: true);
     }
@@ -389,16 +321,6 @@ class StorageManager {
       expectedPageCount,
       onProgress: onProgress,
     );
-
-    debugPrint('[STORAGE] Extraction complete. Total files: $count');
-
-    if (await dir.exists()) {
-      for (final f in dir.listSync().take(20)) {
-        debugPrint('[FILE] ${f.path}');
-      }
-    } else {
-      debugPrint('[FILE] documents folder does not exist');
-    }
 
     validateExtractedPageCount(count, expectedPageCount);
 
@@ -518,64 +440,4 @@ class StorageManager {
     }
   }
 
-  // static Future<void> ensureMadaniDownloaded() async {
-  //   bool exists = await isMadaniDownloaded();
-  //
-  //   if (exists) return;
-  //
-  //   final zipFile = await downloadMadaniZip();
-  //
-  //   await unzipMadani(zipFile);
-  //
-  //   await markMadaniDownloaded();
-  // }
-  //
-  // static Future<bool> isMadaniDownloaded() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   return prefs.getBool('madani_downloaded') ?? false;
-  // }
-  //
-  // static Future<void> downloadMadani() async {
-  //   /// download images / zip / assets etc
-  //
-  //   final prefs = await SharedPreferences.getInstance();
-  //   await prefs.setBool('madani_downloaded', true);
-  // }
-  //
-  // static Future<File> downloadMadaniZip() async {
-  //   final ref = FirebaseStorage.instance.ref().child('Quran-images/quran_madani.zip');
-  //   final dir = await getApplicationDocumentsDirectory();
-  //   final file = File('${dir.path}/quran_madani.zip');
-  //
-  //   await ref.writeToFile(file);
-  //
-  //   return file;
-  // }
-  //
-  // static Future<void> unzipMadani(File zipFile) async {
-  //   final bytes = await zipFile.readAsBytes();
-  //   final archive = ZipDecoder().decodeBytes(bytes);
-  //
-  //   final dir = await getApplicationDocumentsDirectory();
-  //   final outputDir = Directory('${dir.path}/madani');
-  //
-  //   if (!outputDir.existsSync()) {
-  //     outputDir.createSync(recursive: true);
-  //   }
-  //
-  //   for (final file in archive) {
-  //     final filename = '${outputDir.path}/${file.name}';
-  //
-  //     if (file.isFile) {
-  //       final outFile = File(filename);
-  //       await outFile.create(recursive: true);
-  //       await outFile.writeAsBytes(file.content);
-  //     }
-  //   }
-  // }
-
-  static Future<void> markMadaniDownloaded() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('madani_downloaded', true);
-  }
 }

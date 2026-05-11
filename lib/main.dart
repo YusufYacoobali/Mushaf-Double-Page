@@ -44,11 +44,8 @@ Future<void> _initBackgroundAudio() async {
       androidNotificationChannelDescription: 'Quran recitation playback',
       androidNotificationOngoing: true,
     );
-  } on MissingPluginException catch (e) {
-    debugPrint(
-      '[AUDIO] Background audio plugin not registered yet. '
-      'Stop the app and run a fresh build after adding audio dependencies. $e',
-    );
+  } on MissingPluginException {
+    // Plugin not yet registered — requires a fresh build after adding audio deps.
   }
 }
 
@@ -139,13 +136,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    debugPrint('[INIT] initState');
     _init();
   }
 
   Future<void> _init() async {
-    debugPrint('[INIT] loading dirs / settings / state');
-
     _docDir = await getApplicationDocumentsDirectory();
     _mushaf = await StorageManager.getMushaf();
     await _loadBookmarks();
@@ -154,14 +148,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     _pageScaleLandscape = await StorageManager.getPageScaleLandscape();
 
     _logicalPage = await StorageManager.getCurrentPage();
-    debugPrint('[STATE] restored logicalPage=$_logicalPage');
 
-    final initialIndex = PageMapper.pageIndexFromLogical(
-      _logicalPage,
-      _isPortrait,
-    );
-
-    debugPrint('[PAGECTRL] initial index=$initialIndex portrait=$_isPortrait');
+    final initialIndex = PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
 
     if (!mounted) return;
 
@@ -189,38 +177,21 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     _bookmarks
       ..clear()
       ..addAll(data);
-
-    debugPrint('[BOOKMARK] loaded ${_bookmarks.length}');
   }
 
-  void _increaseScale() {
+  void _increaseScale() => _adjustScale(0.05);
+  void _decreaseScale() => _adjustScale(-0.05);
+
+  void _adjustScale(double delta) {
     setState(() {
       if (_isPortrait) {
-        _pageScalePortrait = (_pageScalePortrait + 0.05).clamp(
+        _pageScalePortrait = (_pageScalePortrait + delta).clamp(
           QuranPageView.minPageScalePortrait,
           QuranPageView.maxPageScalePortrait,
         );
         StorageManager.savePageScalePortrait(_pageScalePortrait);
       } else {
-        _pageScaleLandscape = (_pageScaleLandscape + 0.05).clamp(
-          QuranPageView.minPageScaleLandscape,
-          QuranPageView.maxPageScaleLandscape,
-        );
-        StorageManager.savePageScaleLandscape(_pageScaleLandscape);
-      }
-    });
-  }
-
-  void _decreaseScale() {
-    setState(() {
-      if (_isPortrait) {
-        _pageScalePortrait = (_pageScalePortrait - 0.05).clamp(
-          QuranPageView.minPageScalePortrait,
-          QuranPageView.maxPageScalePortrait,
-        );
-        StorageManager.savePageScalePortrait(_pageScalePortrait);
-      } else {
-        _pageScaleLandscape = (_pageScaleLandscape - 0.05).clamp(
+        _pageScaleLandscape = (_pageScaleLandscape + delta).clamp(
           QuranPageView.minPageScaleLandscape,
           QuranPageView.maxPageScaleLandscape,
         );
@@ -240,16 +211,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   int _pageCount(bool portrait) {
     final pages = totalPages;
-
-    final count = portrait ? pages : (pages / 2).ceil();
-
-    debugPrint('[LAYOUT] pageCount=$count portrait=$portrait');
-
-    return count;
+    return portrait ? pages : (pages / 2).ceil();
   }
 
   String imagePath(int logicalPage) {
-    debugPrint('[MUSHAF] Current mushaf $_mushaf');
     final filePage = logicalPage.clamp(1, maxFilePage);
     return '${_docDir.path}/$_mushaf/$filePage.webp';
   }
@@ -260,15 +225,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   void _startHideScrollbarTimer() {
     _hideScrollbarTimer?.cancel();
-    _hideScrollbarTimer = Timer(const Duration(seconds: 10), () {
-      debugPrint('[UI] hide scrollbar');
-      setState(() => _isScrollbarVisible = false);
-    });
+    _hideScrollbarTimer = Timer(
+      const Duration(seconds: 10),
+      () => setState(() => _isScrollbarVisible = false),
+    );
   }
 
   void _onScreenTap() {
-    debugPrint('[UI] screen tap');
-
     setState(() {
       _isScrollbarVisible = !_isScrollbarVisible;
     });
@@ -282,11 +245,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   void _addBookmark() {
     final pageNumber = _logicalPage;
-
-    debugPrint(
-      '[BOOKMARK] add logical=$_logicalPage mapped=$pageNumber mushaf $_mushaf',
-    );
-
     if (_bookmarks.any((b) => b.pageNumber == pageNumber)) return;
 
     setState(
@@ -297,6 +255,16 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   void _showTranslationModal() {
     final surahs = surah_mapper.surahsFromLogicalPage(_logicalPage, _mushaf);
+    if (surahs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No surah on this page'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     TranslationModal.show(context, surahs);
   }
 
@@ -327,19 +295,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
           final portraitNow = orientation == Orientation.portrait;
 
           if (_isPortrait != portraitNow) {
-            debugPrint('[ORIENTATION] change -> portrait=$portraitNow');
-
             _isPortrait = portraitNow;
-
-            final newIndex = PageMapper.pageIndexFromLogical(
-              _logicalPage,
-              _isPortrait,
-            );
-
-            debugPrint(
-              '[ORIENTATION] logical=$_logicalPage -> newIndex=$newIndex',
-            );
-
+            final newIndex = PageMapper.pageIndexFromLogical(_logicalPage, _isPortrait);
             _pageController.dispose();
             _pageController = PageController(initialPage: newIndex);
           }
@@ -355,17 +312,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 physics: const ClampingScrollPhysics(),
                 itemCount: pageCount,
                 onPageChanged: (index) {
-                  debugPrint('[PAGE] changed index=$index');
-
                   setState(() {
-                    _logicalPage = PageMapper.logicalFromPageIndex(
-                      index,
-                      _isPortrait,
-                    );
+                    _logicalPage = PageMapper.logicalFromPageIndex(index, _isPortrait);
                   });
-
-                  debugPrint('[PAGE] logical now=$_logicalPage');
-
                   StorageManager.saveCurrentPage(
                     _logicalPage,
                     maxPage: maxFilePage,
@@ -398,9 +347,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
               AnimatedBuilder(
                 animation: QuranAudioController.instance,
-                builder: (context, _) {
-                  return _miniAudioPlayer(palette);
-                },
+                builder: (context, _) => _MiniAudioPlayer(
+                  palette: palette,
+                  isScrollbarVisible: _isScrollbarVisible,
+                  onTap: _showAudioModal,
+                ),
               ),
 
               if (_isScrollbarVisible)
@@ -476,14 +427,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                       palette: palette,
                                       onPressed: _showAudioModal,
                                     ),
-                                    //const SizedBox(width: 6),
                                     barIcon(
                                       icon: Icons.chat_outlined,
                                       palette: palette,
                                       onPressed: _showTranslationModal,
                                     ),
-                                    //const SizedBox(width: 6),
-                                    //const SizedBox(width: 6),
                                     barIcon(
                                       icon: Icons.menu_book_outlined,
                                       palette: palette,
@@ -538,13 +486,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                         );
                                       },
                                     ),
-                                    //const SizedBox(width: 6),
                                     barIcon(
                                       icon: Icons.settings,
                                       palette: palette,
                                       onPressed: () async {
-                                        debugPrint('[SETTINGS] open');
-
                                         await Navigator.push(
                                           context,
                                           MaterialPageRoute(builder: (_) => const Settings()),
@@ -596,7 +541,21 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     );
   }
 
-  Widget _miniAudioPlayer(AppPalette palette) {
+}
+
+class _MiniAudioPlayer extends StatelessWidget {
+  final AppPalette palette;
+  final bool isScrollbarVisible;
+  final VoidCallback onTap;
+
+  const _MiniAudioPlayer({
+    required this.palette,
+    required this.isScrollbarVisible,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final controller = QuranAudioController.instance;
     final plan = controller.plan;
     final ayah = controller.currentAyah;
@@ -611,7 +570,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     return Positioned(
       left: 12,
       right: 12,
-      bottom: _isScrollbarVisible ? 98 : 22,
+      bottom: isScrollbarVisible ? 98 : 22,
       child: Material(
         color: palette.readerBar,
         borderRadius: BorderRadius.circular(18),
@@ -619,7 +578,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
         shadowColor: palette.shadow,
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
-          onTap: _showAudioModal,
+          onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
             child: Row(
@@ -631,11 +590,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     color: palette.accentSoft,
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(
-                    Icons.headphones_rounded,
-                    color: palette.accent,
-                    size: 20,
-                  ),
+                  child: Icon(Icons.headphones_rounded, color: palette.accent, size: 20),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -644,9 +599,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        ayah == null
-                            ? plan.surahInfo.name
-                            : '${plan.surahInfo.name}:$ayah',
+                        ayah == null ? plan.surahInfo.name : '${plan.surahInfo.name}:$ayah',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -679,9 +632,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 IconButton(
                   tooltip: controller.playing ? 'Pause' : 'Play',
                   icon: Icon(
-                    controller.playing
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
+                    controller.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   ),
                   color: palette.readerIcon,
                   onPressed: controller.togglePlayPause,
@@ -696,7 +647,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                   tooltip: 'Audio settings',
                   icon: const Icon(Icons.tune_rounded),
                   color: palette.readerIcon,
-                  onPressed: _showAudioModal,
+                  onPressed: onTap,
                 ),
               ],
             ),

@@ -49,8 +49,7 @@ class ReminderNotifications {
       if (!permitted) return;
 
       await _scheduleIfNeeded();
-    } catch (e) {
-      debugPrint('[NOTIFICATIONS] Reminder setup failed: $e');
+    } catch (_) {
     }
   }
 
@@ -58,8 +57,7 @@ class ReminderNotifications {
     try {
       final timezone = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timezone.identifier));
-    } catch (e) {
-      debugPrint('[NOTIFICATIONS] Falling back to timezone default: $e');
+    } catch (_) {
     }
   }
 

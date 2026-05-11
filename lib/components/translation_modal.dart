@@ -587,6 +587,17 @@ class _TranslationModalState extends State<TranslationModal> {
     );
   }
 
+  // Adds/removes a key from a Set and triggers a rebuild.
+  void _toggle<T>(Set<T> set, T key) {
+    setState(() {
+      if (set.contains(key)) {
+        set.remove(key);
+      } else {
+        set.add(key);
+      }
+    });
+  }
+
   static final _arabicRunRe =
       RegExp(r'[؀-ۿﭐ-﷿ﹰ-﻿]{2,}(?:\s+[؀-ۿﭐ-﷿ﹰ-﻿]{2,})*');
 
@@ -783,13 +794,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                     ),
                                     const SizedBox(width: 6),
                                     GestureDetector(
-                                      onTap: () => setState(() {
-                                        if (_collapsedSurahs.contains(item.surah)) {
-                                          _collapsedSurahs.remove(item.surah);
-                                        } else {
-                                          _collapsedSurahs.add(item.surah);
-                                        }
-                                      }),
+                                      onTap: () => _toggle(_collapsedSurahs, item.surah),
                                       child: Container(
                                         padding: const EdgeInsets.all(5),
                                         decoration: BoxDecoration(
@@ -982,11 +987,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                                   ),
                                                 GestureDetector(
                                                   behavior: HitTestBehavior.opaque,
-                                                  onTap: () => setState(() {
-                                                    srcCollapsed
-                                                        ? _collapsedTrans.remove(srcKey)
-                                                        : _collapsedTrans.add(srcKey);
-                                                  }),
+                                                  onTap: () => _toggle(_collapsedTrans, srcKey),
                                                   child: Row(
                                                     children: [
                                                       Text(
@@ -1064,11 +1065,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                                         Divider(height: 16, color: palette.border),
                                                       GestureDetector(
                                                         behavior: HitTestBehavior.opaque,
-                                                        onTap: () => setState(() {
-                                                          srcCollapsed
-                                                              ? _collapsedTafseers.remove(srcKey)
-                                                              : _collapsedTafseers.add(srcKey);
-                                                        }),
+                                                        onTap: () => _toggle(_collapsedTafseers, srcKey),
                                                         child: Row(
                                                           children: [
                                                             Text(

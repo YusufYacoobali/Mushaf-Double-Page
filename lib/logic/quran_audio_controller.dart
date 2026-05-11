@@ -48,9 +48,8 @@ class QuranAudioController extends ChangeNotifier {
       }
       notifyListeners();
     });
-    _player.errorStream.listen((error) {
+    _player.errorStream.listen((_) {
       _error = 'Audio playback failed. Please try again.';
-      debugPrint('[AUDIO] Playback error: $error');
       notifyListeners();
     });
   }
@@ -84,10 +83,10 @@ class QuranAudioController extends ChangeNotifier {
   bool get hasPlan => _plan != null;
 
   int? get currentIndex => _player.currentIndex;
-  int get totalItems => _player.sequence?.length ?? 0;
+  int get totalItems => _player.sequence?.length ?? 0; // sequence can be null before loading
 
   MediaItem? get currentMediaItem {
-    final tag = _player.sequenceState?.currentSource?.tag;
+    final tag = _player.sequenceState?.currentSource?.tag; // sequenceState is null before first load
     return tag is MediaItem ? tag : null;
   }
 
@@ -129,14 +128,12 @@ class QuranAudioController extends ChangeNotifier {
       _errorKind = QuranAudioErrorKind.connectionRequired;
       _error =
           'Connection needed to download this audio the first time. Once downloaded, it will play offline.';
-      debugPrint('[AUDIO] Download failed: $e');
     } on _StaleAudioRequest {
       return;
     } catch (e) {
       if (!_isCurrentRequest(requestId)) return;
       _errorKind = QuranAudioErrorKind.playback;
       _error = 'Could not prepare audio. Please try again.';
-      debugPrint('[AUDIO] Prepare failed: $e');
     } finally {
       if (_isCurrentRequest(requestId)) {
         _preparing = false;
