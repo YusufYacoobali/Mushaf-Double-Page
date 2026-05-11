@@ -108,7 +108,7 @@ class _TranslationModalState extends State<TranslationModal> {
     await prefs.setString('arabic_script', _arabicScript);
   }
 
-  Future<void> _load() async {
+  Future<void> _load({int? restorePage}) async {
     if (!mounted) return;
     setState(() => _loading = true);
 
@@ -160,7 +160,9 @@ class _TranslationModalState extends State<TranslationModal> {
     setState(() {
       _items = items;
       _loading = false;
-      _currentPage = 0;
+      _currentPage = restorePage != null
+          ? restorePage.clamp(0, (_allAyahs.length / _pageSize).ceil() - 1)
+          : 0;
     });
   }
 
@@ -242,6 +244,7 @@ class _TranslationModalState extends State<TranslationModal> {
                       const Spacer(),
                       GestureDetector(
                         onTap: () {
+                          final pageToRestore = _currentPage;
                           Navigator.pop(ctx);
                           setState(() {
                             _selectedTrans
@@ -255,7 +258,7 @@ class _TranslationModalState extends State<TranslationModal> {
                             _arabicScript = tempArabicScript;
                           });
                           _savePrefs();
-                          _load();
+                          _load(restorePage: pageToRestore);
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
