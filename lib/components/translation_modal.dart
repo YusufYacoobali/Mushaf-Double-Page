@@ -30,6 +30,7 @@ class _TranslationModalState extends State<TranslationModal> {
   final List<String> _selectedTafseer = ['Tafseer Ibn Kathir'];
   bool _showArabic = true;
   String _fontSize = 'Medium';
+  String _arabicScript = 'uthmani';
   bool _loading = true;
   List<dynamic> _items = [];
   final Set<int> _collapsedSurahs = {};
@@ -71,9 +72,9 @@ class _TranslationModalState extends State<TranslationModal> {
   }
 
   static const Map<String, ({double arabic, double trans, double tafseer})> _fontSizeMap = {
-    'Small': (arabic: 18.0, trans: 13.0, tafseer: 14.5),
-    'Medium': (arabic: 22.0, trans: 16.0, tafseer: 17.0),
-    'Large': (arabic: 26.0, trans: 19.0, tafseer: 19.5),
+    'Small': (arabic: 18.0, trans: 13.0, tafseer: 13.0),
+    'Medium': (arabic: 22.0, trans: 16.0, tafseer: 16.0),
+    'Large': (arabic: 26.0, trans: 19.0, tafseer: 19.0),
   };
 
   @override
@@ -89,10 +90,12 @@ class _TranslationModalState extends State<TranslationModal> {
     final tafseer = prefs.getStringList('tafseer_selected') ?? ['Tafseer Ibn Kathir'];
     final showArabic = prefs.getBool('show_arabic') ?? true;
     final fontSize = prefs.getString('font_size') ?? 'Medium';
+    final arabicScript = prefs.getString('arabic_script') ?? 'uthmani';
     _selectedTrans..clear()..addAll(trans);
     _selectedTafseer..clear()..addAll(tafseer);
     _showArabic = showArabic;
     _fontSize = fontSize;
+    _arabicScript = arabicScript;
     _load();
   }
 
@@ -102,6 +105,7 @@ class _TranslationModalState extends State<TranslationModal> {
     await prefs.setStringList('tafseer_selected', _selectedTafseer);
     await prefs.setBool('show_arabic', _showArabic);
     await prefs.setString('font_size', _fontSize);
+    await prefs.setString('arabic_script', _arabicScript);
   }
 
   Future<void> _load() async {
@@ -129,7 +133,7 @@ class _TranslationModalState extends State<TranslationModal> {
         }
       }
 
-      final arabicData = await ArabicTextManager.getSurah(surah.surah);
+      final arabicData = await ArabicTextManager.getSurah(surah.surah, source: _arabicScript);
 
       final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()..sort();
 
@@ -174,6 +178,7 @@ class _TranslationModalState extends State<TranslationModal> {
     final tempTafseer = List<String>.from(_selectedTafseer);
     var tempShowArabic = _showArabic;
     var tempFontSize = _fontSize;
+    var tempArabicScript = _arabicScript;
 
     showModalBottomSheet(
       context: context,
@@ -196,15 +201,20 @@ class _TranslationModalState extends State<TranslationModal> {
                   : tempTafseer.add(src);
             });
 
-            return Container(
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+              ),
+              child: Container(
               decoration: BoxDecoration(
                 color: palette.scaffold,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(24),
                 ),
               ),
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-              child: Column(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -242,6 +252,7 @@ class _TranslationModalState extends State<TranslationModal> {
                               ..addAll(tempTafseer);
                             _showArabic = tempShowArabic;
                             _fontSize = tempFontSize;
+                            _arabicScript = tempArabicScript;
                           });
                           _savePrefs();
                           _load();
@@ -276,6 +287,44 @@ class _TranslationModalState extends State<TranslationModal> {
                     checked: tempShowArabic,
                     onTap: () => setS(() => tempShowArabic = !tempShowArabic),
                   ),
+                  if (tempShowArabic) ...[
+                    const SizedBox(height: 12),
+                    _SectionLabel(palette: palette, label: 'Arabic Script'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        for (final script in [
+                          ('uthmani', 'Uthmani'),
+                          ('indopak', 'Indo-Pak'),
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => setS(() => tempArabicScript = script.$1),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 160),
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: tempArabicScript == script.$1 ? palette.accent : palette.surface,
+                                  borderRadius: BorderRadius.circular(99),
+                                  border: Border.all(
+                                    color: tempArabicScript == script.$1 ? palette.accent : palette.border,
+                                  ),
+                                ),
+                                child: Text(
+                                  script.$2,
+                                  style: TextStyle(
+                                    color: tempArabicScript == script.$1 ? Colors.white : palette.text,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   _SectionLabel(palette: palette, label: 'Font Size'),
                   const SizedBox(height: 10),
@@ -334,6 +383,8 @@ class _TranslationModalState extends State<TranslationModal> {
                     ),
                   ),
                 ],
+              ),
+              ),
               ),
             );
           },
@@ -533,14 +584,45 @@ class _TranslationModalState extends State<TranslationModal> {
     );
   }
 
-  static bool _startsWithArabic(String text) {
-    for (final rune in text.runes) {
-      if (rune <= 0x20) continue;
-      return (rune >= 0x0600 && rune <= 0x06FF) ||
-             (rune >= 0xFB50 && rune <= 0xFDFF) ||
-             (rune >= 0xFE70 && rune <= 0xFEFF);
+  static final _arabicRunRe =
+      RegExp(r'[؀-ۿﭐ-﷿ﹰ-﻿]{2,}(?:\s+[؀-ۿﭐ-﷿ﹰ-﻿]{2,})*');
+
+  List<Widget> _tafseerParaWidgets(String para, double fontSize, Color color) {
+    final widgets = <Widget>[];
+    int last = 0;
+    for (final m in _arabicRunRe.allMatches(para)) {
+      final before = para.substring(last, m.start).trim();
+      if (before.isNotEmpty) {
+        widgets.add(_tafseerRun(before, fontSize, color, rtl: false));
+      }
+      final arabic = m.group(0)!.trim();
+      if (arabic.isNotEmpty) {
+        widgets.add(_tafseerRun(arabic, fontSize, color, rtl: true));
+      }
+      last = m.end;
     }
-    return false;
+    final tail = para.substring(last).trim();
+    if (tail.isNotEmpty) {
+      widgets.add(_tafseerRun(tail, fontSize, color, rtl: false));
+    }
+    if (widgets.isEmpty) {
+      widgets.add(_tafseerRun(para, fontSize, color, rtl: false));
+    }
+    return widgets;
+  }
+
+  Widget _tafseerRun(String text, double fontSize, Color color, {required bool rtl}) {
+    return SelectableText(
+      text,
+      textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+      textAlign: rtl ? TextAlign.right : TextAlign.left,
+      style: TextStyle(
+        fontSize: rtl ? fontSize + 2 : fontSize,
+        height: 1.5,
+        color: color,
+        fontFamily: rtl ? 'NotoNaskh' : null,
+      ),
+    );
   }
 
   BorderRadius _rowRadius({required bool first, required bool last}) {
@@ -871,7 +953,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                                   fontSize: _fontSizeMap[_fontSize]!.arabic,
                                                   height: 1.8,
                                                   color: palette.text,
-                                                  fontFamily: 'UthmanicHafs',
+                                                  fontFamily: _arabicScript == 'indopak' ? 'IndoPak' : 'Uthmani2',
                                                 ),
                                               ),
                                             ),
@@ -1011,18 +1093,12 @@ class _TranslationModalState extends State<TranslationModal> {
                                                         for (final para in text.split('\n\n').map((p) => p.trim()).where((p) => p.isNotEmpty))
                                                           Padding(
                                                             padding: const EdgeInsets.only(bottom: 36),
-                                                            child: SelectableText(
-                                                              para,
-                                                              textDirection: _startsWithArabic(para)
-                                                                  ? TextDirection.rtl
-                                                                  : TextDirection.ltr,
-                                                              textAlign: _startsWithArabic(para)
-                                                                  ? TextAlign.right
-                                                                  : TextAlign.left,
-                                                              style: TextStyle(
-                                                                fontSize: _fontSizeMap[_fontSize]!.tafseer,
-                                                                height: 1.5,
-                                                                color: palette.text.withValues(alpha: .95),
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                              children: _tafseerParaWidgets(
+                                                                para,
+                                                                _fontSizeMap[_fontSize]!.tafseer,
+                                                                palette.text.withValues(alpha: .95),
                                                               ),
                                                             ),
                                                           ),

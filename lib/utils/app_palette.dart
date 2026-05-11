@@ -119,6 +119,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
     return ThemeData(
       colorScheme: scheme,
+      fontFamily: 'Inter',
       scaffoldBackgroundColor: Colors.black,
       dialogTheme: DialogThemeData(backgroundColor: surface),
       appBarTheme: AppBarTheme(
@@ -128,7 +129,11 @@ class AppPalette extends ThemeExtension<AppPalette> {
       ),
       textTheme: ThemeData(
         brightness: isDark ? Brightness.dark : Brightness.light,
-      ).textTheme.apply(bodyColor: surfaceText, displayColor: surfaceText),
+      ).textTheme.apply(
+        bodyColor: surfaceText,
+        displayColor: surfaceText,
+        fontFamily: 'Inter',
+      ),
       extensions: [this],
       useMaterial3: true,
     );

@@ -83,6 +83,11 @@ class TafseerManager {
         .replaceAll('۔ ', '۔\n\n')
         // single newlines → paragraph break
         .replaceAll(RegExp(r'\n(?!\n)'), '\n\n')
+        // isolate Arabic phrases (2+ Arabic chars, possibly multi-word) as own paragraphs
+        .replaceAllMapped(
+          RegExp(r'[؀-ۿﭐ-﷿ﹰ-﻿]{2,}(?:[ \t]+[؀-ۿﭐ-﷿ﹰ-﻿]{2,})*'),
+          (m) => '\n\n${m.group(0)}\n\n',
+        )
         // normalize excess blank lines
         .replaceAll(RegExp(r'\n{3,}'), '\n\n')
         .trim();

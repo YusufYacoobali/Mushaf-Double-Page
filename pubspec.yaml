@@ -92,12 +92,26 @@ flutter:
     - assets/tafseer/
     - assets/summary/
     - assets/arabic-text/
-    - assets/arabic-fonts/
+    - assets/fonts/
 
   fonts:
     - family: UthmanicHafs
       fonts:
-        - asset: assets/arabic-fonts/UthmanicHafs_V22.ttf
+        - asset: assets/fonts/UthmanicHafs_V22.ttf
+    - family: Uthmani2
+      fonts:
+        - asset: assets/fonts/uthmani2.ttf
+    - family: IndoPak
+      fonts:
+        - asset: assets/fonts/DigitalKhattIndoPak.otf
+    - family: NotoNaskh
+      fonts:
+        - asset: assets/fonts/NotoNaskhArabic-VariableFont_wght.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-VariableFont_opsz,wght.ttf
+        - asset: assets/fonts/Inter-Italic-VariableFont_opsz,wght.ttf
+          style: italic
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
