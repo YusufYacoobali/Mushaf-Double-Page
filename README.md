@@ -1,16 +1,39 @@
-# mushaf_two_page
+# Quran Dual Page
 
-A modern Flutter project.
+Quran Dual Page is a simple Quran reading app focused on making recitation feel natural, clean, and comfortable on mobile.
 
-## Getting Started
+The app uses a dual-page Mushaf-style layout, making it easier to read in a familiar format while keeping the interface minimal and distraction-free.
 
-This project is a starting point for a Flutter application.
+## Features
 
-A few resources to get you started if this is your first Flutter project:
+- Dual-page Quran reading layout
+- Smooth page navigation
+- Bookmark support
+- Clean and focused reading experience
+- Mobile-friendly design
+- Works offline after content is available
+- Designed for Android and iOS
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Tech Stack
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Flutter
+- Dart
+- Local storage
+- Android and iOS support
+
+## Goal
+
+The goal of Quran Dual Page is to provide a simple, accessible Quran reading experience that feels close to reading from a physical Mushaf, especially for users who prefer a page-based layout.
+
+## Project Status
+
+The app is live and actively being improved with new features, refinements, and better reading tools over time.
+
+## Future Improvements
+
+- More translations
+- Tafsir support
+- Audio/recitation tools
+- Better bookmarking and progress tracking
+- Reading reminders
+- UI polish and accessibility improvements
