@@ -71,7 +71,8 @@ class _TranslationModalState extends State<TranslationModal> {
     return result;
   }
 
-  static const Map<String, ({double arabic, double trans, double tafseer})> _fontSizeMap = {
+  static const Map<String, ({double arabic, double trans, double tafseer})>
+  _fontSizeMap = {
     'Small': (arabic: 18.0, trans: 13.0, tafseer: 13.0),
     'Medium': (arabic: 22.0, trans: 16.0, tafseer: 16.0),
     'Large': (arabic: 26.0, trans: 19.0, tafseer: 19.0),
@@ -86,13 +87,19 @@ class _TranslationModalState extends State<TranslationModal> {
 
   Future<void> _initFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final trans = prefs.getStringList('trans_selected') ?? ['Saheeh International'];
-    final tafseer = prefs.getStringList('tafseer_selected') ?? ['Tafseer Ibn Kathir'];
+    final trans =
+        prefs.getStringList('trans_selected') ?? ['Saheeh International'];
+    final tafseer =
+        prefs.getStringList('tafseer_selected') ?? ['Tafseer Ibn Kathir'];
     final showArabic = prefs.getBool('show_arabic') ?? true;
     final fontSize = prefs.getString('font_size') ?? 'Medium';
     final arabicScript = prefs.getString('arabic_script') ?? 'uthmani';
-    _selectedTrans..clear()..addAll(trans);
-    _selectedTafseer..clear()..addAll(tafseer);
+    _selectedTrans
+      ..clear()
+      ..addAll(trans);
+    _selectedTafseer
+      ..clear()
+      ..addAll(tafseer);
     _showArabic = showArabic;
     _fontSize = fontSize;
     _arabicScript = arabicScript;
@@ -133,9 +140,13 @@ class _TranslationModalState extends State<TranslationModal> {
         }
       }
 
-      final arabicData = await ArabicTextManager.getSurah(surah.surah, source: _arabicScript);
+      final arabicData = await ArabicTextManager.getSurah(
+        surah.surah,
+        source: _arabicScript,
+      );
 
-      final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()..sort();
+      final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()
+        ..sort();
 
       for (final ayah in ayahs) {
         final trans = <String, String>{};
@@ -208,186 +219,204 @@ class _TranslationModalState extends State<TranslationModal> {
                 maxHeight: MediaQuery.of(ctx).size.height * 0.88,
               ),
               child: Container(
-              decoration: BoxDecoration(
-                color: palette.scaffold,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
+                decoration: BoxDecoration(
+                  color: palette.scaffold,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
                 ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-                child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: palette.border,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Sources',
-                        style: TextStyle(
-                          color: palette.text,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () {
-                          final pageToRestore = _currentPage;
-                          Navigator.pop(ctx);
-                          setState(() {
-                            _selectedTrans
-                              ..clear()
-                              ..addAll(tempTrans);
-                            _selectedTafseer
-                              ..clear()
-                              ..addAll(tempTafseer);
-                            _showArabic = tempShowArabic;
-                            _fontSize = tempFontSize;
-                            _arabicScript = tempArabicScript;
-                          });
-                          _savePrefs();
-                          _load(restorePage: pageToRestore);
-                        },
+                      Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 7,
-                          ),
+                          width: 40,
+                          height: 5,
                           decoration: BoxDecoration(
-                            color: palette.accent,
-                            borderRadius: BorderRadius.circular(99),
+                            color: palette.border,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Text(
-                            'Done',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Text(
+                            'Sources',
                             style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
+                              color: palette.text,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () {
+                              final pageToRestore = _currentPage;
+                              Navigator.pop(ctx);
+                              setState(() {
+                                _selectedTrans
+                                  ..clear()
+                                  ..addAll(tempTrans);
+                                _selectedTafseer
+                                  ..clear()
+                                  ..addAll(tempTafseer);
+                                _showArabic = tempShowArabic;
+                                _fontSize = tempFontSize;
+                                _arabicScript = tempArabicScript;
+                              });
+                              _savePrefs();
+                              _load(restorePage: pageToRestore);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: palette.accent,
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: const Text(
+                                'Done',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _SectionLabel(palette: palette, label: 'Display'),
+                      const SizedBox(height: 6),
+                      _CheckTile(
+                        palette: palette,
+                        label: 'Show Arabic text',
+                        checked: tempShowArabic,
+                        onTap: () =>
+                            setS(() => tempShowArabic = !tempShowArabic),
+                      ),
+                      if (tempShowArabic) ...[
+                        const SizedBox(height: 12),
+                        _SectionLabel(palette: palette, label: 'Arabic Script'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            for (final script in [
+                              ('uthmani', 'Uthmani'),
+                              ('indopak', 'Indo-Pak'),
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      setS(() => tempArabicScript = script.$1),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 160),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: tempArabicScript == script.$1
+                                          ? palette.accent
+                                          : palette.surface,
+                                      borderRadius: BorderRadius.circular(99),
+                                      border: Border.all(
+                                        color: tempArabicScript == script.$1
+                                            ? palette.accent
+                                            : palette.border,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      script.$2,
+                                      style: TextStyle(
+                                        color: tempArabicScript == script.$1
+                                            ? Colors.white
+                                            : palette.text,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      _SectionLabel(palette: palette, label: 'Font Size'),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          for (final size in ['Small', 'Medium', 'Large'])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: GestureDetector(
+                                onTap: () => setS(() => tempFontSize = size),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 160),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: tempFontSize == size
+                                        ? palette.accent
+                                        : palette.surface,
+                                    borderRadius: BorderRadius.circular(99),
+                                    border: Border.all(
+                                      color: tempFontSize == size
+                                          ? palette.accent
+                                          : palette.border,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    size,
+                                    style: TextStyle(
+                                      color: tempFontSize == size
+                                          ? Colors.white
+                                          : palette.text,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _SectionLabel(palette: palette, label: 'Translation'),
+                      const SizedBox(height: 6),
+                      ...TranslationManager.sources.keys.map(
+                        (src) => _CheckTile(
+                          palette: palette,
+                          label: src,
+                          checked: tempTrans.contains(src),
+                          onTap: () => toggleTrans(src),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _SectionLabel(palette: palette, label: 'Tafseer'),
+                      const SizedBox(height: 6),
+                      ...TafseerManager.sources.keys.map(
+                        (src) => _CheckTile(
+                          palette: palette,
+                          label: src,
+                          checked: tempTafseer.contains(src),
+                          onTap: () => toggleTafseer(src),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  _SectionLabel(palette: palette, label: 'Display'),
-                  const SizedBox(height: 6),
-                  _CheckTile(
-                    palette: palette,
-                    label: 'Show Arabic text',
-                    checked: tempShowArabic,
-                    onTap: () => setS(() => tempShowArabic = !tempShowArabic),
-                  ),
-                  if (tempShowArabic) ...[
-                    const SizedBox(height: 12),
-                    _SectionLabel(palette: palette, label: 'Arabic Script'),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        for (final script in [
-                          ('uthmani', 'Uthmani'),
-                          ('indopak', 'Indo-Pak'),
-                        ])
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: GestureDetector(
-                              onTap: () => setS(() => tempArabicScript = script.$1),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: tempArabicScript == script.$1 ? palette.accent : palette.surface,
-                                  borderRadius: BorderRadius.circular(99),
-                                  border: Border.all(
-                                    color: tempArabicScript == script.$1 ? palette.accent : palette.border,
-                                  ),
-                                ),
-                                child: Text(
-                                  script.$2,
-                                  style: TextStyle(
-                                    color: tempArabicScript == script.$1 ? Colors.white : palette.text,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  _SectionLabel(palette: palette, label: 'Font Size'),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      for (final size in ['Small', 'Medium', 'Large'])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: GestureDetector(
-                            onTap: () => setS(() => tempFontSize = size),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 160),
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: tempFontSize == size ? palette.accent : palette.surface,
-                                borderRadius: BorderRadius.circular(99),
-                                border: Border.all(
-                                  color: tempFontSize == size
-                                      ? palette.accent
-                                      : palette.border,
-                                ),
-                              ),
-                              child: Text(
-                                size,
-                                style: TextStyle(
-                                  color: tempFontSize == size ? Colors.white : palette.text,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionLabel(palette: palette, label: 'Translation'),
-                  const SizedBox(height: 6),
-                  ...TranslationManager.sources.keys.map(
-                    (src) => _CheckTile(
-                      palette: palette,
-                      label: src,
-                      checked: tempTrans.contains(src),
-                      onTap: () => toggleTrans(src),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionLabel(palette: palette, label: 'Tafseer'),
-                  const SizedBox(height: 6),
-                  ...TafseerManager.sources.keys.map(
-                    (src) => _CheckTile(
-                      palette: palette,
-                      label: src,
-                      checked: tempTafseer.contains(src),
-                      onTap: () => toggleTafseer(src),
-                    ),
-                  ),
-                ],
-              ),
-              ),
+                ),
               ),
             );
           },
@@ -433,7 +462,8 @@ class _TranslationModalState extends State<TranslationModal> {
               Padding(
                 padding: const EdgeInsets.only(top: 10, bottom: 4),
                 child: Container(
-                  width: 40, height: 5,
+                  width: 40,
+                  height: 5,
                   decoration: BoxDecoration(
                     color: palette.border,
                     borderRadius: BorderRadius.circular(10),
@@ -470,7 +500,8 @@ class _TranslationModalState extends State<TranslationModal> {
                         _load();
                       },
                       leading: Container(
-                        width: 36, height: 36,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
                           color: active ? palette.accent : palette.surface,
                           borderRadius: BorderRadius.circular(8),
@@ -494,7 +525,9 @@ class _TranslationModalState extends State<TranslationModal> {
                         style: TextStyle(
                           color: palette.text,
                           fontSize: 15,
-                          fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                       ),
                       subtitle: Text(
@@ -502,7 +535,11 @@ class _TranslationModalState extends State<TranslationModal> {
                         style: TextStyle(color: palette.muted, fontSize: 12),
                       ),
                       trailing: active
-                          ? Icon(Icons.check_rounded, color: palette.accent, size: 18)
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: palette.accent,
+                              size: 18,
+                            )
                           : null,
                     );
                   },
@@ -525,14 +562,13 @@ class _TranslationModalState extends State<TranslationModal> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: palette.scaffold,
-        border: Border(top: BorderSide(color: palette.border.withValues(alpha: .6))),
+        border: Border(
+          top: BorderSide(color: palette.border.withValues(alpha: .6)),
+        ),
       ),
       child: Row(
         children: [
-          _navBtn(Icons.chevron_left_rounded, !onFirst, () {
-            setState(() => _currentPage--);
-            _scrollController.jumpTo(0);
-          }, palette),
+          _navBtn(Icons.chevron_left_rounded, !onLast, _goToNextPage, palette),
           const Spacer(),
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -546,25 +582,48 @@ class _TranslationModalState extends State<TranslationModal> {
                 ),
               ),
               Text(
-                '$displayStart–$displayEnd of $ayahCount ayahs',
+                '$displayStart-$displayEnd of $ayahCount ayahs',
                 style: TextStyle(color: palette.muted, fontSize: 11),
               ),
             ],
           ),
           const Spacer(),
-          _navBtn(Icons.chevron_right_rounded, !onLast, () {
-            final next = _currentPage + 1;
-            if (next * _pageSize < ayahCount) {
-              setState(() => _currentPage = next);
-              _scrollController.jumpTo(0);
-            }
-          }, palette),
+          _navBtn(
+            Icons.chevron_right_rounded,
+            !onFirst,
+            _goToPreviousPage,
+            palette,
+          ),
         ],
       ),
     );
   }
 
-  Widget _navBtn(IconData icon, bool enabled, VoidCallback onTap, AppPalette palette) {
+  void _goToNextPage() {
+    final ayahCount = _allAyahs.length;
+    final next = _currentPage + 1;
+    if (next * _pageSize >= ayahCount) return;
+    setState(() => _currentPage = next);
+    _scrollToTop();
+  }
+
+  void _goToPreviousPage() {
+    if (_currentPage == 0) return;
+    setState(() => _currentPage--);
+    _scrollToTop();
+  }
+
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(0);
+  }
+
+  Widget _navBtn(
+    IconData icon,
+    bool enabled,
+    VoidCallback onTap,
+    AppPalette palette,
+  ) {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: AnimatedContainer(
@@ -572,10 +631,14 @@ class _TranslationModalState extends State<TranslationModal> {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: enabled ? palette.accent.withValues(alpha: .12) : palette.surface,
+          color: enabled
+              ? palette.accent.withValues(alpha: .12)
+              : palette.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: enabled ? palette.accent.withValues(alpha: .35) : palette.border,
+            color: enabled
+                ? palette.accent.withValues(alpha: .35)
+                : palette.border,
           ),
         ),
         child: Icon(
@@ -598,8 +661,7 @@ class _TranslationModalState extends State<TranslationModal> {
     });
   }
 
-  static final _arabicRunRe =
-      RegExp(r'[؀-ۿﭐ-﷿ﹰ-﻿]{2,}(?:\s+[؀-ۿﭐ-﷿ﹰ-﻿]{2,})*');
+  static final _arabicRunRe = RegExp(r'[؀-ۿﭐ-﷿ﹰ-﻿]{2,}(?:\s+[؀-ۿﭐ-﷿ﹰ-﻿]{2,})*');
 
   List<Widget> _tafseerParaWidgets(String para, double fontSize, Color color) {
     final widgets = <Widget>[];
@@ -625,7 +687,12 @@ class _TranslationModalState extends State<TranslationModal> {
     return widgets;
   }
 
-  Widget _tafseerRun(String text, double fontSize, Color color, {required bool rtl}) {
+  Widget _tafseerRun(
+    String text,
+    double fontSize,
+    Color color, {
+    required bool rtl,
+  }) {
     return SelectableText(
       text,
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
@@ -682,7 +749,11 @@ class _TranslationModalState extends State<TranslationModal> {
                 ],
               ),
               const SizedBox(width: 4),
-              Icon(Icons.keyboard_arrow_down_rounded, color: palette.muted, size: 20),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: palette.muted,
+                size: 20,
+              ),
             ],
           ),
         ),
@@ -703,425 +774,498 @@ class _TranslationModalState extends State<TranslationModal> {
           : Column(
               children: [
                 Expanded(
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    thumbVisibility: true,
-                    interactive: true,
-                    radius: const Radius.circular(10),
-                    thickness: 6,
-                    child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
-                                itemCount: _pageContent.length,
-                                itemBuilder: (context, index) {
-                                  final items = _pageContent;
-                                  final item = items[index];
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragEnd: (details) {
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (velocity < -200) {
+                        _goToNextPage();
+                      } else if (velocity > 200) {
+                        _goToPreviousPage();
+                      }
+                    },
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      thumbVisibility: true,
+                      interactive: true,
+                      radius: const Radius.circular(10),
+                      thickness: 6,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
+                        itemCount: _pageContent.length,
+                        itemBuilder: (context, index) {
+                          final items = _pageContent;
+                          final item = items[index];
 
-                            if (item is SurahRange) {
-                              return Padding(
-                                padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 4,
-                                      height: 34,
-                                      decoration: BoxDecoration(
-                                        color: palette.accent,
-                                        borderRadius:
-                                            BorderRadius.circular(99),
-                                      ),
+                          if (item is SurahRange) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 4,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: palette.accent,
+                                      borderRadius: BorderRadius.circular(99),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.name,
-                                            style: TextStyle(
-                                              color: palette.text,
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 1),
-                                          Text(
-                                            item.english,
-                                            style: TextStyle(
-                                              color: palette.muted,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    GestureDetector(
-                                      onTap: () => _showSummary(item),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: palette.accentSoft,
-                                          borderRadius: BorderRadius.circular(99),
-                                          border: Border.all(
-                                            color: palette.accent.withValues(alpha: .2),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.info_outline_rounded,
-                                              size: 13,
-                                              color: palette.accent,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'Summary',
-                                              style: TextStyle(
-                                                color: palette.accent,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    GestureDetector(
-                                      onTap: () => _toggle(_collapsedSurahs, item.surah),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(5),
-                                        decoration: BoxDecoration(
-                                          color: palette.surface,
-                                          borderRadius: BorderRadius.circular(99),
-                                          border: Border.all(color: palette.border),
-                                        ),
-                                        child: Icon(
-                                          _collapsedSurahs.contains(item.surah)
-                                              ? Icons.keyboard_arrow_down_rounded
-                                              : Icons.keyboard_arrow_up_rounded,
-                                          size: 16,
-                                          color: palette.muted,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-
-                            final surahNum = item['surah'] as int;
-                            final ayahNumber = item['ayah'] as int;
-                            final trans =
-                                item['trans'] as Map<String, String>;
-                            final tafseer =
-                                item['tafseer'] as Map<String, String>;
-                            final arabic = item['arabic'] as String;
-                            final prevIsHeader =
-                                index == 0 ||
-                                items[index - 1] is SurahRange;
-                            final nextIsHeader =
-                                index == items.length - 1 ||
-                                items[index + 1] is SurahRange;
-
-                            final allText = [
-                              ...trans.values,
-                              if (_selectedTafseer.isNotEmpty) ...tafseer.values,
-                            ].join('\n\n');
-
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: palette.surface,
-                                borderRadius: _rowRadius(
-                                  first: prevIsHeader,
-                                  last: nextIsHeader,
-                                ),
-                                border: Border(
-                                  left: BorderSide(color: palette.border),
-                                  right: BorderSide(color: palette.border),
-                                  top: prevIsHeader
-                                      ? BorderSide(color: palette.border)
-                                      : BorderSide.none,
-                                  bottom: BorderSide(color: palette.border),
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                    10, 6, 4, 8),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    // Top row: ayah badge + menu
-                                    Row(
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: palette.accentSoft,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                            border: Border.all(
-                                              color: palette.accent
-                                                  .withValues(alpha: .18),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            ayahNumber.toString(),
-                                            style: TextStyle(
-                                              color: palette.accent,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                              height: 1,
-                                            ),
+                                        Text(
+                                          item.name,
+                                          style: TextStyle(
+                                            color: palette.text,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
                                           ),
                                         ),
-                                        const Spacer(),
-                                        PopupMenuButton<String>(
-                                          icon: Icon(
-                                            Icons.more_vert_rounded,
-                                            color: palette.surfaceMuted,
-                                            size: 18,
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          item.english,
+                                          style: TextStyle(
+                                            color: palette.muted,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                          padding: EdgeInsets.zero,
-                                          tooltip: 'Actions',
-                                          color: palette.surfaceRaised,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(14),
-                                          ),
-                                          onSelected: (value) {
-                                            if (value == 'copy') {
-                                              _copyText(
-                                                  context, palette, allText);
-                                            } else {
-                                              SharePlus.instance.share(
-                                                ShareParams(text: allText),
-                                              );
-                                            }
-                                          },
-                                          itemBuilder: (context) => [
-                                            PopupMenuItem(
-                                              value: 'copy',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.copy_rounded,
-                                                    color: palette.accent,
-                                                    size: 18,
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  const Text('Copy'),
-                                                ],
-                                              ),
-                                            ),
-                                            PopupMenuItem(
-                                              value: 'share',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.ios_share_rounded,
-                                                    color: palette.accent,
-                                                    size: 18,
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  const Text('Share'),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-
-                                    // Text content (full width)
-                                    Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                  ),
+                                  GestureDetector(
+                                    onTap: () => _showSummary(item),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: palette.accentSoft,
+                                        borderRadius: BorderRadius.circular(99),
+                                        border: Border.all(
+                                          color: palette.accent.withValues(
+                                            alpha: .2,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          // Arabic text
-                                          if (_showArabic && arabic.isNotEmpty) ...[
-                                            SizedBox(
-                                              width: double.infinity,
-                                              child: Text(
-                                                arabic,
-                                                textDirection: TextDirection.rtl,
-                                                textAlign: TextAlign.right,
-                                                style: TextStyle(
-                                                  fontSize: _fontSizeMap[_fontSize]!.arabic,
-                                                  height: 1.8,
-                                                  color: palette.text,
-                                                  fontFamily: _arabicScript == 'indopak' ? 'IndoPak' : 'Uthmani2',
-                                                ),
-                                              ),
+                                          Icon(
+                                            Icons.info_outline_rounded,
+                                            size: 13,
+                                            color: palette.accent,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Summary',
+                                            style: TextStyle(
+                                              color: palette.accent,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
                                             ),
-                                            const SizedBox(height: 8),
-                                          ],
-                                          // Translation blocks
-                                          ..._selectedTrans
-                                              .asMap()
-                                              .entries
-                                              .map((e) {
-                                            final src = e.value;
-                                            final text = trans[src] ?? '';
-                                            final srcKey = '$surahNum:$ayahNumber:$src';
-                                            final srcCollapsed = _collapsedTrans.contains(srcKey);
-                                            return Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                if (e.key > 0)
-                                                  Divider(
-                                                    height: 16,
-                                                    color: palette.border,
-                                                  ),
-                                                GestureDetector(
-                                                  behavior: HitTestBehavior.opaque,
-                                                  onTap: () => _toggle(_collapsedTrans, srcKey),
-                                                  child: Row(
-                                                    children: [
-                                                      Text(
-                                                        src,
-                                                        style: TextStyle(
-                                                          color: palette.accent,
-                                                          fontSize: 11,
-                                                          fontWeight: FontWeight.w700,
-                                                          letterSpacing: 0.3,
-                                                        ),
-                                                      ),
-                                                      const Spacer(),
-                                                      Icon(
-                                                        srcCollapsed
-                                                            ? Icons.keyboard_arrow_down_rounded
-                                                            : Icons.keyboard_arrow_up_rounded,
-                                                        size: 16,
-                                                        color: palette.accent,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                if (!srcCollapsed) ...[
-                                                  const SizedBox(height: 4),
-                                                  SelectableText(
-                                                    text,
-                                                    style: TextStyle(
-                                                      fontSize: _fontSizeMap[_fontSize]!.trans,
-                                                      height: 1.45,
-                                                      color: palette.surfaceText,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            );
-                                          }),
-
-                                          // Tafseer blocks
-                                          if (_selectedTafseer.isNotEmpty &&
-                                              _selectedTafseer
-                                                  .any((s) =>
-                                                      (tafseer[s] ?? '')
-                                                          .isNotEmpty)) ...[
-                                            const SizedBox(height: 6),
-                                            Container(
-                                              padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
-                                              decoration: BoxDecoration(
-                                                color: palette.scaffold,
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border(
-                                                  left: BorderSide(
-                                                    color: palette.accent
-                                                        .withValues(alpha: .2),
-                                                    width: 2,
-                                                  ),
-                                                ),
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: _selectedTafseer
-                                                    .asMap()
-                                                    .entries
-                                                    .map<Widget>((e) {
-                                                  final src = e.value;
-                                                  final text = tafseer[src] ?? '';
-                                                  if (text.isEmpty) return const SizedBox.shrink();
-                                                  final srcKey = '$surahNum:$ayahNumber:$src';
-                                                  final srcCollapsed = _collapsedTafseers.contains(srcKey);
-                                                  return Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      if (e.key > 0)
-                                                        Divider(height: 16, color: palette.border),
-                                                      GestureDetector(
-                                                        behavior: HitTestBehavior.opaque,
-                                                        onTap: () => _toggle(_collapsedTafseers, srcKey),
-                                                        child: Row(
-                                                          children: [
-                                                            Text(
-                                                              src,
-                                                              style: TextStyle(
-                                                                color: palette.muted,
-                                                                fontSize: 11,
-                                                                fontWeight: FontWeight.w700,
-                                                                letterSpacing: 0.3,
-                                                              ),
-                                                            ),
-                                                            const Spacer(),
-                                                            Icon(
-                                                              srcCollapsed
-                                                                  ? Icons.keyboard_arrow_down_rounded
-                                                                  : Icons.keyboard_arrow_up_rounded,
-                                                              size: 16,
-                                                              color: palette.muted,
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      if (!srcCollapsed) ...[
-                                                        const SizedBox(height: 4),
-                                                        for (final para in text.split('\n\n').map((p) => p.trim()).where((p) => p.isNotEmpty))
-                                                          Padding(
-                                                            padding: const EdgeInsets.only(bottom: 36),
-                                                            child: Column(
-                                                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                                                              children: _tafseerParaWidgets(
-                                                                para,
-                                                                _fontSizeMap[_fontSize]!.tafseer,
-                                                                palette.text.withValues(alpha: .95),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                      ],
-                                                    ],
-                                                  );
-                                                }).toList(),
-                                              ),
-                                            ),
-                                          ],
+                                          ),
                                         ],
                                       ),
-                                  ],
-                                ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _toggle(_collapsedSurahs, item.surah),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: BoxDecoration(
+                                        color: palette.surface,
+                                        borderRadius: BorderRadius.circular(99),
+                                        border: Border.all(
+                                          color: palette.border,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        _collapsedSurahs.contains(item.surah)
+                                            ? Icons.keyboard_arrow_down_rounded
+                                            : Icons.keyboard_arrow_up_rounded,
+                                        size: 16,
+                                        color: palette.muted,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
-                                },
+                          }
+
+                          final surahNum = item['surah'] as int;
+                          final ayahNumber = item['ayah'] as int;
+                          final trans = item['trans'] as Map<String, String>;
+                          final tafseer =
+                              item['tafseer'] as Map<String, String>;
+                          final arabic = item['arabic'] as String;
+                          final prevIsHeader =
+                              index == 0 || items[index - 1] is SurahRange;
+                          final nextIsHeader =
+                              index == items.length - 1 ||
+                              items[index + 1] is SurahRange;
+
+                          final allText = [
+                            ...trans.values,
+                            if (_selectedTafseer.isNotEmpty) ...tafseer.values,
+                          ].join('\n\n');
+
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: palette.surface,
+                              borderRadius: _rowRadius(
+                                first: prevIsHeader,
+                                last: nextIsHeader,
                               ),
+                              border: Border(
+                                left: BorderSide(color: palette.border),
+                                right: BorderSide(color: palette.border),
+                                top: prevIsHeader
+                                    ? BorderSide(color: palette.border)
+                                    : BorderSide.none,
+                                bottom: BorderSide(color: palette.border),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 6, 4, 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Top row: ayah badge + menu
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: palette.accentSoft,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                          border: Border.all(
+                                            color: palette.accent.withValues(
+                                              alpha: .18,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          ayahNumber.toString(),
+                                          style: TextStyle(
+                                            color: palette.accent,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            height: 1,
+                                          ),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      PopupMenuButton<String>(
+                                        icon: Icon(
+                                          Icons.more_vert_rounded,
+                                          color: palette.surfaceMuted,
+                                          size: 18,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        tooltip: 'Actions',
+                                        color: palette.surfaceRaised,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        onSelected: (value) {
+                                          if (value == 'copy') {
+                                            _copyText(
+                                              context,
+                                              palette,
+                                              allText,
+                                            );
+                                          } else {
+                                            SharePlus.instance.share(
+                                              ShareParams(text: allText),
+                                            );
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          PopupMenuItem(
+                                            value: 'copy',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.copy_rounded,
+                                                  color: palette.accent,
+                                                  size: 18,
+                                                ),
+                                                const SizedBox(width: 10),
+                                                const Text('Copy'),
+                                              ],
+                                            ),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'share',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.ios_share_rounded,
+                                                  color: palette.accent,
+                                                  size: 18,
+                                                ),
+                                                const SizedBox(width: 10),
+                                                const Text('Share'),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+
+                                  // Text content (full width)
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Arabic text
+                                      if (_showArabic && arabic.isNotEmpty) ...[
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: Text(
+                                            arabic,
+                                            textDirection: TextDirection.rtl,
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              fontSize: _fontSizeMap[_fontSize]!
+                                                  .arabic,
+                                              height: 1.8,
+                                              color: palette.text,
+                                              fontFamily:
+                                                  _arabicScript == 'indopak'
+                                                  ? 'IndoPak'
+                                                  : 'Uthmani2',
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                      // Translation blocks
+                                      ..._selectedTrans.asMap().entries.map((
+                                        e,
+                                      ) {
+                                        final src = e.value;
+                                        final text = trans[src] ?? '';
+                                        final srcKey =
+                                            '$surahNum:$ayahNumber:$src';
+                                        final srcCollapsed = _collapsedTrans
+                                            .contains(srcKey);
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if (e.key > 0)
+                                              Divider(
+                                                height: 16,
+                                                color: palette.border,
+                                              ),
+                                            GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap: () => _toggle(
+                                                _collapsedTrans,
+                                                srcKey,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Text(
+                                                    src,
+                                                    style: TextStyle(
+                                                      color: palette.accent,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      letterSpacing: 0.3,
+                                                    ),
+                                                  ),
+                                                  const Spacer(),
+                                                  Icon(
+                                                    srcCollapsed
+                                                        ? Icons
+                                                              .keyboard_arrow_down_rounded
+                                                        : Icons
+                                                              .keyboard_arrow_up_rounded,
+                                                    size: 16,
+                                                    color: palette.accent,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (!srcCollapsed) ...[
+                                              const SizedBox(height: 4),
+                                              SelectableText(
+                                                text,
+                                                style: TextStyle(
+                                                  fontSize:
+                                                      _fontSizeMap[_fontSize]!
+                                                          .trans,
+                                                  height: 1.45,
+                                                  color: palette.surfaceText,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        );
+                                      }),
+
+                                      // Tafseer blocks
+                                      if (_selectedTafseer.isNotEmpty &&
+                                          _selectedTafseer.any(
+                                            (s) =>
+                                                (tafseer[s] ?? '').isNotEmpty,
+                                          )) ...[
+                                        const SizedBox(height: 6),
+                                        Container(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            8,
+                                            6,
+                                            6,
+                                            6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: palette.scaffold,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            border: Border(
+                                              left: BorderSide(
+                                                color: palette.accent
+                                                    .withValues(alpha: .2),
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: _selectedTafseer.asMap().entries.map<Widget>((
+                                              e,
+                                            ) {
+                                              final src = e.value;
+                                              final text = tafseer[src] ?? '';
+                                              if (text.isEmpty) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              final srcKey =
+                                                  '$surahNum:$ayahNumber:$src';
+                                              final srcCollapsed =
+                                                  _collapsedTafseers.contains(
+                                                    srcKey,
+                                                  );
+                                              return Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  if (e.key > 0)
+                                                    Divider(
+                                                      height: 16,
+                                                      color: palette.border,
+                                                    ),
+                                                  GestureDetector(
+                                                    behavior:
+                                                        HitTestBehavior.opaque,
+                                                    onTap: () => _toggle(
+                                                      _collapsedTafseers,
+                                                      srcKey,
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        Text(
+                                                          src,
+                                                          style: TextStyle(
+                                                            color:
+                                                                palette.muted,
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            letterSpacing: 0.3,
+                                                          ),
+                                                        ),
+                                                        const Spacer(),
+                                                        Icon(
+                                                          srcCollapsed
+                                                              ? Icons
+                                                                    .keyboard_arrow_down_rounded
+                                                              : Icons
+                                                                    .keyboard_arrow_up_rounded,
+                                                          size: 16,
+                                                          color: palette.muted,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (!srcCollapsed) ...[
+                                                    const SizedBox(height: 4),
+                                                    for (final para
+                                                        in text
+                                                            .split('\n\n')
+                                                            .map(
+                                                              (p) => p.trim(),
+                                                            )
+                                                            .where(
+                                                              (p) =>
+                                                                  p.isNotEmpty,
+                                                            ))
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              bottom: 36,
+                                                            ),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .stretch,
+                                                          children:
+                                                              _tafseerParaWidgets(
+                                                                para,
+                                                                _fontSizeMap[_fontSize]!
+                                                                    .tafseer,
+                                                                palette.text
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          .95,
+                                                                    ),
+                                                              ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ],
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
-                  _buildPageNav(palette),
-                ],
-              ),
+                ),
+                _buildPageNav(palette),
+              ],
+            ),
     );
   }
 }
@@ -1258,7 +1402,10 @@ class _SummarySheetState extends State<_SummarySheet> {
                             final section = summary.sections[i];
                             if (section.isHeading) {
                               return Padding(
-                                padding: const EdgeInsets.only(top: 20, bottom: 6),
+                                padding: const EdgeInsets.only(
+                                  top: 20,
+                                  bottom: 6,
+                                ),
                                 child: Text(
                                   section.text,
                                   textDirection: _urdu
