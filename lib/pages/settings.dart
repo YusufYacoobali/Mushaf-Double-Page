@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
+import 'package:mushaf_two_page/utils/app_review.dart';
 
 class Settings extends StatefulWidget {
   const Settings({super.key});
@@ -405,12 +406,15 @@ class _SettingsState extends State<Settings> {
 
                   const SizedBox(height: 18),
 
-                  _infoTile(
-                    icon: Icons.star_rounded,
-                    title: 'Support the app',
-                    text: 'Leaving a positive review helps the project grow.',
-                    color: const Color(0xFFD9B44A),
-                    palette: palette,
+                  GestureDetector(
+                    onTap: () => AppReview.requestFromUser(),
+                    child: _infoTile(
+                      icon: Icons.star_rounded,
+                      title: 'Rate the app',
+                      text: 'Enjoying the app? Tap here to leave a review — it really helps.',
+                      color: const Color(0xFFD9B44A),
+                      palette: palette,
+                    ),
                   ),
                 ],
               ),

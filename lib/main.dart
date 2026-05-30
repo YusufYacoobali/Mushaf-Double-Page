@@ -27,6 +27,7 @@ import 'package:mushaf_two_page/pages/loading.dart';
 import 'components/nav_bar_icon.dart';
 import 'components/translation_modal.dart';
 import 'firebase_options.dart';
+import 'utils/app_review.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -160,6 +161,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     await TranslationManager.load();
     await SurahSummaryManager.load();
     setState(() => _ready = true);
+
+    // Count this session and auto-prompt for a review at key milestones.
+    AppReview.recordSessionAndMaybePrompt();
   }
 
   @override
