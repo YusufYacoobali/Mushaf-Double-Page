@@ -59,7 +59,7 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
             ),
             child: Row(
               children: [
-                /// Bookmark icon badge
+                /// Bookmark icon badge (ayah number for ayah bookmarks)
                 Container(
                   width: 42,
                   height: 42,
@@ -68,7 +68,16 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                     borderRadius: BorderRadius.circular(12),
                     color: palette.accentSoft,
                   ),
-                  child: Icon(Icons.bookmark_rounded, color: palette.accent),
+                  child: widget.bookmark.isAyah
+                      ? Text(
+                          '${widget.bookmark.ayah}',
+                          style: TextStyle(
+                            color: palette.accent,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        )
+                      : Icon(Icons.bookmark_rounded, color: palette.accent),
                 ),
 
                 const SizedBox(width: 16),
@@ -91,7 +100,9 @@ class BookmarkWidgetState extends State<BookmarkWidget> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Page ${widget.bookmark.pageNumber}',
+                        widget.bookmark.isAyah
+                            ? 'Ayah ${widget.bookmark.ayah}  ·  Page ${widget.bookmark.pageNumber}'
+                            : 'Page ${widget.bookmark.pageNumber}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: palette.surfaceMuted,
                         ),

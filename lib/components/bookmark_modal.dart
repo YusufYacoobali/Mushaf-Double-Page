@@ -28,7 +28,12 @@ class BookmarksModal {
           builder: (context, setModalState) {
             final bottomInset = MediaQuery.of(context).viewPadding.bottom;
             final sortedBookmarks = [...bookmarks]
-              ..sort((a, b) => a.pageNumber.compareTo(b.pageNumber));
+              ..sort((a, b) {
+                final byPage = a.pageNumber.compareTo(b.pageNumber);
+                if (byPage != 0) return byPage;
+                // Same page: the page bookmark first, then ayahs in order.
+                return (a.ayah ?? -1).compareTo(b.ayah ?? -1);
+              });
             return Container(
               height:
                   (isLandscape ? screenHeight * 0.85 : screenHeight * 0.65) +
@@ -78,7 +83,7 @@ class BookmarksModal {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${sortedBookmarks.length} saved pages',
+                                '${sortedBookmarks.length} saved',
                                 style: TextStyle(
                                   color: palette.muted,
                                   fontSize: 13,

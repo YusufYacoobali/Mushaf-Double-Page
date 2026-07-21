@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
+import 'package:mushaf_two_page/progress/progress_page.dart';
+import 'package:mushaf_two_page/quiz/quiz_setup_page.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/app_review.dart';
 
@@ -293,6 +295,53 @@ class _SettingsState extends State<Settings> {
     );
   }
 
+  Widget _navTile({
+    required AppPalette palette,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: palette.accent.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: palette.accent),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: palette.surfaceText,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 14, color: palette.surfaceMuted),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: palette.surfaceMuted),
+        ],
+      ),
+    );
+  }
+
   Widget _infoTile({
     required IconData icon,
     required String title,
@@ -389,6 +438,36 @@ class _SettingsState extends State<Settings> {
             ),
 
             const SizedBox(height: 24),
+
+            _sectionTitle('PRACTICE', textPrimary),
+
+            _settingsCard(
+              _navTile(
+                palette: palette,
+                icon: Icons.local_fire_department_rounded,
+                title: 'Progress & Streak',
+                subtitle: 'Reading streak and khatm completion.',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProgressPage()),
+                ),
+              ),
+              palette,
+            ),
+
+            _settingsCard(
+              _navTile(
+                palette: palette,
+                icon: Icons.school_rounded,
+                title: 'Memorization Quiz',
+                subtitle: 'Test your hifz by surah or juz — what comes next?',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const QuizSetupPage()),
+                ),
+              ),
+              palette,
+            ),
 
             _sectionTitle('HELP', textPrimary),
 

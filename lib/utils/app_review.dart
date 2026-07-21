@@ -13,8 +13,8 @@ class AppReview {
   /// Set this to the numeric Apple ID once the app is live in App Store Connect.
   static const String? _iosAppStoreId = null;
 
-  /// Sessions at which we attempt an auto-prompt.
-  static const _promptAtSessions = {5, 20};
+  /// Attempt an auto-prompt on every 10th reader session.
+  static const _promptEverySessions = 10;
 
   static final _review = InAppReview.instance;
 
@@ -24,7 +24,7 @@ class AppReview {
     final count = (prefs.getInt(_kSessionCountKey) ?? 0) + 1;
     await prefs.setInt(_kSessionCountKey, count);
 
-    if (_promptAtSessions.contains(count)) {
+    if (count % _promptEverySessions == 0) {
       await _requestNativeReview();
     }
   }

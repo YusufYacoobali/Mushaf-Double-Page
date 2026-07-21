@@ -21,6 +21,13 @@ String surahNameFromPage(int pageNumber, String mushaf) {
   return "Surah";
 }
 
+String surahNameFromNumber(int surah, String mushaf) {
+  final ranges = getSurahRanges(mushaf);
+  return ranges
+      .firstWhere((r) => r.surah == surah, orElse: () => ranges.first)
+      .name;
+}
+
 List<SurahRange> surahsFromLogicalPage(int logicalPage, String mushaf) {
   final ranges = getSurahRanges(mushaf);
 

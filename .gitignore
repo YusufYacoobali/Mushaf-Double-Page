@@ -44,3 +44,4 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /.claude/worktrees/mystifying-jackson-a11f8d/
+tool/cv_work/pages/

@@ -7,14 +7,34 @@ import 'package:mushaf_two_page/utils/app_palette.dart';
 class AudioModal extends StatefulWidget {
   final int initialSurah;
 
-  const AudioModal({super.key, required this.initialSurah});
+  /// Ayah range to pre-select (the ayahs on the current page). When provided,
+  /// the modal opens in Range mode with these values. Ignored if audio is
+  /// already playing (the active plan is shown instead).
+  final int? initialFromAyah;
+  final int? initialToAyah;
 
-  static void show(BuildContext context, {required int initialSurah}) {
+  const AudioModal({
+    super.key,
+    required this.initialSurah,
+    this.initialFromAyah,
+    this.initialToAyah,
+  });
+
+  static void show(
+    BuildContext context, {
+    required int initialSurah,
+    int? initialFromAyah,
+    int? initialToAyah,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => AudioModal(initialSurah: initialSurah),
+      builder: (_) => AudioModal(
+        initialSurah: initialSurah,
+        initialFromAyah: initialFromAyah,
+        initialToAyah: initialToAyah,
+      ),
     );
   }
 
@@ -40,7 +60,15 @@ class _AudioModalState extends State<AudioModal> {
     final activePlan = _currentEditablePlan();
     if (activePlan == null) {
       _surah = widget.initialSurah.clamp(1, 114).toInt();
-      _toAyah = _ayahCount.clamp(1, 7).toInt();
+      final maxAyah = quranAyahCounts[_surah - 1];
+      if (widget.initialFromAyah != null && widget.initialToAyah != null) {
+        // Pre-select the current page's ayah range.
+        _fromAyah = widget.initialFromAyah!.clamp(1, maxAyah).toInt();
+        _toAyah = widget.initialToAyah!.clamp(_fromAyah, maxAyah).toInt();
+        _sourceMode = AudioSourceMode.range;
+      } else {
+        _toAyah = _ayahCount.clamp(1, 7).toInt();
+      }
     } else {
       _applyPlan(activePlan);
     }

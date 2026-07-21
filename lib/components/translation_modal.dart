@@ -8,16 +8,66 @@ import '../utils/translation_manager.dart';
 import '../utils/tafseer_manager.dart';
 import '../utils/surah_summary_manager.dart';
 import '../utils/arabic_text_manager.dart';
+import '../utils/page_ayah_index.dart';
+import '../utils/quran_arabic_style.dart';
 
 class TranslationModal extends StatefulWidget {
-  final List<SurahRange> surahs;
+  final int logicalPage;
+  final String mushaf;
 
-  const TranslationModal({super.key, required this.surahs});
+  /// Physical pages shown together in the reader (2 in landscape spreads, else
+  /// 1). The modal aggregates translation for the whole view.
+  final int pagesPerView;
 
-  static void show(BuildContext context, List<SurahRange> surahs) {
+  /// Currently bookmarked ayahs as `'surah:ayah'` keys, and a callback to
+  /// toggle one (add == true to add, false to remove).
+  final Set<String> bookmarkedAyahs;
+  final void Function(int surah, int ayah, int page, bool add)?
+  onToggleAyahBookmark;
+
+  /// Optional ayah opened from a reader-page selection. Its card is emphasised
+  /// and scrolled into view once the page data has loaded.
+  final int? focusSurah;
+  final int? focusAyah;
+
+  const TranslationModal({
+    super.key,
+    required this.logicalPage,
+    required this.mushaf,
+    this.pagesPerView = 1,
+    this.bookmarkedAyahs = const {},
+    this.onToggleAyahBookmark,
+    this.focusSurah,
+    this.focusAyah,
+  }) : assert(
+         (focusSurah == null) == (focusAyah == null),
+         'focusSurah and focusAyah must be supplied together',
+       );
+
+  static void show(
+    BuildContext context, {
+    required int logicalPage,
+    required String mushaf,
+    int pagesPerView = 1,
+    Set<String> bookmarkedAyahs = const {},
+    void Function(int surah, int ayah, int page, bool add)?
+    onToggleAyahBookmark,
+    int? focusSurah,
+    int? focusAyah,
+  }) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => TranslationModal(surahs: surahs)),
+      MaterialPageRoute(
+        builder: (_) => TranslationModal(
+          logicalPage: logicalPage,
+          mushaf: mushaf,
+          pagesPerView: pagesPerView,
+          bookmarkedAyahs: bookmarkedAyahs,
+          onToggleAyahBookmark: onToggleAyahBookmark,
+          focusSurah: focusSurah,
+          focusAyah: focusAyah,
+        ),
+      ),
     );
   }
 
@@ -36,7 +86,19 @@ class _TranslationModalState extends State<TranslationModal> {
   final Set<int> _collapsedSurahs = {};
   final Set<String> _collapsedTrans = {};
   final Set<String> _collapsedTafseers = {};
+  final Set<String> _bookmarkedAyahs = {}; // 'surah:ayah' keys
   final _scrollController = ScrollController();
+  final _focusedAyahKey = GlobalKey();
+
+  // Page mode (Indo-Pak): show exactly the ayahs printed on the current view.
+  // The view is one page in portrait, or a two-page spread in landscape, with
+  // [_logicalPage] as its first (lowest-numbered) page.
+  late bool _pageMode;
+  late String _mushaf;
+  late int _logicalPage;
+  late int _pagesPerView;
+
+  // Surah mode (fallback for mushafs without a layout map): paginate one surah.
   int _currentPage = 0;
   static const int _pageSize = 20;
   late SurahRange _activeSurah;
@@ -50,6 +112,21 @@ class _TranslationModalState extends State<TranslationModal> {
   List<Map> get _allAyahs => _items.whereType<Map>().toList();
 
   int get _totalPages => (_allAyahs.length / _pageSize).ceil().clamp(1, 99999);
+
+  /// The list rendered by the builder (headers + ayahs), honouring collapsed
+  /// surahs. In page mode `_items` already holds just the current page.
+  List<dynamic> get _visibleItems {
+    if (!_pageMode) return _pageContent;
+    final out = <dynamic>[];
+    for (final it in _items) {
+      if (it is SurahRange) {
+        out.add(it);
+      } else if (!_collapsedSurahs.contains((it as Map)['surah'] as int)) {
+        out.add(it);
+      }
+    }
+    return out;
+  }
 
   List<dynamic> get _pageContent {
     final ayahs = _allAyahs;
@@ -81,7 +158,24 @@ class _TranslationModalState extends State<TranslationModal> {
   @override
   void initState() {
     super.initState();
-    _activeSurah = widget.surahs.first;
+    _mushaf = widget.mushaf;
+    _logicalPage = widget.logicalPage;
+    _pagesPerView = widget.pagesPerView;
+    _bookmarkedAyahs.addAll(widget.bookmarkedAyahs);
+    _pageMode = PageAyahIndex.supportsMushaf(_mushaf);
+    final ranges = getSurahRanges(_mushaf);
+    final surahs = _pageMode
+        ? [
+            for (final surah in PageAyahIndex.surahsOnPage(
+              _logicalPage,
+              mushaf: _mushaf,
+            ))
+              ranges.firstWhere((range) => range.surah == surah),
+          ]
+        : surahsFromLogicalPage(_logicalPage, _mushaf);
+    _activeSurah = surahs.isNotEmpty
+        ? surahs.first
+        : ranges.firstWhere((r) => r.surah >= 1, orElse: () => ranges.first);
     _initFromPrefs();
   }
 
@@ -103,6 +197,8 @@ class _TranslationModalState extends State<TranslationModal> {
     _showArabic = showArabic;
     _fontSize = fontSize;
     _arabicScript = arabicScript;
+    await PageAyahIndex.load();
+    _pageMode = PageAyahIndex.supportsMushaf(_mushaf);
     _load();
   }
 
@@ -123,58 +219,154 @@ class _TranslationModalState extends State<TranslationModal> {
       await TranslationManager.loadSource(src);
     }
 
-    final items = <dynamic>[];
-
-    for (final surah in [_activeSurah]) {
-      items.add(surah);
-
-      final transData = <String, Map<int, String>>{};
-      for (final src in _selectedTrans) {
-        transData[src] = TranslationManager.getSurah(surah.surah, source: src);
-      }
-
-      final tafseerData = <String, Map<int, String>>{};
-      if (_selectedTafseer.isNotEmpty) {
-        for (final src in _selectedTafseer) {
-          tafseerData[src] = await TafseerManager.getSurah(surah.surah, src);
-        }
-      }
-
-      final arabicData = await ArabicTextManager.getSurah(
-        surah.surah,
-        source: _arabicScript,
-      );
-
-      final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()
-        ..sort();
-
-      for (final ayah in ayahs) {
-        final trans = <String, String>{};
-        for (final src in _selectedTrans) {
-          trans[src] = transData[src]?[ayah] ?? '';
-        }
-        final tafseer = <String, String>{};
-        for (final src in _selectedTafseer) {
-          tafseer[src] = tafseerData[src]?[ayah] ?? '';
-        }
-        items.add({
-          'surah': surah.surah,
-          'ayah': ayah,
-          'trans': trans,
-          'tafseer': tafseer,
-          'arabic': arabicData[ayah] ?? '',
-        });
-      }
-    }
+    final items = _pageMode
+        ? await _buildPageItems()
+        : await _buildSurahItems();
 
     if (!mounted) return;
     setState(() {
       _items = items;
       _loading = false;
-      _currentPage = restorePage != null
-          ? restorePage.clamp(0, (_allAyahs.length / _pageSize).ceil() - 1)
-          : 0;
+      if (!_pageMode) {
+        _currentPage = restorePage != null
+            ? restorePage.clamp(0, (_allAyahs.length / _pageSize).ceil() - 1)
+            : 0;
+      }
     });
+    _positionAfterLoad();
+  }
+
+  /// Logical pages making up the current view (1 in portrait, up to 2 in a
+  /// landscape spread), dropping any with no ayahs (e.g. a trailing cover page).
+  List<int> get _viewPages {
+    final pages = <int>[];
+    for (var i = 0; i < _pagesPerView; i++) {
+      final p = _logicalPage + i;
+      if (PageAyahIndex.segmentsForPage(p, mushaf: _mushaf).isNotEmpty) {
+        pages.add(p);
+      }
+    }
+    return pages.isEmpty ? [_logicalPage] : pages;
+  }
+
+  /// Segments across the whole view, merged per surah so an ayah straddling a
+  /// page break appears once.
+  List<List<int>> _viewSegments() =>
+      PageAyahIndex.segmentsForPages(_viewPages, mushaf: _mushaf);
+
+  /// Build the items for the ayahs printed across the current view. A view can
+  /// span the tail of one surah and the start of the next, so we group by surah
+  /// and emit a header whenever the surah changes.
+  Future<List<dynamic>> _buildPageItems() async {
+    final segments = _viewSegments();
+    final surahNums = segments.map((s) => s[0]).toSet();
+
+    // Each surah's data is fetched once; the managers cache per surah.
+    final transBySurah = <int, Map<String, Map<int, String>>>{};
+    final tafseerBySurah = <int, Map<String, Map<int, String>>>{};
+    final arabicBySurah = <int, Map<int, String>>{};
+    for (final s in surahNums) {
+      final t = <String, Map<int, String>>{};
+      for (final src in _selectedTrans) {
+        t[src] = TranslationManager.getSurah(s, source: src);
+      }
+      transBySurah[s] = t;
+      final tf = <String, Map<int, String>>{};
+      for (final src in _selectedTafseer) {
+        tf[src] = await TafseerManager.getSurah(s, src);
+      }
+      tafseerBySurah[s] = tf;
+      arabicBySurah[s] = await ArabicTextManager.getSurah(
+        s,
+        source: _arabicScript,
+      );
+    }
+
+    final items = <dynamic>[];
+    int? lastSurah;
+    for (final seg in segments) {
+      final s = seg[0];
+      if (s != lastSurah) {
+        items.add(_rangeForSurah(s));
+        lastSurah = s;
+      }
+      for (int a = seg[1]; a <= seg[2]; a++) {
+        final trans = <String, String>{};
+        for (final src in _selectedTrans) {
+          trans[src] = transBySurah[s]![src]?[a] ?? '';
+        }
+        final tafseer = <String, String>{};
+        for (final src in _selectedTafseer) {
+          tafseer[src] = tafseerBySurah[s]![src]?[a] ?? '';
+        }
+        items.add({
+          'surah': s,
+          'ayah': a,
+          'trans': trans,
+          'tafseer': tafseer,
+          'arabic': arabicBySurah[s]?[a] ?? '',
+        });
+      }
+    }
+    return items;
+  }
+
+  /// Build the items for the whole active surah (fallback for mushafs without a
+  /// page layout map). The list is chunked into pages of [_pageSize] for display.
+  Future<List<dynamic>> _buildSurahItems() async {
+    final items = <dynamic>[];
+    final surah = _activeSurah;
+    items.add(surah);
+
+    final transData = <String, Map<int, String>>{};
+    for (final src in _selectedTrans) {
+      transData[src] = TranslationManager.getSurah(surah.surah, source: src);
+    }
+    final tafseerData = <String, Map<int, String>>{};
+    for (final src in _selectedTafseer) {
+      tafseerData[src] = await TafseerManager.getSurah(surah.surah, src);
+    }
+    final arabicData = await ArabicTextManager.getSurah(
+      surah.surah,
+      source: _arabicScript,
+    );
+
+    final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()..sort();
+    for (final ayah in ayahs) {
+      final trans = <String, String>{};
+      for (final src in _selectedTrans) {
+        trans[src] = transData[src]?[ayah] ?? '';
+      }
+      final tafseer = <String, String>{};
+      for (final src in _selectedTafseer) {
+        tafseer[src] = tafseerData[src]?[ayah] ?? '';
+      }
+      items.add({
+        'surah': surah.surah,
+        'ayah': ayah,
+        'trans': trans,
+        'tafseer': tafseer,
+        'arabic': arabicData[ayah] ?? '',
+      });
+    }
+    return items;
+  }
+
+  SurahRange _rangeForSurah(int surah) {
+    final ranges = getSurahRanges(_mushaf);
+    return ranges.firstWhere(
+      (r) => r.surah == surah,
+      orElse: () => ranges.first,
+    );
+  }
+
+  /// Surah shown in the app-bar title (first surah in the view in page mode).
+  SurahRange get _headerSurah {
+    if (_pageMode) {
+      final segs = _viewSegments();
+      if (segs.isNotEmpty) return _rangeForSurah(segs.first[0]);
+    }
+    return _activeSurah;
   }
 
   void _showSummary(SurahRange surah) {
@@ -444,7 +636,10 @@ class _TranslationModalState extends State<TranslationModal> {
   }
 
   void _showSurahPicker() {
-    final all = indopakSurahRanges.where((s) => s.surah >= 1).toList();
+    final all = getSurahRanges(_mushaf).where((s) => s.surah >= 1).toList();
+    final currentSurahs = _pageMode
+        ? _viewSegments().map((s) => s[0]).toSet()
+        : {_activeSurah.surah};
     final palette = AppPalette.of(context);
     showModalBottomSheet(
       context: context,
@@ -492,11 +687,19 @@ class _TranslationModalState extends State<TranslationModal> {
                   itemCount: all.length,
                   itemBuilder: (_, i) {
                     final s = all[i];
-                    final active = s.surah == _activeSurah.surah;
+                    final active = currentSurahs.contains(s.surah);
                     return ListTile(
                       onTap: () {
                         Navigator.pop(context);
-                        setState(() => _activeSurah = s);
+                        if (_pageMode) {
+                          final p = PageAyahIndex.pageForSurah(
+                            s.surah,
+                            mushaf: _mushaf,
+                          );
+                          if (p != null) setState(() => _logicalPage = p);
+                        } else {
+                          setState(() => _activeSurah = s);
+                        }
                         _load();
                       },
                       leading: Container(
@@ -553,11 +756,29 @@ class _TranslationModalState extends State<TranslationModal> {
   }
 
   Widget _buildPageNav(AppPalette palette) {
-    final ayahCount = _allAyahs.length;
-    final onFirst = _currentPage == 0;
-    final onLast = (_currentPage + 1) * _pageSize >= ayahCount;
-    final displayStart = _currentPage * _pageSize + 1;
-    final displayEnd = ((_currentPage + 1) * _pageSize).clamp(0, ayahCount);
+    final String title;
+    final String subtitle;
+    final bool onFirst;
+    final bool onLast;
+    if (_pageMode) {
+      final view = _viewPages;
+      final firstPrinted = PageAyahIndex.printedPage(view.first);
+      final lastPrinted = PageAyahIndex.printedPage(view.last);
+      onFirst = _logicalPage <= PageAyahIndex.firstContentPageFor(_mushaf);
+      onLast = view.last >= PageAyahIndex.lastContentPageFor(_mushaf);
+      title = firstPrinted == lastPrinted
+          ? 'Page $firstPrinted of ${PageAyahIndex.totalPrintedPagesFor(_mushaf)}'
+          : 'Pages $firstPrinted–$lastPrinted of ${PageAyahIndex.totalPrintedPagesFor(_mushaf)}';
+      subtitle = _pageSubtitle();
+    } else {
+      final ayahCount = _allAyahs.length;
+      onFirst = _currentPage == 0;
+      onLast = (_currentPage + 1) * _pageSize >= ayahCount;
+      final displayStart = _currentPage * _pageSize + 1;
+      final displayEnd = ((_currentPage + 1) * _pageSize).clamp(0, ayahCount);
+      title = 'Page ${_currentPage + 1} of $_totalPages';
+      subtitle = '$displayStart-$displayEnd of $ayahCount ayahs';
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -569,25 +790,29 @@ class _TranslationModalState extends State<TranslationModal> {
       child: Row(
         children: [
           _navBtn(Icons.chevron_left_rounded, !onLast, _goToNextPage, palette),
-          const Spacer(),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Page ${_currentPage + 1} of $_totalPages',
-                style: TextStyle(
-                  color: palette.text,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: palette.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              Text(
-                '$displayStart-$displayEnd of $ayahCount ayahs',
-                style: TextStyle(color: palette.muted, fontSize: 11),
-              ),
-            ],
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: palette.muted, fontSize: 11),
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
           _navBtn(
             Icons.chevron_right_rounded,
             !onFirst,
@@ -599,7 +824,25 @@ class _TranslationModalState extends State<TranslationModal> {
     );
   }
 
+  /// One-line summary of the surah(s) and ayah range in the current view.
+  String _pageSubtitle() {
+    final segs = _viewSegments();
+    return segs
+        .map((seg) {
+          final name = _rangeForSurah(seg[0]).name;
+          final range = seg[1] == seg[2] ? '${seg[1]}' : '${seg[1]}–${seg[2]}';
+          return '$name $range';
+        })
+        .join('   •   ');
+  }
+
   void _goToNextPage() {
+    if (_pageMode) {
+      if (_viewPages.last >= PageAyahIndex.lastContentPageFor(_mushaf)) return;
+      setState(() => _logicalPage += _pagesPerView);
+      _load();
+      return;
+    }
     final ayahCount = _allAyahs.length;
     final next = _currentPage + 1;
     if (next * _pageSize >= ayahCount) return;
@@ -608,14 +851,77 @@ class _TranslationModalState extends State<TranslationModal> {
   }
 
   void _goToPreviousPage() {
+    if (_pageMode) {
+      if (_logicalPage <= PageAyahIndex.firstContentPageFor(_mushaf)) return;
+      setState(
+        () => _logicalPage = (_logicalPage - _pagesPerView).clamp(
+          PageAyahIndex.firstContentPageFor(_mushaf),
+          PageAyahIndex.lastContentPageFor(_mushaf),
+        ),
+      );
+      _load();
+      return;
+    }
     if (_currentPage == 0) return;
     setState(() => _currentPage--);
     _scrollToTop();
   }
 
   void _scrollToTop() {
-    if (!_scrollController.hasClients) return;
-    _scrollController.jumpTo(0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(0);
+    });
+  }
+
+  int get _focusedItemIndex {
+    final focusSurah = widget.focusSurah;
+    final focusAyah = widget.focusAyah;
+    if (focusSurah == null || focusAyah == null) return -1;
+    return _visibleItems.indexWhere(
+      (item) =>
+          item is Map &&
+          item['surah'] == focusSurah &&
+          item['ayah'] == focusAyah,
+    );
+  }
+
+  void _positionAfterLoad() {
+    if (_focusedItemIndex < 0) {
+      _scrollToTop();
+      return;
+    }
+    _scrollToFocusedAyah();
+  }
+
+  void _scrollToFocusedAyah([int attempt = 0]) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final focusedContext = _focusedAyahKey.currentContext;
+      if (focusedContext != null) {
+        Scrollable.ensureVisible(
+          focusedContext,
+          alignment: .08,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        );
+        return;
+      }
+      if (attempt >= 3 || !_scrollController.hasClients) return;
+
+      final index = _focusedItemIndex;
+      final itemCount = _visibleItems.length;
+      if (index < 0 || itemCount < 2) return;
+      final target =
+          _scrollController.position.maxScrollExtent * index / (itemCount - 1);
+      _scrollController.jumpTo(
+        target.clamp(
+          _scrollController.position.minScrollExtent,
+          _scrollController.position.maxScrollExtent,
+        ),
+      );
+      _scrollToFocusedAyah(attempt + 1);
+    });
   }
 
   Widget _navBtn(
@@ -648,6 +954,23 @@ class _TranslationModalState extends State<TranslationModal> {
         ),
       ),
     );
+  }
+
+  void _toggleAyahBookmark(int surah, int ayah) {
+    final key = '$surah:$ayah';
+    final adding = !_bookmarkedAyahs.contains(key);
+    setState(() {
+      if (adding) {
+        _bookmarkedAyahs.add(key);
+      } else {
+        _bookmarkedAyahs.remove(key);
+      }
+    });
+    final page = _pageMode
+        ? (PageAyahIndex.pageOfAyah(surah, ayah, mushaf: _mushaf) ??
+              _logicalPage)
+        : pageFromSurah(surah, _mushaf);
+    widget.onToggleAyahBookmark?.call(surah, ayah, page, adding);
   }
 
   // Adds/removes a key from a Set and triggers a rebuild.
@@ -735,7 +1058,7 @@ class _TranslationModalState extends State<TranslationModal> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    _activeSurah.name,
+                    _headerSurah.name,
                     style: TextStyle(
                       color: palette.text,
                       fontSize: 20,
@@ -743,7 +1066,7 @@ class _TranslationModalState extends State<TranslationModal> {
                     ),
                   ),
                   Text(
-                    _activeSurah.english,
+                    _headerSurah.english,
                     style: TextStyle(color: palette.muted, fontSize: 12),
                   ),
                 ],
@@ -793,9 +1116,9 @@ class _TranslationModalState extends State<TranslationModal> {
                       child: ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
-                        itemCount: _pageContent.length,
+                        itemCount: _visibleItems.length,
                         itemBuilder: (context, index) {
-                          final items = _pageContent;
+                          final items = _visibleItems;
                           final item = items[index];
 
                           if (item is SurahRange) {
@@ -917,21 +1240,39 @@ class _TranslationModalState extends State<TranslationModal> {
                             ...trans.values,
                             if (_selectedTafseer.isNotEmpty) ...tafseer.values,
                           ].join('\n\n');
+                          final isBookmarked = _bookmarkedAyahs.contains(
+                            '$surahNum:$ayahNumber',
+                          );
+                          final isFocused =
+                              surahNum == widget.focusSurah &&
+                              ayahNumber == widget.focusAyah;
+                          final rowBorder = isFocused
+                              ? palette.accent
+                              : palette.border;
 
                           return Container(
+                            key: isFocused ? _focusedAyahKey : null,
                             decoration: BoxDecoration(
-                              color: palette.surface,
+                              color: isFocused
+                                  ? palette.accentSoft
+                                  : palette.surface,
                               borderRadius: _rowRadius(
                                 first: prevIsHeader,
                                 last: nextIsHeader,
                               ),
                               border: Border(
-                                left: BorderSide(color: palette.border),
-                                right: BorderSide(color: palette.border),
+                                left: BorderSide(
+                                  color: rowBorder,
+                                  width: isFocused ? 2 : 1,
+                                ),
+                                right: BorderSide(
+                                  color: rowBorder,
+                                  width: isFocused ? 2 : 1,
+                                ),
                                 top: prevIsHeader
-                                    ? BorderSide(color: palette.border)
+                                    ? BorderSide(color: rowBorder)
                                     : BorderSide.none,
-                                bottom: BorderSide(color: palette.border),
+                                bottom: BorderSide(color: rowBorder),
                               ),
                             ),
                             child: Padding(
@@ -969,6 +1310,25 @@ class _TranslationModalState extends State<TranslationModal> {
                                         ),
                                       ),
                                       const Spacer(),
+                                      GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () => _toggleAyahBookmark(
+                                          surahNum,
+                                          ayahNumber,
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(4),
+                                          child: Icon(
+                                            isBookmarked
+                                                ? Icons.bookmark_rounded
+                                                : Icons.bookmark_border_rounded,
+                                            color: isBookmarked
+                                                ? palette.accent
+                                                : palette.surfaceMuted,
+                                            size: 19,
+                                          ),
+                                        ),
+                                      ),
                                       PopupMenuButton<String>(
                                         icon: Icon(
                                           Icons.more_vert_rounded,
@@ -1044,15 +1404,10 @@ class _TranslationModalState extends State<TranslationModal> {
                                             arabic,
                                             textDirection: TextDirection.rtl,
                                             textAlign: TextAlign.right,
-                                            style: TextStyle(
-                                              fontSize: _fontSizeMap[_fontSize]!
-                                                  .arabic,
-                                              height: 1.8,
+                                            style: QuranArabicStyle.ayah(
+                                              script: _arabicScript,
+                                              fontSize: _fontSize,
                                               color: palette.text,
-                                              fontFamily:
-                                                  _arabicScript == 'indopak'
-                                                  ? 'IndoPak'
-                                                  : 'Uthmani2',
                                             ),
                                           ),
                                         ),

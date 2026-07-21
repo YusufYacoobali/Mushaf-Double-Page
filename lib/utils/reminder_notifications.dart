@@ -49,16 +49,14 @@ class ReminderNotifications {
       if (!permitted) return;
 
       await _scheduleIfNeeded();
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   static Future<void> _setLocalTimezone() async {
     try {
       final timezone = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timezone.identifier));
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   static Future<bool> _requestPermission() async {
@@ -90,7 +88,7 @@ class ReminderNotifications {
 
     final firstReminder = _nextReminderTime();
     for (var i = 0; i < _scheduledReminderCount; i++) {
-      final scheduledDate = firstReminder.add(Duration(days: i * 2));
+      final scheduledDate = firstReminder.add(Duration(days: i));
       final message = _messages[i % _messages.length];
 
       await _notifications.zonedSchedule(
