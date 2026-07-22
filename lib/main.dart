@@ -264,6 +264,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _onScreenTap() {
+    // While an ayah is selected, an off-page/black-margin tap dismisses that
+    // selection first. It must not reveal the reader bars underneath the ayah
+    // action bar, otherwise the two controls overlap.
+    if (_selPage != null || _ayahActionsOverlay != null) {
+      _dismissAyahQuickActions();
+      if (_selPage != null) setState(() => _selPage = null);
+      return;
+    }
+
     setState(() {
       _isScrollbarVisible = !_isScrollbarVisible;
     });
@@ -303,10 +312,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _highlightAyah(int page, int surah, int ayah) {
+    _hideScrollbarTimer?.cancel();
     setState(() {
       _selPage = page;
       _selSurah = surah;
       _selAyah = ayah;
+      // The compact ayah actions replace the reader/audio controls while the
+      // selection is active, keeping the bottom of the page uncluttered.
+      _isScrollbarVisible = false;
     });
   }
 

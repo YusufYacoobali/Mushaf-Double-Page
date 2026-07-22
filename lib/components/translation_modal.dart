@@ -708,15 +708,17 @@ class _TranslationModalState extends State<TranslationModal> {
                     return ListTile(
                       onTap: () {
                         Navigator.pop(context);
-                        if (_pageMode) {
-                          final p = PageAyahIndex.pageForSurah(
-                            s.surah,
-                            mushaf: _mushaf,
-                          );
-                          if (p != null) setState(() => _logicalPage = p);
-                        } else {
-                          setState(() => _activeSurah = s);
-                        }
+                        // The top selector is a strict single-surah selector.
+                        // Page mode may initially contain several surahs when
+                        // they are genuinely printed in the current view, but
+                        // choosing here must not inherit neighbouring surahs
+                        // from the selected surah's first printed page.
+                        setState(() {
+                          _pageMode = false;
+                          _activeSurah = s;
+                          _currentPage = 0;
+                          _collapsedSurahs.clear();
+                        });
                         _load();
                       },
                       leading: Container(
