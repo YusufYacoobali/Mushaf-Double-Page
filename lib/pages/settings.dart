@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/progress/progress_page.dart';
-import 'package:mushaf_two_page/quiz/quiz_setup_page.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/app_review.dart';
 
@@ -136,7 +135,10 @@ class _SettingsState extends State<Settings> {
                       backgroundColor: AppPalette.forDarkMode(
                         isDarkMode,
                       ).accent.withValues(alpha: .12),
-                      color: AppPalette.forTheme(mushafDark: isDarkMode, appDark: isAppDarkMode).accent,
+                      color: AppPalette.forTheme(
+                        mushafDark: isDarkMode,
+                        appDark: isAppDarkMode,
+                      ).accent,
                     ),
                   ],
                 );
@@ -205,7 +207,13 @@ class _SettingsState extends State<Settings> {
     );
   }
 
-  Widget _buildSwitch(String title, bool value, AppPalette palette, ValueChanged<bool> onChanged, {IconData icon = Icons.dark_mode_rounded}) {
+  Widget _buildSwitch(
+    String title,
+    bool value,
+    AppPalette palette,
+    ValueChanged<bool> onChanged, {
+    IconData icon = Icons.dark_mode_rounded,
+  }) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => onChanged(!value),
@@ -395,7 +403,10 @@ class _SettingsState extends State<Settings> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final palette = AppPalette.forTheme(mushafDark: isDarkMode, appDark: isAppDarkMode);
+    final palette = AppPalette.forTheme(
+      mushafDark: isDarkMode,
+      appDark: isAppDarkMode,
+    );
     final bg = palette.scaffold;
     final textPrimary = palette.text;
 
@@ -445,25 +456,11 @@ class _SettingsState extends State<Settings> {
               _navTile(
                 palette: palette,
                 icon: Icons.local_fire_department_rounded,
-                title: 'Progress & Streak',
-                subtitle: 'Reading streak and khatm completion.',
+                title: 'Day Streak',
+                subtitle: 'Keep your daily Quran reading streak going.',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProgressPage()),
-                ),
-              ),
-              palette,
-            ),
-
-            _settingsCard(
-              _navTile(
-                palette: palette,
-                icon: Icons.school_rounded,
-                title: 'Memorization Quiz',
-                subtitle: 'Test your hifz by surah or juz — what comes next?',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const QuizSetupPage()),
                 ),
               ),
               palette,
@@ -490,7 +487,8 @@ class _SettingsState extends State<Settings> {
                     child: _infoTile(
                       icon: Icons.star_rounded,
                       title: 'Rate the app',
-                      text: 'Enjoying the app? Tap here to leave a review — it really helps.',
+                      text:
+                          'Enjoying the app? Tap here to leave a review — it really helps.',
                       color: const Color(0xFFD9B44A),
                       palette: palette,
                     ),
@@ -503,12 +501,23 @@ class _SettingsState extends State<Settings> {
             _sectionTitle('APPEARANCE', textPrimary),
 
             _settingsCard(
-              _buildSwitch('Dark Mode', isAppDarkMode, palette, _updateAppDarkMode, icon: Icons.nights_stay_rounded),
+              _buildSwitch(
+                'Dark Mode',
+                isAppDarkMode,
+                palette,
+                _updateAppDarkMode,
+                icon: Icons.nights_stay_rounded,
+              ),
               palette,
             ),
 
             _settingsCard(
-              _buildSwitch('Mushaf Dark Mode', isDarkMode, palette, _updateDarkMode),
+              _buildSwitch(
+                'Mushaf Dark Mode',
+                isDarkMode,
+                palette,
+                _updateDarkMode,
+              ),
               palette,
             ),
 

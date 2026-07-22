@@ -1,32 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:in_app_review/in_app_review.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Handles native in-app review prompts for Android and iOS.
 ///
 /// Android uses the Google Play In-App Review API. iOS uses StoreKit review
 /// APIs. Both platforms decide whether the prompt is actually shown.
 class AppReview {
-  static const _kSessionCountKey = 'app_session_count';
-
   /// Required only for opening the App Store listing on iOS.
   /// Set this to the numeric Apple ID once the app is live in App Store Connect.
   static const String? _iosAppStoreId = null;
 
-  /// Attempt an auto-prompt on every 10th reader session.
-  static const _promptEverySessions = 10;
-
   static final _review = InAppReview.instance;
 
-  /// Call once per app session after the reader is ready.
-  static Future<void> recordSessionAndMaybePrompt() async {
-    final prefs = await SharedPreferences.getInstance();
-    final count = (prefs.getInt(_kSessionCountKey) ?? 0) + 1;
-    await prefs.setInt(_kSessionCountKey, count);
-
-    if (count % _promptEverySessions == 0) {
-      await _requestNativeReview();
-    }
+  /// Schedules one native review request three minutes after each app open.
+  /// Google Play and StoreKit retain final control over whether it is shown.
+  static Timer schedulePromptAfterOpen() {
+    return Timer(const Duration(minutes: 3), _requestNativeReview);
   }
 
   /// Call directly when the user taps "Rate / Review" in settings.

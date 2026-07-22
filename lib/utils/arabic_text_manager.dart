@@ -7,7 +7,10 @@ class ArabicTextManager {
   static final Map<String, Database> _dbs = {};
   static final Map<String, Map<int, Map<int, String>>> _cache = {};
 
-  static Future<Map<int, String>> getSurah(int surah, {String source = 'uthmani'}) async {
+  static Future<Map<int, String>> getSurah(
+    int surah, {
+    String source = 'uthmani',
+  }) async {
     _cache[source] ??= {};
     if (_cache[source]!.containsKey(surah)) return _cache[source]![surah]!;
 

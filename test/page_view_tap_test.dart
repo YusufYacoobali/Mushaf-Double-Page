@@ -113,7 +113,7 @@ void main() {
     transformationController.dispose();
   });
 
-  testWidgets('toolbar scale values visibly resize the portrait page', (
+  testWidgets('portrait toolbar zoom changes only height and stays centred', (
     tester,
   ) async {
     Widget readerAt(double scale) => MaterialApp(
@@ -124,25 +124,65 @@ void main() {
           pageScale: scale,
           imagePath: (_) => imageFile.path,
           isDarkMode: false,
+          highlightRects: const [Rect.fromLTWH(0, 0, .1, .1)],
         ),
       ),
     );
 
     final pageSurface = find.byWidgetPredicate(
-      (widget) =>
-          widget is AspectRatio &&
-          widget.aspectRatio == QuranPageView.pageAspectRatio,
+      (widget) => widget is FittedBox && widget.fit == BoxFit.fill,
     );
 
     await tester.pumpWidget(readerAt(QuranPageView.minPageScalePortrait));
     await tester.pumpAndSettle();
     final minimumSize = tester.getSize(pageSurface);
+    final minimumRect = tester.getRect(pageSurface);
 
     await tester.pumpWidget(readerAt(QuranPageView.maxPageScalePortrait));
     await tester.pumpAndSettle();
     final maximumSize = tester.getSize(pageSurface);
+    final maximumRect = tester.getRect(pageSurface);
 
-    expect(maximumSize.width, greaterThan(minimumSize.width + 20));
+    expect(maximumSize.width, closeTo(minimumSize.width, .01));
     expect(maximumSize.height, greaterThan(minimumSize.height + 20));
+    expect(minimumRect.center, maximumRect.center);
+  });
+
+  testWidgets('landscape toolbar zoom widens a top-centred spread', (
+    tester,
+  ) async {
+    Widget readerAt(double scale) => MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(size: Size(800, 400)),
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: QuranPageView.doublePage(
+            spreadIndex: 0,
+            pageScale: scale,
+            totalPages: 2,
+            imagePath: (_) => imageFile.path,
+            isDarkMode: false,
+          ),
+        ),
+      ),
+    );
+
+    final pages = find.byWidgetPredicate(
+      (widget) =>
+          widget is AspectRatio &&
+          widget.aspectRatio == QuranPageView.pageAspectRatio,
+    );
+
+    await tester.pumpWidget(readerAt(QuranPageView.minPageScaleLandscape));
+    await tester.pumpAndSettle();
+    final minimumRect = tester.getRect(pages.first);
+
+    await tester.pumpWidget(readerAt(QuranPageView.maxPageScaleLandscape));
+    await tester.pumpAndSettle();
+    final maximumRect = tester.getRect(pages.first);
+
+    expect(maximumRect.width, greaterThan(minimumRect.width + 20));
+    expect(minimumRect.top, 0);
+    expect(maximumRect.top, 0);
   });
 }

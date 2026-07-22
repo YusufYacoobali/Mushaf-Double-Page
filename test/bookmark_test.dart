@@ -11,10 +11,7 @@ void main() {
     expect(restored.isAyah, false);
     expect(restored.surah, isNotNull);
 
-    expect(
-      b.sameAs(Bookmark(pageNumber: 70, mushaf: 'indopak_tajweed')),
-      true,
-    );
+    expect(b.sameAs(Bookmark(pageNumber: 70, mushaf: 'indopak_tajweed')), true);
     expect(
       b.sameAs(Bookmark(pageNumber: 71, mushaf: 'indopak_tajweed')),
       false,

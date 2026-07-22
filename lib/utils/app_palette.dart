@@ -127,13 +127,14 @@ class AppPalette extends ThemeExtension<AppPalette> {
         foregroundColor: text,
         elevation: 0,
       ),
-      textTheme: ThemeData(
-        brightness: isDark ? Brightness.dark : Brightness.light,
-      ).textTheme.apply(
-        bodyColor: surfaceText,
-        displayColor: surfaceText,
-        fontFamily: 'Inter',
-      ),
+      textTheme:
+          ThemeData(
+            brightness: isDark ? Brightness.dark : Brightness.light,
+          ).textTheme.apply(
+            bodyColor: surfaceText,
+            displayColor: surfaceText,
+            fontFamily: 'Inter',
+          ),
       extensions: [this],
       useMaterial3: true,
     );

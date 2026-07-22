@@ -217,7 +217,11 @@ class StorageManager {
 
     try {
       onProgress?.call(const MushafDownloadProgress('Preparing pages', 0));
-      final tempDir = await unzipMushaf(zipFile, mushaf, onProgress: onProgress);
+      final tempDir = await unzipMushaf(
+        zipFile,
+        mushaf,
+        onProgress: onProgress,
+      );
 
       onProgress?.call(const MushafDownloadProgress('Installing pages'));
       await installMushafDirectory(tempDir, mushaf);
@@ -439,5 +443,4 @@ class StorageManager {
       rethrow;
     }
   }
-
 }

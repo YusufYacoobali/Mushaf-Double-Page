@@ -5,80 +5,47 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('records a page read and starts a streak', () async {
+  test('first reading activity starts a day streak', () async {
     SharedPreferences.setMockInitialValues({});
-    await ReadingProgressStore.recordPageRead(
-      10,
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 850,
+    await ReadingProgressStore.recordReadingActivity(
+      now: DateTime(2026, 7, 20),
     );
-    final prog = await ReadingProgressStore.load(
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 850,
-    );
-    expect(prog.streak, 1);
-    expect(prog.readPages, 1);
-    expect(prog.khatmCount, 0);
+
+    expect((await ReadingProgressStore.load()).streak, 1);
   });
 
-  test('same-day repeated reads do not inflate the streak', () async {
+  test('same-day activity does not inflate the streak', () async {
     SharedPreferences.setMockInitialValues({});
-    await ReadingProgressStore.recordPageRead(
-      10,
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 850,
+    final day = DateTime(2026, 7, 20);
+    await ReadingProgressStore.recordReadingActivity(now: day);
+    await ReadingProgressStore.recordReadingActivity(
+      now: day.add(const Duration(hours: 6)),
     );
-    await ReadingProgressStore.recordPageRead(
-      11,
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 850,
-    );
-    final prog = await ReadingProgressStore.load(
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 850,
-    );
-    expect(prog.streak, 1);
-    expect(prog.readPages, 2);
+
+    expect((await ReadingProgressStore.load()).streak, 1);
   });
 
-  test('finishing all content pages counts a khatm and resets', () async {
+  test('consecutive reading days extend the streak', () async {
     SharedPreferences.setMockInitialValues({});
-    for (var p = 4; p <= 6; p++) {
-      await ReadingProgressStore.recordPageRead(
-        p,
-        mushaf: 'm',
-        firstContent: 4,
-        lastContent: 6,
-      );
-    }
-    final prog = await ReadingProgressStore.load(
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 6,
+    await ReadingProgressStore.recordReadingActivity(
+      now: DateTime(2026, 7, 20),
     );
-    expect(prog.khatmCount, 1);
-    expect(prog.readPages, 0); // reset for the next khatm
+    await ReadingProgressStore.recordReadingActivity(
+      now: DateTime(2026, 7, 21),
+    );
+
+    expect((await ReadingProgressStore.load()).streak, 2);
   });
 
-  test('pages outside the content range are ignored for khatm', () async {
+  test('a missed day restarts the streak', () async {
     SharedPreferences.setMockInitialValues({});
-    await ReadingProgressStore.recordPageRead(
-      1, // cover page
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 850,
+    await ReadingProgressStore.recordReadingActivity(
+      now: DateTime(2026, 7, 20),
     );
-    final prog = await ReadingProgressStore.load(
-      mushaf: 'm',
-      firstContent: 4,
-      lastContent: 850,
+    await ReadingProgressStore.recordReadingActivity(
+      now: DateTime(2026, 7, 22),
     );
-    expect(prog.readPages, 0);
-    expect(prog.streak, 1); // still counts as activity
+
+    expect((await ReadingProgressStore.load()).streak, 1);
   });
 }

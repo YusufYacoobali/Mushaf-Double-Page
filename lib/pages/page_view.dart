@@ -14,7 +14,7 @@ class QuranPageView {
   static const double minPageScalePortrait = 0.7;
   static const double maxPageScalePortrait = 0.85;
   static const double minPageScaleLandscape = 0.60;
-  static const double maxPageScaleLandscape = 0.9;
+  static const double maxPageScaleLandscape = 0.90;
 
   static const ColorFilter invertFilter = ColorFilter.matrix([
     -1,
@@ -63,36 +63,29 @@ class QuranPageView {
       onBackgroundTap: onBackgroundTap,
       builder: (pageSurfaceKey) => LayoutBuilder(
         builder: (context, constraints) {
-          // The old height-factor control stopped having a visible effect on
-          // tall phones once the page was kept at its true aspect ratio: every
-          // setting was capped by screen width. Scale the complete fitted page
-          // instead, mapping the existing 70-85% preference range onto
-          // 82-100% of the largest page that fits the viewport.
-          final widthFromHeight = constraints.maxHeight * aspectRatio;
-          final fittedWidth = widthFromHeight < constraints.maxWidth
-              ? widthFromHeight
-              : constraints.maxWidth;
-          final fittedHeight = fittedWidth / aspectRatio;
-          final visibleScale = clamped / maxPageScalePortrait;
-
-          return InteractiveViewer(
-            transformationController: transformationController,
-            panEnabled: false,
-            minScale: 1,
-            maxScale: 3,
-            child: Center(
-              child: SizedBox(
-                width: fittedWidth * visibleScale,
-                height: fittedHeight * visibleScale,
-                child: _PageContent(
-                  surfaceKey: pageSurfaceKey,
-                  image: image,
-                  aspectRatio: aspectRatio,
-                  highlightRects: highlightRects,
-                  highlightColor: highlightColor,
-                  onTap: onTap == null
-                      ? null
-                      : (nx, ny) => onTap(logicalPage, nx, ny),
+          // Portrait toolbar zoom intentionally changes only the page height.
+          // Its width always fills the screen and the page remains centred.
+          return SizedBox.expand(
+            child: InteractiveViewer(
+              transformationController: transformationController,
+              panEnabled: false,
+              minScale: 1,
+              maxScale: 3,
+              child: Center(
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight * clamped,
+                  child: _PageContent(
+                    surfaceKey: pageSurfaceKey,
+                    image: FittedBox(fit: BoxFit.fill, child: image),
+                    aspectRatio: aspectRatio,
+                    stretchToFit: true,
+                    highlightRects: highlightRects,
+                    highlightColor: highlightColor,
+                    onTap: onTap == null
+                        ? null
+                        : (nx, ny) => onTap(logicalPage, nx, ny),
+                  ),
                 ),
               ),
             ),
@@ -143,10 +136,14 @@ class QuranPageView {
       onTap: onBackgroundTap,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final pageWidth = (constraints.maxWidth / 2 * pageScale).clamp(
-            0.0,
-            constraints.maxWidth / 2,
+          final clamped = pageScale.clamp(
+            minPageScaleLandscape,
+            maxPageScaleLandscape,
           );
+          // Landscape toolbar zoom changes only the spread width. At minimum
+          // both full pages fit vertically; at maximum they nearly fill the
+          // screen width. The spread always starts at the top and is centred.
+          final pageWidth = constraints.maxWidth / 2 * clamped;
 
           Widget? leftPage;
           Widget? rightPage;
@@ -168,6 +165,7 @@ class QuranPageView {
             scrollDirection: Axis.vertical,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (leftPage != null) leftPage,
                 if (leftPage != null && rightPage != null)
@@ -186,6 +184,7 @@ class _PageContent extends StatelessWidget {
   final Key? surfaceKey;
   final Widget image;
   final double aspectRatio;
+  final bool stretchToFit;
   final List<Rect> highlightRects;
   final Color highlightColor;
   final void Function(double nx, double ny)? onTap;
@@ -194,6 +193,7 @@ class _PageContent extends StatelessWidget {
     this.surfaceKey,
     required this.image,
     required this.aspectRatio,
+    this.stretchToFit = false,
     required this.highlightRects,
     required this.highlightColor,
     required this.onTap,
@@ -201,45 +201,50 @@ class _PageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final surface = LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final h = constraints.maxHeight;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: onTap == null
+              ? null
+              : (d) {
+                  if (w <= 0 || h <= 0) return;
+                  onTap!(
+                    (d.localPosition.dx / w).clamp(0.0, 1.0),
+                    (d.localPosition.dy / h).clamp(0.0, 1.0),
+                  );
+                },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(child: image),
+              if (highlightRects.isNotEmpty)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _HighlightPainter(
+                        highlightRects,
+                        highlightColor,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (stretchToFit) {
+      return SizedBox.expand(key: surfaceKey, child: surface);
+    }
     return Center(
       child: AspectRatio(
         key: surfaceKey,
         aspectRatio: aspectRatio,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final w = constraints.maxWidth;
-            final h = constraints.maxHeight;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: onTap == null
-                  ? null
-                  : (d) {
-                      if (w <= 0 || h <= 0) return;
-                      onTap!(
-                        (d.localPosition.dx / w).clamp(0.0, 1.0),
-                        (d.localPosition.dy / h).clamp(0.0, 1.0),
-                      );
-                    },
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(child: image),
-                  if (highlightRects.isNotEmpty)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: CustomPaint(
-                          painter: _HighlightPainter(
-                            highlightRects,
-                            highlightColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
+        child: surface,
       ),
     );
   }

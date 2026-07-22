@@ -18,8 +18,12 @@ class SurahSummaryManager {
   static Map<int, SurahSummary>? _ur;
 
   static Future<void> load() async {
-    final enRaw = await rootBundle.loadString('assets/summary/surah-info-en.json');
-    final urRaw = await rootBundle.loadString('assets/summary/surah-info-ur.json');
+    final enRaw = await rootBundle.loadString(
+      'assets/summary/surah-info-en.json',
+    );
+    final urRaw = await rootBundle.loadString(
+      'assets/summary/surah-info-ur.json',
+    );
     _en = _parse(enRaw);
     _ur = _parse(urRaw);
   }
@@ -29,7 +33,9 @@ class SurahSummaryManager {
 
   static Map<int, SurahSummary> _parse(String raw) {
     final decoded = jsonDecode(raw);
-    final List items = decoded is List ? decoded : (decoded as Map).values.toList();
+    final List items = decoded is List
+        ? decoded
+        : (decoded as Map).values.toList();
     final result = <int, SurahSummary>{};
     for (final item in items) {
       final num = (item['surah_number'] as int?) ?? 0;
@@ -44,7 +50,11 @@ class SurahSummaryManager {
 
   static List<SurahSummarySection> _parseSections(String html) {
     final sections = <SurahSummarySection>[];
-    final h2 = RegExp(r'<h2[^>]*>(.*?)</h2>', caseSensitive: false, dotAll: true);
+    final h2 = RegExp(
+      r'<h2[^>]*>(.*?)</h2>',
+      caseSensitive: false,
+      dotAll: true,
+    );
 
     var pos = 0;
     for (final match in h2.allMatches(html)) {

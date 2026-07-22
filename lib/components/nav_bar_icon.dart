@@ -11,10 +11,7 @@ Widget barIcon({
     icon: Icon(icon, size: 22),
     color: palette.readerIcon,
     padding: EdgeInsets.zero,
-    constraints: const BoxConstraints(
-      minWidth: 40,
-      minHeight: 40,
-    ),
+    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
     onPressed: onPressed,
   );
 }

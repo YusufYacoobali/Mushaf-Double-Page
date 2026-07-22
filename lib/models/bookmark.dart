@@ -28,9 +28,7 @@ class Bookmark {
   /// Identity used for de-duplication and removal: ayah bookmarks match on
   /// surah+ayah, page bookmarks match on page.
   bool sameAs(Bookmark other) => isAyah
-      ? (other.isAyah &&
-            other.surahNumber == surahNumber &&
-            other.ayah == ayah)
+      ? (other.isAyah && other.surahNumber == surahNumber && other.ayah == ayah)
       : (!other.isAyah && other.pageNumber == pageNumber);
 
   Map<String, dynamic> toMap() => {

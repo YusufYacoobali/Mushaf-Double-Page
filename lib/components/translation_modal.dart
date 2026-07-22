@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
+import 'package:mushaf_two_page/utils/translation_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import '../utils/surah_mapper.dart';
 import '../utils/translation_manager.dart';
@@ -180,35 +180,38 @@ class _TranslationModalState extends State<TranslationModal> {
   }
 
   Future<void> _initFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final trans =
-        prefs.getStringList('trans_selected') ?? ['Saheeh International'];
-    final tafseer =
-        prefs.getStringList('tafseer_selected') ?? ['Tafseer Ibn Kathir'];
-    final showArabic = prefs.getBool('show_arabic') ?? true;
-    final fontSize = prefs.getString('font_size') ?? 'Medium';
-    final arabicScript = prefs.getString('arabic_script') ?? 'uthmani';
+    final preferences = await TranslationPreferences.load();
+    final translations = preferences.translations
+        .where(TranslationManager.sources.containsKey)
+        .toList();
+    if (translations.isEmpty) translations.add('Saheeh International');
+    final tafseers = preferences.tafseers
+        .where(TafseerManager.sources.containsKey)
+        .toList();
     _selectedTrans
       ..clear()
-      ..addAll(trans);
+      ..addAll(translations);
     _selectedTafseer
       ..clear()
-      ..addAll(tafseer);
-    _showArabic = showArabic;
-    _fontSize = fontSize;
-    _arabicScript = arabicScript;
+      ..addAll(tafseers);
+    _showArabic = preferences.showArabic;
+    _fontSize = preferences.fontSize;
+    _arabicScript = preferences.arabicScript;
     await PageAyahIndex.load();
     _pageMode = PageAyahIndex.supportsMushaf(_mushaf);
     _load();
   }
 
   Future<void> _savePrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('trans_selected', _selectedTrans);
-    await prefs.setStringList('tafseer_selected', _selectedTafseer);
-    await prefs.setBool('show_arabic', _showArabic);
-    await prefs.setString('font_size', _fontSize);
-    await prefs.setString('arabic_script', _arabicScript);
+    await TranslationPreferences.save(
+      TranslationPreferencesData(
+        translations: List<String>.from(_selectedTrans),
+        tafseers: List<String>.from(_selectedTafseer),
+        showArabic: _showArabic,
+        fontSize: _fontSize,
+        arabicScript: _arabicScript,
+      ),
+    );
   }
 
   Future<void> _load({int? restorePage}) async {
@@ -393,18 +396,32 @@ class _TranslationModalState extends State<TranslationModal> {
         final palette = AppPalette.of(context);
         return StatefulBuilder(
           builder: (ctx, setS) {
-            void toggleTrans(String src) => setS(() {
-              if (tempTrans.contains(src)) {
-                if (tempTrans.length > 1) tempTrans.remove(src);
-              } else {
-                tempTrans.add(src);
-              }
-            });
-            void toggleTafseer(String src) => setS(() {
-              tempTafseer.contains(src)
-                  ? tempTafseer.remove(src)
-                  : tempTafseer.add(src);
-            });
+            void persistSourceSelections() {
+              TranslationPreferences.saveSourceSelections(
+                translations: List<String>.from(tempTrans),
+                tafseers: List<String>.from(tempTafseer),
+              ).ignore();
+            }
+
+            void toggleTrans(String src) {
+              setS(() {
+                if (tempTrans.contains(src)) {
+                  if (tempTrans.length > 1) tempTrans.remove(src);
+                } else {
+                  tempTrans.add(src);
+                }
+              });
+              persistSourceSelections();
+            }
+
+            void toggleTafseer(String src) {
+              setS(() {
+                tempTafseer.contains(src)
+                    ? tempTafseer.remove(src)
+                    : tempTafseer.add(src);
+              });
+              persistSourceSelections();
+            }
 
             return ConstrainedBox(
               constraints: BoxConstraints(

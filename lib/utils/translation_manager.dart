@@ -35,7 +35,10 @@ class TranslationManager {
     _cache[source] = surahs;
   }
 
-  static Map<int, String> getSurah(int surah, {String source = 'Saheeh International'}) {
+  static Map<int, String> getSurah(
+    int surah, {
+    String source = 'Saheeh International',
+  }) {
     return _cache[source]?[surah] ?? {};
   }
 

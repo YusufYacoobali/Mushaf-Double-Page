@@ -12,10 +12,12 @@ import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
+import 'package:mushaf_two_page/utils/audio_preferences.dart';
 import 'package:mushaf_two_page/utils/navigator.dart';
 import 'package:mushaf_two_page/utils/reminder_notifications.dart';
 import 'package:mushaf_two_page/utils/surah_mapper.dart' as surah_mapper;
 import 'package:mushaf_two_page/utils/translation_manager.dart';
+import 'package:mushaf_two_page/utils/translation_preferences.dart';
 import 'package:mushaf_two_page/utils/surah_summary_manager.dart';
 import 'package:mushaf_two_page/utils/page_ayah_index.dart';
 import 'package:mushaf_two_page/utils/ayah_rect_index.dart';
@@ -68,6 +70,7 @@ class MyAppState extends State<MyApp> {
   bool _darkMode = false;
   bool _appDarkMode = false;
   bool _loaded = false;
+  Timer? _reviewPromptTimer;
 
   bool get darkMode => _darkMode;
   bool get appDarkMode => _appDarkMode;
@@ -75,7 +78,14 @@ class MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    _reviewPromptTimer = AppReview.schedulePromptAfterOpen();
     _loadTheme();
+  }
+
+  @override
+  void dispose() {
+    _reviewPromptTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadTheme() async {
@@ -179,9 +189,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     await AyahRectIndex.load();
     setState(() => _ready = true);
     _recordProgress();
-
-    // Count this session and auto-prompt for a review at key milestones.
-    AppReview.recordSessionAndMaybePrompt();
   }
 
   @override
@@ -275,23 +282,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     StorageManager.saveBookmarks(_bookmarks, mushaf: _mushaf);
   }
 
-  /// First/last content page (Al-Fatiha start .. last surah end) for the mushaf.
-  ({int first, int last}) _contentBounds() {
-    final ranges = surah_mapper.getSurahRanges(_mushaf);
-    return (
-      first: ranges.firstWhere((r) => r.surah == 1).start,
-      last: ranges.last.end,
-    );
-  }
-
   void _recordProgress() {
-    final b = _contentBounds();
-    ReadingProgressStore.recordPageRead(
-      _logicalPage,
-      mushaf: _mushaf,
-      firstContent: b.first,
-      lastContent: b.last,
-    );
+    ReadingProgressStore.recordReadingActivity();
   }
 
   /// Highlight rectangles for the page if it holds the selected ayah.
@@ -333,11 +325,18 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     }
   }
 
-  void _playAyah(int surah, int ayah) {
+  Future<void> _playAyah(int surah, int ayah) async {
     final activePlan = QuranAudioController.instance.plan;
+    final saved = activePlan == null ? await AudioPreferences.load() : null;
+    final reciter =
+        activePlan?.reciter ??
+        quranReciters.firstWhere(
+          (candidate) => candidate.id == saved?.reciterId,
+          orElse: () => quranReciters.first,
+        );
     QuranAudioController.instance.playPlan(
       AudioPlaybackPlan(
-        reciter: activePlan?.reciter ?? quranReciters.first,
+        reciter: reciter,
         surah: surah,
         fromAyah: ayah,
         toAyah: ayah,
@@ -353,43 +352,56 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     final name = surah_mapper.surahNameFromNumber(surah, _mushaf);
     showModalBottomSheet(
       context: context,
+      barrierColor: Colors.transparent,
       backgroundColor: Colors.transparent,
+      useSafeArea: true,
       builder: (ctx) {
         final bookmarked = _bookmarks.any(
           (b) => b.isAyah && b.surahNumber == surah && b.ayah == ayah,
         );
-        return Container(
-          decoration: BoxDecoration(
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+          child: Material(
             color: palette.scaffold,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: palette.border,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+            elevation: 12,
+            shadowColor: Colors.black.withValues(alpha: .18),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              height: 72,
+              padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: palette.border),
               ),
-              const SizedBox(height: 14),
-              Text(
-                '$name  ·  $surah:$ayah',
-                style: TextStyle(
-                  color: palette.text,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
+              child: Row(
                 children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$surah:$ayah',
+                          style: TextStyle(
+                            color: palette.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   _ayahAction(
                     palette,
                     icon: Icons.play_arrow_rounded,
@@ -399,35 +411,29 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                       _playAyah(surah, ayah);
                     },
                   ),
-                  const SizedBox(width: 10),
                   _ayahAction(
                     palette,
                     icon: bookmarked
                         ? Icons.bookmark_rounded
                         : Icons.bookmark_border_rounded,
-                    label: bookmarked ? 'Bookmarked' : 'Bookmark',
+                    label: 'Save',
                     onTap: () {
                       _toggleAyahBookmark(surah, ayah, page, !bookmarked);
                       Navigator.pop(ctx);
                     },
                   ),
-                  const SizedBox(width: 10),
                   _ayahAction(
                     palette,
-                    icon: Icons.chat_outlined,
+                    icon: Icons.translate_rounded,
                     label: 'Translate',
                     onTap: () {
                       Navigator.pop(ctx);
-                      _showTranslationModal(
-                        logicalPage: page,
-                        focusSurah: surah,
-                        focusAyah: ayah,
-                      );
+                      _showAyahTranslation(surah, ayah);
                     },
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -440,30 +446,138 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     required String label,
     required VoidCallback onTap,
   }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: palette.border),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: palette.accent),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: palette.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        width: 58,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: palette.accent, size: 21),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              style: TextStyle(
+                color: palette.text,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAyahTranslation(int surah, int ayah) async {
+    final preferences = await TranslationPreferences.load();
+    final sources = preferences.translations
+        .where(TranslationManager.sources.containsKey)
+        .toList();
+    if (sources.isEmpty) sources.add('Saheeh International');
+
+    await Future.wait(sources.map(TranslationManager.loadSource));
+    if (!mounted) return;
+
+    final translations = <(String, String)>[
+      for (final source in sources)
+        (
+          source,
+          TranslationManager.getSurah(surah, source: source)[ayah] ?? '',
+        ),
+    ].where((entry) => entry.$2.trim().isNotEmpty).toList();
+    final palette = AppPalette.of(context);
+    final name = surah_mapper.surahNameFromNumber(surah, _mushaf);
+
+    showModalBottomSheet(
+      context: context,
+      barrierColor: Colors.transparent,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+        child: Material(
+          color: palette.scaffold,
+          elevation: 12,
+          shadowColor: Colors.black.withValues(alpha: .18),
+          borderRadius: BorderRadius.circular(20),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * .48,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '$name  •  $surah:$ayah',
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: palette.muted,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (translations.isEmpty)
+                    Text(
+                      'Translation unavailable.',
+                      style: TextStyle(color: palette.muted, fontSize: 14),
+                    )
+                  else
+                    for (
+                      var index = 0;
+                      index < translations.length;
+                      index++
+                    ) ...[
+                      if (index > 0)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Divider(height: 1, color: palette.border),
+                        ),
+                      Text(
+                        translations[index].$1,
+                        style: TextStyle(
+                          color: palette.accent,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        translations[index].$2,
+                        textDirection: translations[index].$1.contains('Urdu')
+                            ? TextDirection.rtl
+                            : TextDirection.ltr,
+                        style: TextStyle(
+                          color: palette.text,
+                          fontSize: 15,
+                          height: 1.45,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Single source of truth for how Quran (Arabic) ayah text is styled, so the
-/// reader, translation view and quiz all render ayahs identically.
+/// reader and translation view render ayahs identically.
 ///
 /// The script (`uthmani` / `indopak`) and size (`Small`/`Medium`/`Large`) are
 /// the same preferences set in the translation settings sheet.

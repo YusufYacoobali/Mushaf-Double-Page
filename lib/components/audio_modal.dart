@@ -3,6 +3,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
+import 'package:mushaf_two_page/utils/audio_preferences.dart';
 
 class AudioModal extends StatefulWidget {
   final int initialSurah;
@@ -53,6 +54,7 @@ class _AudioModalState extends State<AudioModal> {
   QuranAudioErrorKind _lastHandledErrorKind = QuranAudioErrorKind.none;
   List<int>? _ayahOptions;
   int? _ayahOptionsSurah;
+  bool _preferencesReady = false;
 
   @override
   void initState() {
@@ -71,8 +73,14 @@ class _AudioModalState extends State<AudioModal> {
       }
     } else {
       _applyPlan(activePlan);
+      _preferencesReady = true;
     }
-    _warmAyahOptions();
+    if (activePlan == null) {
+      _restorePreferences();
+    } else {
+      _persistPreferences();
+      _warmAyahOptions();
+    }
   }
 
   int get _ayahCount => quranAyahCounts[_surah - 1];
@@ -105,6 +113,40 @@ class _AudioModalState extends State<AudioModal> {
     _sourceMode = plan.sourceMode;
   }
 
+  Future<void> _restorePreferences() async {
+    final saved = await AudioPreferences.load();
+    if (!mounted) return;
+    if (saved != null) {
+      _reciter = quranReciters.firstWhere(
+        (reciter) => reciter.id == saved.reciterId,
+        orElse: () => quranReciters.first,
+      );
+      _surah = saved.surah.clamp(1, 114).toInt();
+      final maxAyah = quranAyahCounts[_surah - 1];
+      _fromAyah = saved.fromAyah.clamp(1, maxAyah).toInt();
+      _toAyah = saved.toAyah.clamp(_fromAyah, maxAyah).toInt();
+      _repeatCount = saved.repeatCount;
+      _repeatMode = saved.repeatMode;
+      _sourceMode = saved.sourceMode;
+    }
+    setState(() => _preferencesReady = true);
+    _warmAyahOptions();
+  }
+
+  void _persistPreferences() {
+    AudioPreferences.save(
+      AudioPreferencesData(
+        reciterId: _reciter.id,
+        surah: _surah,
+        fromAyah: _fromAyah,
+        toAyah: _toAyah,
+        repeatCount: _repeatCount,
+        repeatMode: _repeatMode,
+        sourceMode: _sourceMode,
+      ),
+    ).ignore();
+  }
+
   AudioPlaybackPlan get _plan {
     return AudioPlaybackPlan(
       reciter: _reciter,
@@ -125,6 +167,7 @@ class _AudioModalState extends State<AudioModal> {
       _ayahOptions = null;
       _ayahOptionsSurah = null;
     });
+    _persistPreferences();
     _warmAyahOptions();
   }
 
@@ -135,6 +178,7 @@ class _AudioModalState extends State<AudioModal> {
         _toAyah = _fromAyah;
       }
     });
+    _persistPreferences();
   }
 
   void _setToAyah(int ayah) {
@@ -144,6 +188,7 @@ class _AudioModalState extends State<AudioModal> {
         _fromAyah = _toAyah;
       }
     });
+    _persistPreferences();
   }
 
   void _warmAyahOptions() {
@@ -196,6 +241,18 @@ class _AudioModalState extends State<AudioModal> {
   @override
   Widget build(BuildContext context) {
     final palette = AppPalette.of(context);
+
+    if (!_preferencesReady) {
+      return SizedBox(
+        height: 220,
+        child: Center(
+          child: CircularProgressIndicator(
+            color: palette.accent,
+            strokeWidth: 2.5,
+          ),
+        ),
+      );
+    }
 
     return DraggableScrollableSheet(
       expand: false,
@@ -264,7 +321,10 @@ class _AudioModalState extends State<AudioModal> {
                     value: _reciter,
                     items: quranReciters,
                     label: (reciter) => reciter.name,
-                    onChanged: (reciter) => setState(() => _reciter = reciter),
+                    onChanged: (reciter) {
+                      setState(() => _reciter = reciter);
+                      _persistPreferences();
+                    },
                   ),
                   const SizedBox(height: 14),
                   _label('Surah', palette),
@@ -370,8 +430,10 @@ class _AudioModalState extends State<AudioModal> {
                         ChoiceChip(
                           label: Text('${count}x'),
                           selected: _repeatCount == count,
-                          onSelected: (_) =>
-                              setState(() => _repeatCount = count),
+                          onSelected: (_) {
+                            setState(() => _repeatCount = count);
+                            _persistPreferences();
+                          },
                           selectedColor: palette.accent,
                           labelStyle: TextStyle(
                             color: _repeatCount == count
@@ -385,7 +447,10 @@ class _AudioModalState extends State<AudioModal> {
                       ChoiceChip(
                         label: const Text('\u221e'),
                         selected: _repeatCount == null,
-                        onSelected: (_) => setState(() => _repeatCount = null),
+                        onSelected: (_) {
+                          setState(() => _repeatCount = null);
+                          _persistPreferences();
+                        },
                         selectedColor: palette.accent,
                         labelStyle: TextStyle(
                           color: _repeatCount == null
@@ -701,7 +766,10 @@ class _AudioModalState extends State<AudioModal> {
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => setState(() => _repeatMode = mode),
+      onTap: () {
+        setState(() => _repeatMode = mode);
+        _persistPreferences();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.all(12),
@@ -746,6 +814,7 @@ class _AudioModalState extends State<AudioModal> {
       borderRadius: BorderRadius.circular(14),
       onTap: () {
         setState(() => _sourceMode = mode);
+        _persistPreferences();
         if (mode == AudioSourceMode.range) _warmAyahOptions();
       },
       child: AnimatedContainer(
