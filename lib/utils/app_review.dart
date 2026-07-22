@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
 
 /// Handles native in-app review prompts for Android and iOS.
@@ -14,15 +14,55 @@ class AppReview {
 
   static final _review = InAppReview.instance;
 
-  /// Schedules one native review request three minutes after each app open.
-  /// Google Play and StoreKit retain final control over whether it is shown.
-  static Timer schedulePromptAfterOpen() {
-    return Timer(const Duration(minutes: 3), _requestNativeReview);
+  /// Shows a reliable Play Store prompt three minutes after an Android launch.
+  /// StoreKit remains native on iOS until an App Store listing ID is supplied.
+  static Timer schedulePromptAfterOpen(
+    BuildContext? Function() contextProvider,
+  ) {
+    return Timer(const Duration(minutes: 3), () async {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final context = contextProvider();
+        if (context != null && context.mounted) {
+          await _showPlayStorePrompt(context);
+        }
+        return;
+      }
+      await _requestNativeReview();
+    });
   }
 
   /// Call directly when the user taps "Rate / Review" in settings.
   static Future<void> requestFromUser() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      await _openStoreListingIfPossible();
+      return;
+    }
     await _requestNativeReview();
+  }
+
+  static Future<void> _showPlayStorePrompt(BuildContext context) async {
+    final openStore = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enjoying the Quran app?'),
+        content: const Text(
+          'Would you like to rate it on Google Play? It only takes a moment.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.star_rounded),
+            label: const Text('Rate on Play Store'),
+          ),
+        ],
+      ),
+    );
+
+    if (openStore == true) await _openStoreListingIfPossible();
   }
 
   static Future<void> _requestNativeReview() async {

@@ -67,6 +67,7 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _darkMode = false;
   bool _appDarkMode = false;
   bool _loaded = false;
@@ -78,7 +79,9 @@ class MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _reviewPromptTimer = AppReview.schedulePromptAfterOpen();
+    _reviewPromptTimer = AppReview.schedulePromptAfterOpen(
+      () => _navigatorKey.currentContext,
+    );
     _loadTheme();
   }
 
@@ -108,6 +111,7 @@ class MyAppState extends State<MyApp> {
     if (!_loaded) return const SizedBox();
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppPalette.forTheme(
         mushafDark: _darkMode,
@@ -151,7 +155,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   int? _selPage;
   int _selSurah = 0;
   int _selAyah = 0;
-  OverlayEntry? _ayahActionsOverlay;
 
   // -------------------------
   // Init
@@ -198,8 +201,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   @override
   void dispose() {
     _hideScrollbarTimer?.cancel();
-    _ayahActionsOverlay?.remove();
-    _ayahActionsOverlay = null;
     if (_hasPageController) {
       _pageController.dispose();
     }
@@ -270,9 +271,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     // While an ayah is selected, an off-page/black-margin tap dismisses that
     // selection first. It must not reveal the reader bars underneath the ayah
     // action bar, otherwise the two controls overlap.
-    if (_selPage != null || _ayahActionsOverlay != null) {
-      _dismissAyahQuickActions();
-      if (_selPage != null) setState(() => _selPage = null);
+    if (_selPage != null) {
+      setState(() => _selPage = null);
       return;
     }
 
@@ -323,9 +323,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       _selPage = page;
       _selSurah = surah;
       _selAyah = ayah;
-      // The compact ayah actions replace the reader/audio controls while the
-      // selection is active, keeping the bottom of the page uncluttered.
-      _isScrollbarVisible = false;
+      // Selection swaps the normal reader bar for the expanded contextual bar.
+      _isScrollbarVisible = true;
     });
   }
 
@@ -336,13 +335,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       final hit = AyahRectIndex.hitTest(page, nx, ny, mushaf: _mushaf);
       if (hit != null) {
         _highlightAyah(page, hit.surah, hit.ayah);
-        _showAyahQuickActions(page, hit.surah, hit.ayah);
         return;
       }
     }
     if (_selPage != null) {
       setState(() => _selPage = null);
-      _dismissAyahQuickActions();
     } else {
       _onScreenTap();
     }
@@ -370,102 +367,80 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     );
   }
 
-  void _dismissAyahQuickActions() {
-    _ayahActionsOverlay?.remove();
-    _ayahActionsOverlay = null;
-  }
-
-  void _showAyahQuickActions(int page, int surah, int ayah) {
-    _dismissAyahQuickActions();
-    final palette = AppPalette.of(context);
-    final name = surah_mapper.surahNameFromNumber(surah, _mushaf);
+  Widget _buildAyahContextRow(AppPalette palette) {
+    final page = _selPage;
+    if (page == null) return const SizedBox.shrink();
+    final name = surah_mapper.surahNameFromNumber(_selSurah, _mushaf);
     final bookmarked = _bookmarks.any(
-      (b) => b.isAyah && b.surahNumber == surah && b.ayah == ayah,
+      (b) => b.isAyah && b.surahNumber == _selSurah && b.ayah == _selAyah,
     );
 
-    final entry = OverlayEntry(
-      builder: (overlayContext) => Positioned(
-        left: 10,
-        right: 10,
-        bottom: MediaQuery.paddingOf(overlayContext).bottom + 8,
-        child: Material(
-          color: palette.scaffold,
-          elevation: 12,
-          shadowColor: Colors.black.withValues(alpha: .18),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            height: 72,
-            padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: palette.border),
-            ),
-            child: Row(
+    return SizedBox(
+      height: 64,
+      child: Row(
+        children: [
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: palette.text,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$surah:$ayah',
-                        style: TextStyle(
-                          color: palette.muted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.readerIcon,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                _ayahAction(
-                  palette,
-                  icon: Icons.play_arrow_rounded,
-                  label: 'Play',
-                  onTap: () {
-                    _dismissAyahQuickActions();
-                    _playAyah(surah, ayah);
-                  },
-                ),
-                _ayahAction(
-                  palette,
-                  icon: bookmarked
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_border_rounded,
-                  label: 'Save',
-                  onTap: () {
-                    _toggleAyahBookmark(surah, ayah, page, !bookmarked);
-                    _dismissAyahQuickActions();
-                  },
-                ),
-                _ayahAction(
-                  palette,
-                  icon: Icons.translate_rounded,
-                  label: 'Translate',
-                  onTap: () {
-                    _dismissAyahQuickActions();
-                    _showAyahTranslation(surah, ayah);
-                  },
+                const SizedBox(height: 2),
+                Text(
+                  '$_selSurah:$_selAyah',
+                  style: TextStyle(
+                    color: palette.readerIcon.withValues(alpha: .65),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
           ),
-        ),
+          _ayahAction(
+            palette,
+            icon: Icons.play_arrow_rounded,
+            label: 'Play',
+            onTap: () => _playAyah(_selSurah, _selAyah),
+          ),
+          _ayahAction(
+            palette,
+            icon: bookmarked
+                ? Icons.bookmark_rounded
+                : Icons.bookmark_border_rounded,
+            label: 'Save',
+            onTap: () =>
+                _toggleAyahBookmark(_selSurah, _selAyah, page, !bookmarked),
+          ),
+          _ayahAction(
+            palette,
+            icon: Icons.translate_rounded,
+            label: 'Translate',
+            onTap: () => _showAyahTranslation(_selSurah, _selAyah),
+          ),
+          IconButton(
+            tooltip: 'Clear ayah selection',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _selPage = null),
+            icon: Icon(
+              Icons.close_rounded,
+              color: palette.readerIcon,
+              size: 20,
+            ),
+          ),
+        ],
       ),
     );
-    _ayahActionsOverlay = entry;
-    Overlay.of(context).insert(entry);
   }
 
   Widget _ayahAction(
@@ -488,7 +463,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
               label,
               maxLines: 1,
               style: TextStyle(
-                color: palette.text,
+                color: palette.readerIcon,
                 fontSize: 9.5,
                 fontWeight: FontWeight.w700,
               ),
@@ -794,7 +769,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 },
               ),
 
-              if (_isScrollbarVisible)
+              if (_isScrollbarVisible && _selPage == null)
                 AnimatedBuilder(
                   animation: QuranAudioController.instance,
                   builder: (context, _) => _MiniAudioPlayer(
@@ -818,225 +793,244 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                         horizontal: 2,
                         vertical: 6,
                       ),
-                      child: IntrinsicHeight(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.remove),
-                                  color: palette.readerIcon,
-                                  onPressed:
-                                      (_isPortrait
-                                              ? _pageScalePortrait
-                                              : _pageScaleLandscape) <=
-                                          (_isPortrait
-                                              ? QuranPageView
-                                                    .minPageScalePortrait
-                                              : QuranPageView
-                                                    .minPageScaleLandscape)
-                                      ? null
-                                      : _decreaseScale,
-                                ),
-
-                                Text(
-                                  "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
-                                  style: TextStyle(
-                                    color: palette.readerIcon,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-
-                                IconButton(
-                                  icon: const Icon(Icons.add),
-                                  color: palette.readerIcon,
-                                  onPressed:
-                                      (_isPortrait
-                                              ? _pageScalePortrait
-                                              : _pageScaleLandscape) >=
-                                          (_isPortrait
-                                              ? QuranPageView
-                                                    .maxPageScalePortrait
-                                              : QuranPageView
-                                                    .maxPageScaleLandscape)
-                                      ? null
-                                      : _increaseScale,
-                                ),
-                              ],
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_selPage != null) ...[
+                            _buildAyahContextRow(palette),
+                            Divider(
+                              height: 1,
+                              indent: 8,
+                              endIndent: 8,
+                              color: palette.readerIcon.withValues(alpha: .16),
                             ),
-                            Flexible(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                reverse: true,
-                                child: Row(
+                          ],
+                          IntrinsicHeight(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
                                   children: [
-                                    barIcon(
-                                      icon: Icons.headphones_rounded,
-                                      palette: palette,
-                                      onPressed: _showAudioModal,
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      color: palette.readerIcon,
+                                      onPressed:
+                                          (_isPortrait
+                                                  ? _pageScalePortrait
+                                                  : _pageScaleLandscape) <=
+                                              (_isPortrait
+                                                  ? QuranPageView
+                                                        .minPageScalePortrait
+                                                  : QuranPageView
+                                                        .minPageScaleLandscape)
+                                          ? null
+                                          : _decreaseScale,
                                     ),
-                                    barIcon(
-                                      icon: Icons.chat_outlined,
-                                      palette: palette,
-                                      onPressed: _showTranslationModal,
+
+                                    Text(
+                                      "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
+                                      style: TextStyle(
+                                        color: palette.readerIcon,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
-                                    barIcon(
-                                      icon: Icons.menu_book_outlined,
-                                      palette: palette,
-                                      onPressed: () {
-                                        SurahJuzNavigator.show(
-                                          context: context,
-                                          onJumpToPage: (page) {
-                                            final actualPage =
-                                                PageMapper.bookmarkGoToMapper(
-                                                  page,
-                                                  _isPortrait,
-                                                );
 
-                                            _pageController.jumpToPage(
-                                              actualPage,
-                                            );
-
-                                            final logical =
-                                                PageMapper.logicalFromPageIndex(
-                                                  actualPage,
-                                                  _isPortrait,
-                                                );
-
-                                            setState(
-                                              () => _logicalPage = logical,
-                                            );
-                                          },
-                                          mushaf: _mushaf,
-                                        );
-                                      },
-                                    ),
-                                    barIcon(
-                                      icon: Icons.bookmarks_rounded,
-                                      palette: palette,
-                                      onPressed: () {
-                                        BookmarksModal.show(
-                                          context: context,
-                                          bookmarks: _bookmarks,
-                                          isPortrait: _isPortrait,
-                                          onAddBookmark: _addBookmark,
-                                          onRemoveBookmark: (b) {
-                                            setState(
-                                              () => _bookmarks.remove(b),
-                                            );
-                                            StorageManager.saveBookmarks(
-                                              _bookmarks,
-                                              mushaf: _mushaf,
-                                            );
-                                          },
-                                          onJumpToBookmark: (b) {
-                                            Navigator.pop(context);
-
-                                            final page =
-                                                PageMapper.bookmarkGoToMapper(
-                                                  b.pageNumber,
-                                                  _isPortrait,
-                                                );
-
-                                            _pageController.jumpToPage(page);
-
-                                            final logical =
-                                                PageMapper.logicalFromPageIndex(
-                                                  page,
-                                                  _isPortrait,
-                                                );
-
-                                            setState(
-                                              () => _logicalPage = logical,
-                                            );
-
-                                            // Resume: highlight the bookmarked ayah so you
-                                            // can see where you left off.
-                                            if (b.isAyah) {
-                                              _highlightAyah(
-                                                b.pageNumber,
-                                                b.surahNumber!,
-                                                b.ayah!,
-                                              );
-                                            }
-                                          },
-                                        );
-                                      },
-                                    ),
-                                    barIcon(
-                                      icon: Icons.settings,
-                                      palette: palette,
-                                      onPressed: () async {
-                                        await Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => const Settings(),
-                                          ),
-                                        );
-
-                                        if (!context.mounted) return;
-
-                                        await MyApp.of(context)?.reloadTheme();
-
-                                        final ayahHighlighting =
-                                            await StorageManager.getAyahHighlightingEnabled();
-                                        if (!context.mounted) return;
-                                        if (!ayahHighlighting) {
-                                          _dismissAyahQuickActions();
-                                        }
-                                        setState(() {
-                                          _ayahHighlightingEnabled =
-                                              ayahHighlighting;
-                                          if (!ayahHighlighting) {
-                                            _selPage = null;
-                                          }
-                                        });
-
-                                        final mushaf =
-                                            await StorageManager.getMushaf();
-                                        if (!context.mounted) return;
-
-                                        if (mushaf != _mushaf) {
-                                          if (_mushaf == 'indopak_tajweed' &&
-                                              mushaf == 'madani') {
-                                            _logicalPage =
-                                                PageMapper.indoPakToMadani(
-                                                  _logicalPage,
-                                                );
-                                          }
-
-                                          if (_mushaf == 'madani' &&
-                                              mushaf == 'indopak_tajweed') {
-                                            _logicalPage =
-                                                PageMapper.madaniToIndoPak(
-                                                  _logicalPage,
-                                                );
-                                          }
-
-                                          final newIndex =
-                                              PageMapper.pageIndexFromLogical(
-                                                _logicalPage,
-                                                _isPortrait,
-                                              );
-
-                                          setState(() {
-                                            _mushaf = mushaf;
-                                            _selPage = null;
-                                          });
-                                          await _loadBookmarks();
-                                          _pageController.jumpToPage(newIndex);
-                                        }
-
-                                        setState(() {});
-                                      },
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      color: palette.readerIcon,
+                                      onPressed:
+                                          (_isPortrait
+                                                  ? _pageScalePortrait
+                                                  : _pageScaleLandscape) >=
+                                              (_isPortrait
+                                                  ? QuranPageView
+                                                        .maxPageScalePortrait
+                                                  : QuranPageView
+                                                        .maxPageScaleLandscape)
+                                          ? null
+                                          : _increaseScale,
                                     ),
                                   ],
                                 ),
-                              ),
+                                Flexible(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    reverse: true,
+                                    child: Row(
+                                      children: [
+                                        barIcon(
+                                          icon: Icons.headphones_rounded,
+                                          palette: palette,
+                                          onPressed: _showAudioModal,
+                                        ),
+                                        barIcon(
+                                          icon: Icons.chat_outlined,
+                                          palette: palette,
+                                          onPressed: _showTranslationModal,
+                                        ),
+                                        barIcon(
+                                          icon: Icons.menu_book_outlined,
+                                          palette: palette,
+                                          onPressed: () {
+                                            SurahJuzNavigator.show(
+                                              context: context,
+                                              onJumpToPage: (page) {
+                                                final actualPage =
+                                                    PageMapper.bookmarkGoToMapper(
+                                                      page,
+                                                      _isPortrait,
+                                                    );
+
+                                                _pageController.jumpToPage(
+                                                  actualPage,
+                                                );
+
+                                                final logical =
+                                                    PageMapper.logicalFromPageIndex(
+                                                      actualPage,
+                                                      _isPortrait,
+                                                    );
+
+                                                setState(
+                                                  () => _logicalPage = logical,
+                                                );
+                                              },
+                                              mushaf: _mushaf,
+                                            );
+                                          },
+                                        ),
+                                        barIcon(
+                                          icon: Icons.bookmarks_rounded,
+                                          palette: palette,
+                                          onPressed: () {
+                                            BookmarksModal.show(
+                                              context: context,
+                                              bookmarks: _bookmarks,
+                                              isPortrait: _isPortrait,
+                                              onAddBookmark: _addBookmark,
+                                              onRemoveBookmark: (b) {
+                                                setState(
+                                                  () => _bookmarks.remove(b),
+                                                );
+                                                StorageManager.saveBookmarks(
+                                                  _bookmarks,
+                                                  mushaf: _mushaf,
+                                                );
+                                              },
+                                              onJumpToBookmark: (b) {
+                                                Navigator.pop(context);
+
+                                                final page =
+                                                    PageMapper.bookmarkGoToMapper(
+                                                      b.pageNumber,
+                                                      _isPortrait,
+                                                    );
+
+                                                _pageController.jumpToPage(
+                                                  page,
+                                                );
+
+                                                final logical =
+                                                    PageMapper.logicalFromPageIndex(
+                                                      page,
+                                                      _isPortrait,
+                                                    );
+
+                                                setState(
+                                                  () => _logicalPage = logical,
+                                                );
+
+                                                // Resume: highlight the bookmarked ayah so you
+                                                // can see where you left off.
+                                                if (b.isAyah) {
+                                                  _highlightAyah(
+                                                    b.pageNumber,
+                                                    b.surahNumber!,
+                                                    b.ayah!,
+                                                  );
+                                                }
+                                              },
+                                            );
+                                          },
+                                        ),
+                                        barIcon(
+                                          icon: Icons.settings,
+                                          palette: palette,
+                                          onPressed: () async {
+                                            await Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const Settings(),
+                                              ),
+                                            );
+
+                                            if (!context.mounted) return;
+
+                                            await MyApp.of(
+                                              context,
+                                            )?.reloadTheme();
+
+                                            final ayahHighlighting =
+                                                await StorageManager.getAyahHighlightingEnabled();
+                                            if (!context.mounted) return;
+                                            setState(() {
+                                              _ayahHighlightingEnabled =
+                                                  ayahHighlighting;
+                                              if (!ayahHighlighting) {
+                                                _selPage = null;
+                                              }
+                                            });
+
+                                            final mushaf =
+                                                await StorageManager.getMushaf();
+                                            if (!context.mounted) return;
+
+                                            if (mushaf != _mushaf) {
+                                              if (_mushaf ==
+                                                      'indopak_tajweed' &&
+                                                  mushaf == 'madani') {
+                                                _logicalPage =
+                                                    PageMapper.indoPakToMadani(
+                                                      _logicalPage,
+                                                    );
+                                              }
+
+                                              if (_mushaf == 'madani' &&
+                                                  mushaf == 'indopak_tajweed') {
+                                                _logicalPage =
+                                                    PageMapper.madaniToIndoPak(
+                                                      _logicalPage,
+                                                    );
+                                              }
+
+                                              final newIndex =
+                                                  PageMapper.pageIndexFromLogical(
+                                                    _logicalPage,
+                                                    _isPortrait,
+                                                  );
+
+                                              setState(() {
+                                                _mushaf = mushaf;
+                                                _selPage = null;
+                                              });
+                                              await _loadBookmarks();
+                                              _pageController.jumpToPage(
+                                                newIndex,
+                                              );
+                                            }
+
+                                            setState(() {});
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
