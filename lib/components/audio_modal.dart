@@ -44,11 +44,13 @@ class AudioModal extends StatefulWidget {
 }
 
 class _AudioModalState extends State<AudioModal> {
+  static const List<int> _repeatOptions = [1, 3, 5, 10];
+
   Reciter _reciter = quranReciters.first;
   late int _surah;
   int _fromAyah = 1;
   int _toAyah = 7;
-  int? _repeatCount = 20;
+  int? _repeatCount = 10;
   AudioRepeatMode _repeatMode = AudioRepeatMode.range;
   AudioSourceMode _sourceMode = AudioSourceMode.range;
   QuranAudioErrorKind _lastHandledErrorKind = QuranAudioErrorKind.none;
@@ -84,7 +86,6 @@ class _AudioModalState extends State<AudioModal> {
   }
 
   int get _ayahCount => quranAyahCounts[_surah - 1];
-  String get _surahName => quranSurahs[_surah - 1].name;
 
   AudioPlaybackPlan? _currentEditablePlan() {
     final controller = QuranAudioController.instance;
@@ -125,7 +126,11 @@ class _AudioModalState extends State<AudioModal> {
       final maxAyah = quranAyahCounts[_surah - 1];
       _fromAyah = saved.fromAyah.clamp(1, maxAyah).toInt();
       _toAyah = saved.toAyah.clamp(_fromAyah, maxAyah).toInt();
-      _repeatCount = saved.repeatCount;
+      _repeatCount = saved.repeatCount == null
+          ? null
+          : _repeatOptions.contains(saved.repeatCount)
+          ? saved.repeatCount
+          : 10;
       _repeatMode = saved.repeatMode;
       _sourceMode = saved.sourceMode;
     }
@@ -254,218 +259,146 @@ class _AudioModalState extends State<AudioModal> {
       );
     }
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: .68,
-      minChildSize: .42,
-      maxChildSize: .92,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: palette.scaffold,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 9, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Center(
                 child: Container(
-                  width: 40,
-                  height: 5,
+                  width: 38,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: palette.border,
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: palette.accentSoft,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.headphones_rounded,
-                      color: palette.accent,
-                    ),
+                  Icon(
+                    Icons.headphones_rounded,
+                    color: palette.accent,
+                    size: 28,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Audio',
                       style: TextStyle(
-                        color: palette.text,
-                        fontSize: 22,
+                        color: palette.surfaceText,
+                        fontSize: 21,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, color: palette.text),
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.close_rounded, color: palette.surfaceText),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _panel(
-                palette,
+              const SizedBox(height: 10),
+              Row(
                 children: [
-                  _label('Reciter', palette),
-                  _select<Reciter>(
-                    palette: palette,
-                    value: _reciter,
-                    items: quranReciters,
-                    label: (reciter) => reciter.name,
-                    onChanged: (reciter) {
-                      setState(() => _reciter = reciter);
-                      _persistPreferences();
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  _label('Surah', palette),
-                  _select<int>(
-                    palette: palette,
-                    value: _surah,
-                    items: [for (var i = 1; i <= 114; i++) i],
-                    label: (surah) => '$surah. ${quranSurahs[surah - 1].name}',
-                    onChanged: _setSurah,
-                  ),
-                  const SizedBox(height: 14),
-                  _label('Play', palette),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _sourceChip(
-                          palette,
-                          mode: AudioSourceMode.range,
-                          title: 'Range',
-                          subtitle: 'Choose ayahs',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _sourceChip(
-                          palette,
-                          mode: AudioSourceMode.surah,
-                          title: 'Full surah',
-                          subtitle: 'All ayahs',
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_sourceMode == AudioSourceMode.range) ...[
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _label('From ayah', palette),
-                              _ayahDropdown(
-                                palette: palette,
-                                value: _fromAyah,
-                                onChanged: _setFromAyah,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _label('To ayah', palette),
-                              _ayahDropdown(
-                                palette: palette,
-                                value: _toAyah,
-                                onChanged: _setToAyah,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                  Expanded(
+                    child: _compactSelect<Reciter>(
+                      palette: palette,
+                      icon: Icons.person_outline_rounded,
+                      value: _reciter,
+                      items: quranReciters,
+                      label: (reciter) => reciter.name,
+                      onChanged: (reciter) {
+                        setState(() => _reciter = reciter);
+                        _persistPreferences();
+                      },
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _compactSelect<int>(
+                      palette: palette,
+                      icon: Icons.menu_book_outlined,
+                      value: _surah,
+                      items: [for (var i = 1; i <= 114; i++) i],
+                      label: (surah) =>
+                          '$surah. ${quranSurahs[surah - 1].name}',
+                      onChanged: _setSurah,
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 14),
-              _panel(
-                palette,
+              const SizedBox(height: 8),
+              Row(
                 children: [
-                  _label('Repeat style', palette),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _modeChip(
-                          palette,
-                          mode: AudioRepeatMode.range,
-                          title: 'Range repeat',
-                          subtitle: '1-5, 1-5',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _modeChip(
-                          palette,
-                          mode: AudioRepeatMode.ayah,
-                          title: 'Verse repeat',
-                          subtitle: '1,1, 2,2',
-                        ),
-                      ),
-                    ],
+                  Expanded(
+                    child: _compactSelect<AudioSourceMode>(
+                      palette: palette,
+                      icon: Icons.playlist_play_rounded,
+                      value: _sourceMode,
+                      items: AudioSourceMode.values,
+                      label: (mode) => mode == AudioSourceMode.range
+                          ? 'Ayah range'
+                          : 'Full surah',
+                      onChanged: (mode) {
+                        setState(() => _sourceMode = mode);
+                        _persistPreferences();
+                        if (mode == AudioSourceMode.range) _warmAyahOptions();
+                      },
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                  _label('Repeat count', palette),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final count in const [1, 2, 3, 5, 10, 20])
-                        ChoiceChip(
-                          label: Text('${count}x'),
-                          selected: _repeatCount == count,
-                          onSelected: (_) {
-                            setState(() => _repeatCount = count);
-                            _persistPreferences();
-                          },
-                          selectedColor: palette.accent,
-                          labelStyle: TextStyle(
-                            color: _repeatCount == count
-                                ? Colors.white
-                                : palette.surfaceText,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          backgroundColor: palette.surfaceRaised,
-                          side: BorderSide(color: palette.border),
-                        ),
-                      ChoiceChip(
-                        label: const Text('\u221e'),
-                        selected: _repeatCount == null,
-                        onSelected: (_) {
-                          setState(() => _repeatCount = null);
-                          _persistPreferences();
-                        },
-                        selectedColor: palette.accent,
-                        labelStyle: TextStyle(
-                          color: _repeatCount == null
-                              ? Colors.white
-                              : palette.surfaceText,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        backgroundColor: palette.surfaceRaised,
-                        side: BorderSide(color: palette.border),
-                      ),
-                    ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _compactAction(
+                      palette: palette,
+                      icon: Icons.format_list_numbered_rounded,
+                      label: _sourceMode == AudioSourceMode.surah
+                          ? 'All ayahs'
+                          : 'Ayah $_fromAyah-$_toAyah',
+                      onTap: _showAyahRangePicker,
+                      enabled: _sourceMode == AudioSourceMode.range,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
+              Divider(height: 1, color: palette.border.withValues(alpha: .8)),
+              const SizedBox(height: 10),
+              _compactSelect<AudioRepeatMode>(
+                palette: palette,
+                icon: Icons.repeat_rounded,
+                value: _repeatMode,
+                items: AudioRepeatMode.values,
+                label: (mode) => mode == AudioRepeatMode.range
+                    ? 'Range repeat'
+                    : 'Verse repeat',
+                onChanged: (mode) {
+                  setState(() => _repeatMode = mode);
+                  _persistPreferences();
+                },
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    for (final count in <int?>[..._repeatOptions, null]) ...[
+                      Expanded(child: _repeatChoice(palette, count: count)),
+                      if (count != null) const SizedBox(width: 7),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               AnimatedBuilder(
                 animation: QuranAudioController.instance,
                 builder: (context, _) {
@@ -480,166 +413,313 @@ class _AudioModalState extends State<AudioModal> {
                   } else if (controller.errorKind == QuranAudioErrorKind.none) {
                     _lastHandledErrorKind = QuranAudioErrorKind.none;
                   }
-
-                  return _playerPanel(palette, QuranAudioController.instance);
+                  return _compactPlayer(palette, controller);
                 },
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _playerPanel(AppPalette palette, QuranAudioController controller) {
-    final download = controller.downloadState;
-    final mediaItem = controller.currentMediaItem;
-    final ayah = controller.currentAyah;
-    final repeat = controller.currentRepeat;
-    final currentIndex = controller.currentIndex;
+  Widget _compactPlayer(AppPalette palette, QuranAudioController controller) {
     final editedPlan = _plan;
     final isThisPlan = editedPlan.matches(controller.plan);
-    final isDownloading = download.active && isThisPlan;
-    final canResumeCurrentPlan =
+    final isDownloading = controller.downloadState.active && isThisPlan;
+    final isPlaying = isThisPlan && controller.playing;
+    final canResume =
         isThisPlan &&
         controller.hasPlan &&
         !controller.playing &&
         controller.processingState != ProcessingState.idle &&
         controller.processingState != ProcessingState.completed;
 
-    return _panel(
-      palette,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          '$_surahName ${editedPlan.rangeLabel}',
-          style: TextStyle(
-            color: palette.surfaceText,
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${editedPlan.infiniteRepeat ? 'Repeats forever' : '${editedPlan.totalPlaybackItems} plays'} \u2022 ${_reciter.name}',
-          style: TextStyle(color: palette.surfaceMuted, fontSize: 13),
-        ),
-        if (download.active) ...[
-          const SizedBox(height: 14),
+        if (controller.downloadState.active) ...[
           LinearProgressIndicator(
-            value: download.progress,
-            minHeight: 6,
+            value: controller.downloadState.progress,
+            minHeight: 4,
             borderRadius: BorderRadius.circular(99),
-            backgroundColor: palette.accent.withValues(alpha: .12),
+            backgroundColor: palette.accentSoft,
             color: palette.accent,
           ),
-          const SizedBox(height: 8),
-          Text(
-            download.message,
-            style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
-          ),
+          const SizedBox(height: 7),
         ],
         if (controller.error != null) ...[
-          const SizedBox(height: 12),
           Text(
             controller.error!,
             style: const TextStyle(
               color: Color(0xFF9E1B1B),
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
+          const SizedBox(height: 7),
         ],
-        if (mediaItem != null && ayah != null && isThisPlan) ...[
-          const SizedBox(height: 12),
-          Text(
-            'Playing $_surahName:$ayah'
-            '${repeat == null ? '' : ' \u2022 repeat $repeat/${editedPlan.repeatLabel}'}'
-            '${currentIndex == null ? '' : ' \u2022 ${currentIndex + 1}/${controller.totalItems}'}',
-            style: TextStyle(
-              color: palette.accent,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
+        FilledButton.icon(
+          onPressed: isDownloading
+              ? null
+              : () {
+                  if (isPlaying || canResume) {
+                    controller.togglePlayPause();
+                  } else {
+                    controller.playPlan(editedPlan);
+                  }
+                },
+          style: FilledButton.styleFrom(
+            backgroundColor: palette.accent,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(54),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
-        ],
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            _roundButton(
-              palette,
-              icon: Icons.skip_previous_rounded,
-              onPressed: controller.hasPlan ? controller.seekPrevious : null,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: isDownloading
-                    ? null
-                    : () {
-                        if (canResumeCurrentPlan) {
-                          controller.togglePlayPause();
-                          return;
-                        }
-
-                        controller.playPlan(editedPlan);
-                      },
-                style: FilledButton.styleFrom(
-                  backgroundColor: palette.accent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                icon: Icon(
-                  isDownloading
-                      ? Icons.hourglass_top_rounded
-                      : Icons.play_arrow_rounded,
-                ),
-                label: Text(
-                  isDownloading
-                      ? 'Preparing'
-                      : canResumeCurrentPlan
-                      ? 'Resume'
-                      : 'Play',
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _roundButton(
-              palette,
-              icon: Icons.skip_next_rounded,
-              onPressed: controller.hasPlan ? controller.seekNext : null,
-            ),
-            const SizedBox(width: 8),
-            _roundButton(
-              palette,
-              icon: Icons.stop_rounded,
-              onPressed: controller.hasPlan ? controller.stop : null,
-            ),
-          ],
+          icon: Icon(
+            isDownloading
+                ? Icons.hourglass_top_rounded
+                : isPlaying
+                ? Icons.pause_rounded
+                : Icons.play_arrow_rounded,
+          ),
+          label: Text(
+            isDownloading
+                ? 'Preparing'
+                : isPlaying
+                ? 'Pause'
+                : canResume
+                ? 'Resume'
+                : 'Play',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
         ),
       ],
     );
   }
 
-  Widget _panel(AppPalette palette, {required List<Widget> children}) {
+  Widget _compactSelect<T>({
+    required AppPalette palette,
+    required IconData icon,
+    required T value,
+    required List<T> items,
+    required String Function(T value) label,
+    required void Function(T value) onChanged,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      height: 52,
+      padding: const EdgeInsets.only(left: 10, right: 5),
       decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: palette.border.withValues(alpha: .75)),
-        boxShadow: [
-          BoxShadow(
-            color: palette.shadow.withValues(alpha: .38),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
+        color: palette.surfaceRaised,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: palette.accent, size: 20),
+          const SizedBox(width: 6),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                value: value,
+                isExpanded: true,
+                dropdownColor: palette.surfaceRaised,
+                borderRadius: BorderRadius.circular(15),
+                icon: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: palette.surfaceText,
+                  size: 20,
+                ),
+                style: TextStyle(
+                  color: palette.surfaceText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                items: [
+                  for (final item in items)
+                    DropdownMenuItem<T>(
+                      value: item,
+                      child: Text(label(item), overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (selected) {
+                  if (selected != null) onChanged(selected);
+                },
+              ),
+            ),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+    );
+  }
+
+  Widget _compactAction({
+    required AppPalette palette,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    double? width,
+    bool enabled = true,
+  }) {
+    return SizedBox(
+      width: width,
+      height: 52,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(15),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: enabled
+                ? palette.surfaceRaised
+                : palette.surfaceRaised.withValues(alpha: .55),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: palette.border),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: enabled ? palette.accent : palette.surfaceMuted,
+                size: 20,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: enabled ? palette.surfaceText : palette.surfaceMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (enabled)
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: palette.surfaceText,
+                  size: 20,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _repeatChoice(AppPalette palette, {required int? count}) {
+    final selected = _repeatCount == count;
+    return InkWell(
+      onTap: () {
+        setState(() => _repeatCount = count);
+        _persistPreferences();
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        constraints: const BoxConstraints(minWidth: 46),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected ? palette.accent : palette.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? palette.accent : palette.border),
+        ),
+        child: Text(
+          count == null ? '∞' : '${count}x',
+          style: TextStyle(
+            color: selected ? Colors.white : palette.surfaceText,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAyahRangePicker() async {
+    _ensureAyahOptions();
+    final palette = AppPalette.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, refreshSheet) => Container(
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: palette.border,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Ayah range',
+                  style: TextStyle(
+                    color: palette.surfaceText,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('From ayah', palette),
+                          _ayahDropdown(
+                            palette: palette,
+                            value: _fromAyah,
+                            onChanged: (ayah) {
+                              _setFromAyah(ayah);
+                              refreshSheet(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('To ayah', palette),
+                          _ayahDropdown(
+                            palette: palette,
+                            value: _toAyah,
+                            onChanged: (ayah) {
+                              _setToAyah(ayah);
+                              refreshSheet(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -654,51 +734,6 @@ class _AudioModalState extends State<AudioModal> {
           fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: .3,
-        ),
-      ),
-    );
-  }
-
-  Widget _select<T>({
-    required AppPalette palette,
-    required T value,
-    required List<T> items,
-    required String Function(T value) label,
-    required void Function(T value) onChanged,
-    bool enabled = true,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: enabled
-            ? palette.surfaceRaised
-            : palette.surfaceRaised.withValues(alpha: .55),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: palette.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: palette.surfaceRaised,
-          borderRadius: BorderRadius.circular(13),
-          iconEnabledColor: palette.accent,
-          style: TextStyle(
-            color: palette.surfaceText,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-          items: [
-            for (final item in items)
-              DropdownMenuItem<T>(
-                value: item,
-                child: Text(label(item), overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: (value) {
-            if (!enabled) return;
-            if (value != null) onChanged(value);
-          },
         ),
       ),
     );
@@ -753,116 +788,6 @@ class _AudioModalState extends State<AudioModal> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _modeChip(
-    AppPalette palette, {
-    required AudioRepeatMode mode,
-    required String title,
-    required String subtitle,
-  }) {
-    final selected = _repeatMode == mode;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        setState(() => _repeatMode = mode);
-        _persistPreferences();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? palette.accentSoft : palette.surfaceRaised,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? palette.accent : palette.border,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: selected ? palette.accent : palette.surfaceText,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sourceChip(
-    AppPalette palette, {
-    required AudioSourceMode mode,
-    required String title,
-    required String subtitle,
-  }) {
-    final selected = _sourceMode == mode;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {
-        setState(() => _sourceMode = mode);
-        _persistPreferences();
-        if (mode == AudioSourceMode.range) _warmAyahOptions();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? palette.accentSoft : palette.surfaceRaised,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? palette.accent : palette.border,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: selected ? palette.accent : palette.surfaceText,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _roundButton(
-    AppPalette palette, {
-    required IconData icon,
-    required VoidCallback? onPressed,
-  }) {
-    return IconButton(
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        backgroundColor: palette.accentSoft,
-        disabledBackgroundColor: palette.border.withValues(alpha: .35),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-      ),
-      color: palette.accent,
-      icon: Icon(icon),
     );
   }
 }

@@ -45,7 +45,7 @@ class AudioPreferences {
       toAyah: prefs.getInt(_toAyahKey) ?? 7,
       repeatCount: prefs.getBool(_infiniteRepeatKey) ?? false
           ? null
-          : prefs.getInt(_repeatCountKey) ?? 20,
+          : prefs.getInt(_repeatCountKey) ?? 10,
       repeatMode: AudioRepeatMode.values.firstWhere(
         (mode) => mode.name == repeatName,
         orElse: () => AudioRepeatMode.range,
