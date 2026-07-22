@@ -61,58 +61,21 @@ class _AudioModalState extends State<AudioModal> {
   @override
   void initState() {
     super.initState();
-    final activePlan = _currentEditablePlan();
-    if (activePlan == null) {
-      _surah = widget.initialSurah.clamp(1, 114).toInt();
-      final maxAyah = quranAyahCounts[_surah - 1];
-      if (widget.initialFromAyah != null && widget.initialToAyah != null) {
-        // Pre-select the current page's ayah range.
-        _fromAyah = widget.initialFromAyah!.clamp(1, maxAyah).toInt();
-        _toAyah = widget.initialToAyah!.clamp(_fromAyah, maxAyah).toInt();
-        _sourceMode = AudioSourceMode.range;
-      } else {
-        _toAyah = _ayahCount.clamp(1, 7).toInt();
-      }
+    // The location always follows the page the reader is currently viewing.
+    // Saved preferences restore the reciter/repeat choices, not an old surah.
+    _surah = widget.initialSurah.clamp(1, 114).toInt();
+    final maxAyah = quranAyahCounts[_surah - 1];
+    if (widget.initialFromAyah != null && widget.initialToAyah != null) {
+      _fromAyah = widget.initialFromAyah!.clamp(1, maxAyah).toInt();
+      _toAyah = widget.initialToAyah!.clamp(_fromAyah, maxAyah).toInt();
+      _sourceMode = AudioSourceMode.range;
     } else {
-      _applyPlan(activePlan);
-      _preferencesReady = true;
+      _toAyah = _ayahCount.clamp(1, 7).toInt();
     }
-    if (activePlan == null) {
-      _restorePreferences();
-    } else {
-      _persistPreferences();
-      _warmAyahOptions();
-    }
+    _restorePreferences();
   }
 
   int get _ayahCount => quranAyahCounts[_surah - 1];
-
-  AudioPlaybackPlan? _currentEditablePlan() {
-    final controller = QuranAudioController.instance;
-    final plan = controller.plan;
-    if (plan == null) return null;
-
-    return switch (controller.processingState) {
-      ProcessingState.idle || ProcessingState.completed => null,
-      ProcessingState.loading ||
-      ProcessingState.buffering ||
-      ProcessingState.ready => plan,
-    };
-  }
-
-  void _applyPlan(AudioPlaybackPlan plan) {
-    _reciter = quranReciters.firstWhere(
-      (reciter) => reciter.id == plan.reciter.id,
-      orElse: () => quranReciters.first,
-    );
-    _surah = plan.surah.clamp(1, 114).toInt();
-    final maxAyah = quranAyahCounts[_surah - 1];
-    _fromAyah = plan.effectiveFromAyah.clamp(1, maxAyah).toInt();
-    _toAyah = plan.effectiveToAyah.clamp(_fromAyah, maxAyah).toInt();
-    _repeatCount = plan.repeatCount;
-    _repeatMode = plan.repeatMode;
-    _sourceMode = plan.sourceMode;
-  }
 
   Future<void> _restorePreferences() async {
     final saved = await AudioPreferences.load();
@@ -122,17 +85,18 @@ class _AudioModalState extends State<AudioModal> {
         (reciter) => reciter.id == saved.reciterId,
         orElse: () => quranReciters.first,
       );
-      _surah = saved.surah.clamp(1, 114).toInt();
-      final maxAyah = quranAyahCounts[_surah - 1];
-      _fromAyah = saved.fromAyah.clamp(1, maxAyah).toInt();
-      _toAyah = saved.toAyah.clamp(_fromAyah, maxAyah).toInt();
       _repeatCount = saved.repeatCount == null
           ? null
           : _repeatOptions.contains(saved.repeatCount)
           ? saved.repeatCount
           : 10;
       _repeatMode = saved.repeatMode;
-      _sourceMode = saved.sourceMode;
+      if (saved.surah == _surah) {
+        final maxAyah = quranAyahCounts[_surah - 1];
+        _fromAyah = saved.fromAyah.clamp(1, maxAyah).toInt();
+        _toAyah = saved.toAyah.clamp(_fromAyah, maxAyah).toInt();
+        _sourceMode = saved.sourceMode;
+      }
     }
     setState(() => _preferencesReady = true);
     _warmAyahOptions();
@@ -428,6 +392,10 @@ class _AudioModalState extends State<AudioModal> {
     final isThisPlan = editedPlan.matches(controller.plan);
     final isDownloading = controller.downloadState.active && isThisPlan;
     final isPlaying = isThisPlan && controller.playing;
+    final hasActiveAudio =
+        controller.hasPlan &&
+        controller.processingState != ProcessingState.idle &&
+        controller.processingState != ProcessingState.completed;
     final canResume =
         isThisPlan &&
         controller.hasPlan &&
@@ -459,41 +427,69 @@ class _AudioModalState extends State<AudioModal> {
           ),
           const SizedBox(height: 7),
         ],
-        FilledButton.icon(
-          onPressed: isDownloading
-              ? null
-              : () {
-                  if (isPlaying || canResume) {
-                    controller.togglePlayPause();
-                  } else {
-                    controller.playPlan(editedPlan);
-                  }
-                },
-          style: FilledButton.styleFrom(
-            backgroundColor: palette.accent,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: isDownloading
+                    ? null
+                    : () {
+                        if (isPlaying || canResume) {
+                          controller.togglePlayPause();
+                        } else {
+                          controller.playPlan(editedPlan);
+                        }
+                      },
+                style: FilledButton.styleFrom(
+                  backgroundColor: palette.accent,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(54),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: Icon(
+                  isDownloading
+                      ? Icons.hourglass_top_rounded
+                      : isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                ),
+                label: Text(
+                  isDownloading
+                      ? 'Preparing'
+                      : isPlaying
+                      ? 'Pause'
+                      : canResume
+                      ? 'Resume'
+                      : 'Play',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
-          ),
-          icon: Icon(
-            isDownloading
-                ? Icons.hourglass_top_rounded
-                : isPlaying
-                ? Icons.pause_rounded
-                : Icons.play_arrow_rounded,
-          ),
-          label: Text(
-            isDownloading
-                ? 'Preparing'
-                : isPlaying
-                ? 'Pause'
-                : canResume
-                ? 'Resume'
-                : 'Play',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
+            if (hasActiveAudio) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: controller.stop,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: palette.accent,
+                  minimumSize: const Size(102, 54),
+                  side: BorderSide(color: palette.border),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.stop_rounded, size: 20),
+                label: const Text(
+                  'Stop',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ],
         ),
       ],
     );

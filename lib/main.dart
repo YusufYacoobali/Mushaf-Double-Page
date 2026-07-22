@@ -150,6 +150,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   int? _selPage;
   int _selSurah = 0;
   int _selAyah = 0;
+  OverlayEntry? _ayahActionsOverlay;
 
   // -------------------------
   // Init
@@ -194,6 +195,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   @override
   void dispose() {
     _hideScrollbarTimer?.cancel();
+    _ayahActionsOverlay?.remove();
+    _ayahActionsOverlay = null;
     if (_hasPageController) {
       _pageController.dispose();
     }
@@ -320,6 +323,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     }
     if (_selPage != null) {
       setState(() => _selPage = null);
+      _dismissAyahQuickActions();
     } else {
       _onScreenTap();
     }
@@ -347,97 +351,102 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     );
   }
 
+  void _dismissAyahQuickActions() {
+    _ayahActionsOverlay?.remove();
+    _ayahActionsOverlay = null;
+  }
+
   void _showAyahQuickActions(int page, int surah, int ayah) {
+    _dismissAyahQuickActions();
     final palette = AppPalette.of(context);
     final name = surah_mapper.surahNameFromNumber(surah, _mushaf);
-    showModalBottomSheet(
-      context: context,
-      barrierColor: Colors.transparent,
-      backgroundColor: Colors.transparent,
-      useSafeArea: true,
-      builder: (ctx) {
-        final bookmarked = _bookmarks.any(
-          (b) => b.isAyah && b.surahNumber == surah && b.ayah == ayah,
-        );
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-          child: Material(
-            color: palette.scaffold,
-            elevation: 12,
-            shadowColor: Colors.black.withValues(alpha: .18),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              height: 72,
-              padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: palette.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
+    final bookmarked = _bookmarks.any(
+      (b) => b.isAyah && b.surahNumber == surah && b.ayah == ayah,
+    );
+
+    final entry = OverlayEntry(
+      builder: (overlayContext) => Positioned(
+        left: 10,
+        right: 10,
+        bottom: MediaQuery.paddingOf(overlayContext).bottom + 8,
+        child: Material(
+          color: palette.scaffold,
+          elevation: 12,
+          shadowColor: Colors.black.withValues(alpha: .18),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            height: 72,
+            padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: palette.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.text,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$surah:$ayah',
-                          style: TextStyle(
-                            color: palette.muted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$surah:$ayah',
+                        style: TextStyle(
+                          color: palette.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  _ayahAction(
-                    palette,
-                    icon: Icons.play_arrow_rounded,
-                    label: 'Play',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _playAyah(surah, ayah);
-                    },
-                  ),
-                  _ayahAction(
-                    palette,
-                    icon: bookmarked
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
-                    label: 'Save',
-                    onTap: () {
-                      _toggleAyahBookmark(surah, ayah, page, !bookmarked);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  _ayahAction(
-                    palette,
-                    icon: Icons.translate_rounded,
-                    label: 'Translate',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _showAyahTranslation(surah, ayah);
-                    },
-                  ),
-                ],
-              ),
+                ),
+                _ayahAction(
+                  palette,
+                  icon: Icons.play_arrow_rounded,
+                  label: 'Play',
+                  onTap: () {
+                    _dismissAyahQuickActions();
+                    _playAyah(surah, ayah);
+                  },
+                ),
+                _ayahAction(
+                  palette,
+                  icon: bookmarked
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  label: 'Save',
+                  onTap: () {
+                    _toggleAyahBookmark(surah, ayah, page, !bookmarked);
+                    _dismissAyahQuickActions();
+                  },
+                ),
+                _ayahAction(
+                  palette,
+                  icon: Icons.translate_rounded,
+                  label: 'Translate',
+                  onTap: () {
+                    _dismissAyahQuickActions();
+                    _showAyahTranslation(surah, ayah);
+                  },
+                ),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
+    _ayahActionsOverlay = entry;
+    Overlay.of(context).insert(entry);
   }
 
   Widget _ayahAction(
