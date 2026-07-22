@@ -281,6 +281,9 @@ class _AudioModalState extends State<AudioModal> {
                       value: _reciter,
                       items: quranReciters,
                       label: (reciter) => reciter.name,
+                      menuWidth: (MediaQuery.sizeOf(context).width - 32)
+                          .clamp(240.0, 360.0)
+                          .toDouble(),
                       onChanged: (reciter) {
                         setState(() => _reciter = reciter);
                         _persistPreferences();
@@ -502,6 +505,7 @@ class _AudioModalState extends State<AudioModal> {
     required List<T> items,
     required String Function(T value) label,
     required void Function(T value) onChanged,
+    double? menuWidth,
   }) {
     return Container(
       height: 52,
@@ -522,6 +526,7 @@ class _AudioModalState extends State<AudioModal> {
                 isExpanded: true,
                 dropdownColor: palette.surfaceRaised,
                 borderRadius: BorderRadius.circular(15),
+                menuWidth: menuWidth,
                 icon: Icon(
                   Icons.keyboard_arrow_down_rounded,
                   color: palette.surfaceText,
