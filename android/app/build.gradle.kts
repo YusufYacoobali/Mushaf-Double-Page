@@ -26,16 +26,16 @@ android {
         applicationId = "com.quran.quran_double_page"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 13
+        versionCode = 15
         versionName = "1.0"
     }
 
     signingConfigs {
         create("release") {
             storeFile = file("C:/Users/yyaco/upload-keystore.jks")
-            storePassword = "" //TODO locally
+            storePassword = "Gmcbmw!0" //TODO locally
             keyAlias = "quran_key"
-            keyPassword = "" //TODO locally
+            keyPassword = "Gmcbmw!0" //TODO locally
         }
     }
 

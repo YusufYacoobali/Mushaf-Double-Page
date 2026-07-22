@@ -334,6 +334,16 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     if (_ayahHighlightingEnabled && AyahRectIndex.supportsMushaf(_mushaf)) {
       final hit = AyahRectIndex.hitTest(page, nx, ny, mushaf: _mushaf);
       if (hit != null) {
+        if (_selPage != null &&
+            _selSurah == hit.surah &&
+            _selAyah == hit.ayah) {
+          _hideScrollbarTimer?.cancel();
+          setState(() {
+            _selPage = null;
+            _isScrollbarVisible = false;
+          });
+          return;
+        }
         _highlightAyah(page, hit.surah, hit.ayah);
         return;
       }
@@ -769,12 +779,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 },
               ),
 
-              if (_isScrollbarVisible && _selPage == null)
+              if (_isScrollbarVisible)
                 AnimatedBuilder(
                   animation: QuranAudioController.instance,
                   builder: (context, _) => _MiniAudioPlayer(
                     palette: palette,
                     onTap: _showAudioModal,
+                    bottom: _selPage == null ? 98 : 163,
                   ),
                 ),
 
@@ -1046,8 +1057,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 class _MiniAudioPlayer extends StatelessWidget {
   final AppPalette palette;
   final VoidCallback onTap;
+  final double bottom;
 
-  const _MiniAudioPlayer({required this.palette, required this.onTap});
+  const _MiniAudioPlayer({
+    required this.palette,
+    required this.onTap,
+    required this.bottom,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1065,7 +1081,7 @@ class _MiniAudioPlayer extends StatelessWidget {
     return Positioned(
       left: 12,
       right: 12,
-      bottom: 98,
+      bottom: bottom,
       child: Material(
         color: palette.readerBar,
         borderRadius: BorderRadius.circular(18),

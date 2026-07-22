@@ -1,29 +1,40 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
 
-/// Handles native in-app review prompts for Android and iOS.
-///
-/// Android uses the Google Play In-App Review API. iOS uses StoreKit review
-/// APIs. Both platforms decide whether the prompt is actually shown.
+/// Shows reliable app-owned review prompts and opens the platform store page.
 class AppReview {
-  /// Required only for opening the App Store listing on iOS.
-  /// Set this to the numeric Apple ID once the app is live in App Store Connect.
-  static const String? _iosAppStoreId = null;
+  // Android's openStoreListing resolves this exact application ID:
+  // https://play.google.com/store/apps/details?id=com.quran.quran_double_page
+  static const String androidApplicationId = 'com.quran.quran_double_page';
+  static const String androidPlayStoreUrl =
+      'https://play.google.com/store/apps/details?id=$androidApplicationId';
+
+  static const String _iosAppStoreId = '6757914006';
+  static const String iosAppStoreUrl =
+      'https://apps.apple.com/gb/app/quran-dual-page/id$_iosAppStoreId';
 
   static final _review = InAppReview.instance;
 
-  /// Shows a reliable Play Store prompt three minutes after an Android launch.
-  /// StoreKit remains native on iOS until an App Store listing ID is supplied.
+  /// Android prompts after three minutes; iOS prompts after five minutes.
   static Timer schedulePromptAfterOpen(
     BuildContext? Function() contextProvider,
   ) {
-    return Timer(const Duration(minutes: 3), () async {
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    final delay = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+        ? const Duration(minutes: 5)
+        : const Duration(minutes: 3);
+    return Timer(delay, () async {
+      if (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS)) {
         final context = contextProvider();
         if (context != null && context.mounted) {
-          await _showPlayStorePrompt(context);
+          await _showStorePrompt(
+            context,
+            isIos: defaultTargetPlatform == TargetPlatform.iOS,
+          );
         }
         return;
       }
@@ -33,20 +44,26 @@ class AppReview {
 
   /// Call directly when the user taps "Rate / Review" in settings.
   static Future<void> requestFromUser() async {
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       await _openStoreListingIfPossible();
       return;
     }
     await _requestNativeReview();
   }
 
-  static Future<void> _showPlayStorePrompt(BuildContext context) async {
+  static Future<void> _showStorePrompt(
+    BuildContext context, {
+    required bool isIos,
+  }) async {
     final openStore = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Enjoying the Quran app?'),
-        content: const Text(
-          'Would you like to rate it on Google Play? It only takes a moment.',
+        content: Text(
+          'Would you like to rate it on ${isIos ? 'the App Store' : 'Google Play'}? '
+          'It only takes a moment.',
         ),
         actions: [
           TextButton(
@@ -56,7 +73,7 @@ class AppReview {
           FilledButton.icon(
             onPressed: () => Navigator.pop(context, true),
             icon: const Icon(Icons.star_rounded),
-            label: const Text('Rate on Play Store'),
+            label: Text(isIos ? 'Rate on App Store' : 'Rate on Play Store'),
           ),
         ],
       ),
@@ -81,13 +98,11 @@ class AppReview {
 
   static Future<void> _openStoreListingIfPossible() async {
     try {
-      if (!kIsWeb &&
-          defaultTargetPlatform == TargetPlatform.iOS &&
-          _iosAppStoreId == null) {
-        debugPrint(
-          '[REVIEW] Add the App Store numeric ID before using iOS store fallback.',
-        );
-        return;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        debugPrint('[REVIEW] Opening $androidPlayStoreUrl');
+      }
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        debugPrint('[REVIEW] Opening $iosAppStoreUrl');
       }
 
       await _review.openStoreListing(appStoreId: _iosAppStoreId);

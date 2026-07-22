@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
 import 'package:mushaf_two_page/utils/page_mapper.dart';
+import 'package:mushaf_two_page/utils/app_review.dart';
 import 'package:mushaf_two_page/utils/surah_mapper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,6 +29,17 @@ void main() {
 
     await StorageManager.saveAyahHighlightingEnabled(true);
     expect(await StorageManager.getAyahHighlightingEnabled(), true);
+  });
+
+  test('review links target the published store listings', () {
+    expect(
+      AppReview.androidPlayStoreUrl,
+      'https://play.google.com/store/apps/details?id=com.quran.quran_double_page',
+    );
+    expect(
+      AppReview.iosAppStoreUrl,
+      'https://apps.apple.com/gb/app/quran-dual-page/id6757914006',
+    );
   });
 
   test(
