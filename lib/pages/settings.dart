@@ -14,6 +14,7 @@ class Settings extends StatefulWidget {
 class _SettingsState extends State<Settings> {
   bool isDarkMode = false;
   bool isAppDarkMode = false;
+  bool ayahHighlightingEnabled = true;
   String selectedMushaf = 'indopak_tajweed';
   bool _loaded = false;
 
@@ -27,11 +28,13 @@ class _SettingsState extends State<Settings> {
     final dark = await StorageManager.getDarkMode();
     final appDark = await StorageManager.getAppDarkMode();
     final mushaf = await StorageManager.getMushaf();
+    final ayahHighlighting = await StorageManager.getAyahHighlightingEnabled();
 
     setState(() {
       isDarkMode = dark;
       isAppDarkMode = appDark;
       selectedMushaf = mushaf;
+      ayahHighlightingEnabled = ayahHighlighting;
       _loaded = true;
     });
   }
@@ -44,6 +47,11 @@ class _SettingsState extends State<Settings> {
   Future<void> _updateAppDarkMode(bool value) async {
     await StorageManager.saveAppDarkMode(value);
     setState(() => isAppDarkMode = value);
+  }
+
+  Future<void> _updateAyahHighlighting(bool value) async {
+    await StorageManager.saveAyahHighlightingEnabled(value);
+    setState(() => ayahHighlightingEnabled = value);
   }
 
   Future<void> _updateMushaf(String mushaf) async {
@@ -517,6 +525,19 @@ class _SettingsState extends State<Settings> {
                 isDarkMode,
                 palette,
                 _updateDarkMode,
+              ),
+              palette,
+            ),
+
+            _sectionTitle('QURAN READER', textPrimary),
+
+            _settingsCard(
+              _buildSwitch(
+                'Ayah highlighting',
+                ayahHighlightingEnabled,
+                palette,
+                _updateAyahHighlighting,
+                icon: Icons.highlight_alt_rounded,
               ),
               palette,
             ),

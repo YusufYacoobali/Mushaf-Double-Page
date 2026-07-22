@@ -134,6 +134,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   bool _ready = false;
   bool _hasPageController = false;
   bool _isPortrait = true;
+  bool _ayahHighlightingEnabled = true;
 
   double _pageScalePortrait = 0.8;
   double _pageScaleLandscape = 0.7; // slightly smaller to fit side-by-side
@@ -170,6 +171,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
     _pageScalePortrait = await StorageManager.getPageScalePortrait();
     _pageScaleLandscape = await StorageManager.getPageScaleLandscape();
+    _ayahHighlightingEnabled =
+        await StorageManager.getAyahHighlightingEnabled();
 
     _logicalPage = await StorageManager.getCurrentPage();
 
@@ -300,7 +303,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   /// Highlight rectangles for the page if it holds the selected ayah.
   List<Rect> _highlightFor(int logicalPage) {
-    if (_selPage != null && AyahRectIndex.supportsMushaf(_mushaf)) {
+    if (_ayahHighlightingEnabled &&
+        _selPage != null &&
+        AyahRectIndex.supportsMushaf(_mushaf)) {
       return AyahRectIndex.rectsFor(
         logicalPage,
         _selSurah,
@@ -312,6 +317,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   }
 
   void _highlightAyah(int page, int surah, int ayah) {
+    if (!_ayahHighlightingEnabled) return;
     _hideScrollbarTimer?.cancel();
     setState(() {
       _selPage = page;
@@ -326,7 +332,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   /// A tap on either page layout selects the ayah under the finger; a tap away
   /// from Quran text clears the selection or toggles the reader toolbar.
   void _onPageTap(int page, double nx, double ny) {
-    if (AyahRectIndex.supportsMushaf(_mushaf)) {
+    if (_ayahHighlightingEnabled && AyahRectIndex.supportsMushaf(_mushaf)) {
       final hit = AyahRectIndex.hitTest(page, nx, ny, mushaf: _mushaf);
       if (hit != null) {
         _highlightAyah(page, hit.surah, hit.ayah);
@@ -972,6 +978,20 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                                         if (!context.mounted) return;
 
                                         await MyApp.of(context)?.reloadTheme();
+
+                                        final ayahHighlighting =
+                                            await StorageManager.getAyahHighlightingEnabled();
+                                        if (!context.mounted) return;
+                                        if (!ayahHighlighting) {
+                                          _dismissAyahQuickActions();
+                                        }
+                                        setState(() {
+                                          _ayahHighlightingEnabled =
+                                              ayahHighlighting;
+                                          if (!ayahHighlighting) {
+                                            _selPage = null;
+                                          }
+                                        });
 
                                         final mushaf =
                                             await StorageManager.getMushaf();

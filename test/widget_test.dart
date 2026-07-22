@@ -20,6 +20,16 @@ void main() {
     expect(await StorageManager.getPageScaleLandscape(), 0.9);
   });
 
+  test('ayah highlighting is enabled by default and persists', () async {
+    expect(await StorageManager.getAyahHighlightingEnabled(), true);
+
+    await StorageManager.saveAyahHighlightingEnabled(false);
+    expect(await StorageManager.getAyahHighlightingEnabled(), false);
+
+    await StorageManager.saveAyahHighlightingEnabled(true);
+    expect(await StorageManager.getAyahHighlightingEnabled(), true);
+  });
+
   test(
     'removing the final bookmark clears only the active mushaf bookmarks',
     () async {
