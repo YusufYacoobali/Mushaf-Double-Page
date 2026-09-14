@@ -13,6 +13,7 @@ class ReaderDock extends StatelessWidget {
     required this.zoom,
     required this.actions,
     this.ayahActions,
+    this.audioControls,
   });
   final bool portrait;
   final bool expanded;
@@ -21,6 +22,9 @@ class ReaderDock extends StatelessWidget {
   final Widget zoom;
   final List<Widget> actions;
   final Widget? ayahActions;
+  final Widget? audioControls;
+  Widget? get _separateAyahActions =>
+      audioControls == null ? ayahActions : null;
 
   Widget _action(Widget child, int index, double reveal) {
     final t = Interval(
@@ -51,16 +55,27 @@ class ReaderDock extends StatelessWidget {
         duration: AppMotion.duration(context, expanded),
         curve: AppMotion.curve,
         builder: (context, reveal, _) => TweenAnimationBuilder<double>(
-          tween: Tween(end: ayahActions == null ? 0 : 44),
-          duration: AppMotion.duration(context, ayahActions != null),
+          tween: Tween(end: _separateAyahActions == null ? 0 : 44),
+          duration: AppMotion.duration(context, _separateAyahActions != null),
           curve: AppMotion.curve,
-          builder: (context, extra, _) => _contents(context, reveal, extra),
+          builder: (context, extra, _) => TweenAnimationBuilder<double>(
+            tween: Tween(end: audioControls == null ? 0 : (portrait ? 50 : 58)),
+            duration: AppMotion.duration(context, audioControls != null),
+            curve: AppMotion.curve,
+            builder: (context, audioExtra, _) =>
+                _contents(context, reveal, extra, audioExtra),
+          ),
         ),
       ),
     ),
   );
 
-  Widget _contents(BuildContext context, double reveal, double extra) {
+  Widget _contents(
+    BuildContext context,
+    double reveal,
+    double extra,
+    double audioExtra,
+  ) {
     final decoration = BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
@@ -68,7 +83,6 @@ class ReaderDock extends StatelessWidget {
         colors: [palette.surfaceRaised, palette.readerBar],
       ),
       borderRadius: BorderRadius.circular(portrait ? 28 : 23),
-      border: Border.all(color: palette.border),
       boxShadow: [
         BoxShadow(
           color: palette.shadow,
@@ -80,7 +94,7 @@ class ReaderDock extends StatelessWidget {
     final ayahPanel = MotionSwitcher(
       alignment: portrait ? Alignment.bottomCenter : Alignment.centerRight,
       offset: portrait ? const Offset(0, .15) : const Offset(.15, 0),
-      child: ayahActions == null
+      child: _separateAyahActions == null
           ? const SizedBox.shrink(key: ValueKey('no-ayah'))
           : Material(
               key: const ValueKey('ayah'),
@@ -89,7 +103,7 @@ class ReaderDock extends StatelessWidget {
                 borderRadius: BorderRadius.circular(19),
                 side: BorderSide(color: palette.border),
               ),
-              child: ayahActions,
+              child: _separateAyahActions,
             ),
     );
     final tab = NavigationPullTab(
@@ -106,46 +120,126 @@ class ReaderDock extends StatelessWidget {
         child: Opacity(opacity: reveal, child: child),
       ),
     );
-    final panel = Container(
-      key: const ValueKey('reader-navigation-panel'),
-      height: portrait ? 56 : null,
-      width: portrait ? null : 52,
-      decoration: decoration,
-      padding: portrait ? const EdgeInsets.all(6) : EdgeInsets.zero,
-      child: portrait
-          ? Row(
-              children: [
-                zoom,
-                Container(
-                  width: 1,
-                  height: 24,
-                  margin: const EdgeInsets.symmetric(horizontal: 5),
-                  color: palette.border,
-                ),
-                for (var i = 0; i < actions.length; i++)
-                  Expanded(child: _action(actions[i], i, reveal)),
-              ],
-            )
-          : ClipRRect(
-              borderRadius: BorderRadius.circular(23),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < actions.length; i++)
-                      _action(actions[i], i, reveal),
-                    Divider(
-                      height: 12,
-                      indent: 12,
-                      endIndent: 12,
-                      color: palette.border,
-                    ),
-                    zoom,
-                  ],
-                ),
+    final navigation = portrait
+        ? SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Row(
+                children: [
+                  zoom,
+                  Container(
+                    width: 1,
+                    height: 24,
+                    margin: const EdgeInsets.symmetric(horizontal: 5),
+                    color: palette.border,
+                  ),
+                  for (var i = 0; i < actions.length; i++)
+                    Expanded(child: _action(actions[i], i, reveal)),
+                ],
               ),
             ),
+          )
+        : SizedBox(
+            width: 52,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < actions.length; i++)
+                    _action(actions[i], i, reveal),
+                  Divider(
+                    height: 12,
+                    indent: 12,
+                    endIndent: 12,
+                    color: palette.border,
+                  ),
+                  zoom,
+                ],
+              ),
+            ),
+          );
+    final audio = MotionSwitcher(
+      child: audioControls == null
+          ? const SizedBox.shrink(key: ValueKey('no-dock-audio'))
+          : KeyedSubtree(
+              key: const ValueKey('dock-audio'),
+              child: audioControls!,
+            ),
+    );
+    final panel = Container(
+      key: const ValueKey('reader-navigation-panel'),
+      height: portrait ? 56 + audioExtra : null,
+      width: portrait ? null : 52 + audioExtra,
+      decoration: decoration,
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(portrait ? 28 : 23),
+        border: Border.all(color: palette.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(portrait ? 28 : 23),
+        child: portrait
+            ? Column(
+                children: [
+                  ClipRect(
+                    child: SizedBox(
+                      height: audioExtra,
+                      child: OverflowBox(
+                        alignment: Alignment.bottomCenter,
+                        minHeight: 50,
+                        maxHeight: 50,
+                        child: Column(
+                          children: [
+                            Expanded(child: audio),
+                            Divider(
+                              height: 1,
+                              thickness: 1,
+                              indent: 14,
+                              endIndent: 14,
+                              color: palette.border,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  navigation,
+                ],
+              )
+            : Row(
+                children: [
+                  ClipRect(
+                    child: SizedBox(
+                      width: audioExtra,
+                      child: OverflowBox(
+                        alignment: Alignment.centerRight,
+                        minWidth: 58,
+                        maxWidth: 58,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 52,
+                              child: Center(
+                                child: SingleChildScrollView(child: audio),
+                              ),
+                            ),
+                            VerticalDivider(
+                              width: 6,
+                              thickness: 1,
+                              indent: 14,
+                              endIndent: 14,
+                              color: palette.border,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  navigation,
+                ],
+              ),
+      ),
     );
     if (portrait) {
       return Center(
@@ -153,7 +247,7 @@ class ReaderDock extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 680),
           child: SizedBox(
             width: double.infinity,
-            height: 24 + (54 + extra) * reveal,
+            height: 24 + (54 + extra + audioExtra) * reveal,
             child: Stack(
               alignment: Alignment.topCenter,
               clipBehavior: Clip.none,
@@ -168,7 +262,7 @@ class ReaderDock extends StatelessWidget {
                   Positioned(
                     left: 0,
                     right: 0,
-                    top: 84,
+                    top: 84 + audioExtra,
                     child: fading(ayahPanel),
                   ),
                 ],
@@ -180,7 +274,7 @@ class ReaderDock extends StatelessWidget {
       );
     }
     return SizedBox(
-      width: 22 + (50 + extra) * reveal,
+      width: 22 + (50 + extra + audioExtra) * reveal,
       child: Stack(
         alignment: Alignment.centerLeft,
         clipBehavior: Clip.none,
@@ -193,7 +287,7 @@ class ReaderDock extends StatelessWidget {
               child: fading(panel),
             ),
             Positioned(
-              left: 78,
+              left: 78 + audioExtra,
               width: 38,
               top: 0,
               bottom: 0,

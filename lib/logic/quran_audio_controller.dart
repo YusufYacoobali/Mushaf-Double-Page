@@ -8,6 +8,9 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import '../progress/journey_store.dart';
+import '../progress/journey_tracking.dart';
+import '../progress/reading_progress_store.dart';
 
 enum QuranAudioErrorKind { none, connectionRequired, playback }
 
@@ -43,14 +46,27 @@ class AudioDownloadState {
 class QuranAudioController extends ChangeNotifier {
   QuranAudioController._({
     AudioPlayer? player,
+    bool trackJourney = true,
     Future<List<AudioSource>> Function(AudioPlaybackPlan)? prepareSources,
   }) : _player = player ?? AudioPlayer(maxSkipsOnError: 0),
        _sourcePreparer = prepareSources {
+    if (trackJourney) {
+      _listeningTracker = ListeningTracker(
+        onListen: (verse) {
+          unawaited(JourneyStore.recordListen(verse));
+          unawaited(ReadingProgressStore.recordReadingActivity());
+        },
+        onSeconds: (seconds) =>
+            unawaited(JourneyStore.recordTime(listening: seconds)),
+      );
+      _player.positionStream.listen((_) => _trackListening());
+    }
     _player.currentIndexStream.listen((index) {
       _handleCurrentIndex(index);
       notifyListeners();
     });
     _player.playerStateStream.listen((state) {
+      _trackListening();
       if (state.processingState == ProcessingState.completed) {
         _downloadState = const AudioDownloadState.idle();
         _handleCompletedPlayback();
@@ -72,7 +88,28 @@ class QuranAudioController extends ChangeNotifier {
     required AudioPlayer player,
     required Future<List<AudioSource>> Function(AudioPlaybackPlan)
     prepareSources,
-  }) => QuranAudioController._(player: player, prepareSources: prepareSources);
+  }) => QuranAudioController._(
+    player: player,
+    prepareSources: prepareSources,
+    trackJourney: false,
+  );
+
+  ListeningTracker? _listeningTracker;
+  void _trackListening() {
+    final tracker = _listeningTracker;
+    if (tracker == null) return;
+    final surah = currentSurah;
+    final ayah = currentAyah;
+    if (surah == null || ayah == null || _preparing) return;
+    tracker.sample(
+      occurrence: '$_playRequestId:${_player.currentIndex}',
+      verse: '$surah:$ayah',
+      position: _player.position,
+      duration: _player.duration,
+      playing:
+          _player.playing && _player.processingState == ProcessingState.ready,
+    );
+  }
 
   final AudioPlayer _player;
   final Future<List<AudioSource>> Function(AudioPlaybackPlan)? _sourcePreparer;
@@ -123,6 +160,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> playPlan(AudioPlaybackPlan plan) async {
+    _listeningTracker?.reset();
     final requestId = ++_playRequestId;
     _downloadCancelToken?.cancel('Replaced by another audio request');
     final cancelToken = CancelToken();
@@ -291,6 +329,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    _listeningTracker?.reset();
     ++_playRequestId;
     _downloadCancelToken?.cancel('Playback stopped');
     _downloadCancelToken = null;

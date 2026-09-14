@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/ayah_action_bar.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
+import 'package:mushaf_two_page/components/reader_audio_controls.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 
@@ -18,6 +19,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         var expanded = true;
         var selected = true;
+        var hasAudio = true;
         var swipes = 0;
         late StateSetter update;
         const palette = AppPalette.emerald;
@@ -37,6 +39,20 @@ void main() {
                         ),
                       ),
                       ReaderDock(
+                        audioControls: hasAudio
+                            ? ReaderAudioControls(
+                                portrait: portrait,
+                                palette: palette,
+                                title: 'Al-Baqarah:7',
+                                reference: '2:7',
+                                subtitle: 'Reciter · 2/10',
+                                playing: true,
+                                onPrevious: () {},
+                                onPlayPause: () {},
+                                onNext: () {},
+                                onSettings: () {},
+                              )
+                            : null,
                         portrait: portrait,
                         expanded: expanded,
                         onToggle: () => refresh(() => expanded = !expanded),
@@ -83,6 +99,7 @@ void main() {
         update(() {
           selected = false;
           expanded = false;
+          hasAudio = false;
         });
         await tester.pumpAndSettle();
         expect(find.byType(AyahActionBar), findsNothing);
@@ -90,13 +107,24 @@ void main() {
         await tester.tap(find.byTooltip('Open navigation'));
         await tester.pumpAndSettle();
         expect(find.byTooltip('Destination'), findsOneWidget);
-        update(() => selected = true);
+        expect(find.byType(ReaderAudioControls), findsNothing);
+        update(() {
+          selected = true;
+          hasAudio = true;
+        });
+        await tester.pumpAndSettle();
+        expect(find.byType(ReaderAudioControls), findsOneWidget);
+        expect(find.byType(AyahActionBar), findsNothing);
+        update(() => hasAudio = false);
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('Clear ayah selection'));
         await tester.pump();
         expect(find.byType(AyahActionBar), findsOneWidget);
         await tester.pumpAndSettle();
         expect(find.byType(AyahActionBar), findsNothing);
+        update(() => hasAudio = false);
+        await tester.pumpAndSettle();
+        expect(find.byType(ReaderAudioControls), findsNothing);
         expect(tester.takeException(), isNull);
         expect(tester.binding.transientCallbackCount, 0);
       },

@@ -464,14 +464,14 @@ class _SettingsState extends State<Settings> {
 
             const SizedBox(height: 24),
 
-            _sectionTitle('PRACTICE', textPrimary),
+            _sectionTitle('YOUR JOURNEY', textPrimary),
 
             _settingsCard(
               _navTile(
                 palette: palette,
-                icon: Icons.local_fire_department_rounded,
-                title: 'Your daily practice',
-                subtitle: 'Make a little room for the Quran, every day.',
+                icon: Icons.auto_graph_rounded,
+                title: 'Your Quran Journey',
+                subtitle: 'Your reading, listening and reflection, all in one place.',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProgressPage()),

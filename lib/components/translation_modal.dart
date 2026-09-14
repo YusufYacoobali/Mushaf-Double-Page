@@ -1,3 +1,4 @@
+import '../progress/journey_tracking.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -90,6 +91,7 @@ class _TranslationModalState extends State<TranslationModal> {
   final Set<String> _bookmarkedAyahs = {}; // 'surah:ayah' keys
   final _scrollController = ScrollController();
   final _focusedAyahKey = GlobalKey();
+  final _translationsSeen = <String>{};
 
   // Page mode (Indo-Pak): show exactly the ayahs printed on the current view.
   // The view is one page in portrait, or a two-page spread in landscape, with
@@ -1489,16 +1491,21 @@ class _TranslationModalState extends State<TranslationModal> {
                                                 ],
                                               ),
                                             ),
-                                            if (!srcCollapsed) ...[
+                                            if (!srcCollapsed &&
+                                                text.trim().isNotEmpty) ...[
                                               const SizedBox(height: 4),
-                                              SelectableText(
-                                                text,
-                                                style: TextStyle(
-                                                  fontSize:
-                                                      _fontSizeMap[_fontSize]!
-                                                          .trans,
-                                                  height: 1.45,
-                                                  color: palette.surfaceText,
+                                              TranslationExposure(
+                                                verse: '$surahNum:$ayahNumber',
+                                                seen: _translationsSeen,
+                                                child: SelectableText(
+                                                  text,
+                                                  style: TextStyle(
+                                                    fontSize:
+                                                        _fontSizeMap[_fontSize]!
+                                                            .trans,
+                                                    height: 1.45,
+                                                    color: palette.surfaceText,
+                                                  ),
                                                 ),
                                               ),
                                             ],
