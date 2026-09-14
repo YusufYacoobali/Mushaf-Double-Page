@@ -86,11 +86,13 @@ void main() {
           await tester.pumpAndSettle();
           final collapsed = tester.getRect(find.byType(NavigationPullTab));
           if (portrait) {
-            expect(size.height - collapsed.bottom, closeTo(4, .01));
+            expect(size.height - collapsed.bottom, closeTo(8, .01));
           } else {
             expect(size.width - collapsed.right, closeTo(4, .01));
-            // The collapsed tab avoids the middle of the side where a notch can sit.
-            expect(collapsed.top, greaterThan(size.height * .7));
+            expect(
+              collapsed.center.dy,
+              closeTo((12 + size.height - insets.bottom) / 2, .01),
+            );
             expect(
               collapsed.bottom,
               lessThanOrEqualTo(size.height - insets.bottom),
@@ -116,6 +118,10 @@ void main() {
             );
           } else {
             expect(size.width - outerPanel.right, closeTo(insets.right, .01));
+            expect(
+              tester.getCenter(find.byType(NavigationPullTab)).dy,
+              closeTo(collapsed.center.dy, .01),
+            );
           }
           await tester.tap(find.byTooltip('Reader settings'));
           expect(navTaps, 1);

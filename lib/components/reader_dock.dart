@@ -56,7 +56,7 @@ class ReaderDock extends StatelessWidget {
             : 4 + (expandedRight - 4) * reveal,
         top: portrait ? null : math.max(12.0, safe.top),
         bottom: portrait
-            ? 4 + (expandedBottom - 4) * reveal
+            ? 8 + (expandedBottom - 8) * reveal
             : math.max(12.0, safe.bottom),
         child: TweenAnimationBuilder<double>(
           tween: Tween(end: contextControls == null ? 0 : (portrait ? 56 : 58)),
@@ -209,11 +209,7 @@ class ReaderDock extends StatelessWidget {
     return SizedBox(
       width: 22 + (50 + extra) * reveal,
       child: Stack(
-        // A collapsed tab at the middle of a notched iPhone's side can be
-        // obscured. The lower edge stays reachable in either landscape rotation.
-        alignment: MediaQuery.paddingOf(context).right > 0
-            ? Alignment.bottomLeft
-            : Alignment.centerLeft,
+        alignment: Alignment.centerLeft,
         clipBehavior: Clip.none,
         children: [
           if (reveal > 0) ...[

@@ -185,11 +185,12 @@ opens both navigation and the shared ayah/audio bar; existing timed hiding remai
 ## iPhone dock edge placement
 
 Removed the outer SafeArea that added iPhone insets to the dock's existing margins.
-The collapsed tab now sits 4 logical pixels from the physical bottom/right edge.
+The collapsed tab now sits 8 logical pixels from the bottom edge in portrait
+and 4 logical pixels from the right edge in landscape.
 As controls expand, clearance interpolates to the greater of the required safe
 inset and the small dock margin, rather than their sum. Expanded buttons remain
-inside the safe region. On devices with a right-side inset, the landscape tab
-uses the lower edge to avoid the potential notch area while collapsed.
+inside the safe region. The landscape tab stays vertically centred on the dock,
+both collapsed and expanded, including on devices with a right-side inset.
 
 Four regression cases simulate iPhone portrait/landscape insets, with and without
 the context bar. They verify edge distance, expanded safe clearance, tab/button
