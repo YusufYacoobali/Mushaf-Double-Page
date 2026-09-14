@@ -41,7 +41,11 @@ class AudioDownloadState {
 }
 
 class QuranAudioController extends ChangeNotifier {
-  QuranAudioController._() {
+  QuranAudioController._({
+    AudioPlayer? player,
+    Future<List<AudioSource>> Function(AudioPlaybackPlan)? prepareSources,
+  }) : _player = player ?? AudioPlayer(maxSkipsOnError: 0),
+       _sourcePreparer = prepareSources {
     _player.currentIndexStream.listen((index) {
       _handleCurrentIndex(index);
       notifyListeners();
@@ -55,13 +59,6 @@ class QuranAudioController extends ChangeNotifier {
     });
     _player.errorStream.listen((error) {
       debugPrint('[AUDIO] Playback source error: $error');
-      if (_plan?.infiniteRepeat == true) {
-        _error = null;
-        _errorKind = QuranAudioErrorKind.none;
-        notifyListeners();
-        return;
-      }
-
       _errorKind = QuranAudioErrorKind.playback;
       _error = 'Audio playback failed. Please try again.';
       notifyListeners();
@@ -70,7 +67,15 @@ class QuranAudioController extends ChangeNotifier {
 
   static final QuranAudioController instance = QuranAudioController._();
 
-  final AudioPlayer _player = AudioPlayer(maxSkipsOnError: 25);
+  @visibleForTesting
+  factory QuranAudioController.forTesting({
+    required AudioPlayer player,
+    required Future<List<AudioSource>> Function(AudioPlaybackPlan)
+    prepareSources,
+  }) => QuranAudioController._(player: player, prepareSources: prepareSources);
+
+  final AudioPlayer _player;
+  final Future<List<AudioSource>> Function(AudioPlaybackPlan)? _sourcePreparer;
   final Dio _dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 20),
@@ -90,6 +95,7 @@ class QuranAudioController extends ChangeNotifier {
   int _playRequestId = 0;
   CancelToken? _downloadCancelToken;
   Uri? _artworkUri;
+  Directory? _audioDirectory;
 
   AudioPlayer get player => _player;
   AudioPlaybackPlan? get plan => _plan;
@@ -130,13 +136,16 @@ class QuranAudioController extends ChangeNotifier {
     _rangeCycle = 1;
     _lastIndex = null;
     _advancingRangeRepeat = false;
+    _restartingInfinite = false;
     notifyListeners();
 
     try {
       await _player.stop();
       _throwIfStale(requestId);
 
-      final localSources = await _prepareSources(plan, requestId, cancelToken);
+      final localSources =
+          await (_sourcePreparer?.call(plan) ??
+              _prepareSources(plan, requestId, cancelToken));
       _throwIfStale(requestId);
 
       await _player.setAudioSources(localSources);
@@ -147,7 +156,7 @@ class QuranAudioController extends ChangeNotifier {
       );
       _throwIfStale(requestId);
 
-      await _player.play();
+      _startPlayback(requestId);
     } on DioException catch (e) {
       if (!_isCurrentRequest(requestId) || CancelToken.isCancel(e)) return;
       _errorKind = QuranAudioErrorKind.connectionRequired;
@@ -171,6 +180,19 @@ class QuranAudioController extends ChangeNotifier {
     }
   }
 
+  // AudioPlayer.play completes when playback ends, not when it starts.
+  // Never await it while holding the preparation or repeat guard.
+  void _startPlayback(int requestId) {
+    unawaited(
+      _player.play().catchError((Object error) {
+        if (!_isCurrentRequest(requestId)) return;
+        _errorKind = QuranAudioErrorKind.playback;
+        _error = 'Audio playback failed. Please try again.';
+        notifyListeners();
+      }),
+    );
+  }
+
   void clearError() {
     _error = null;
     _errorKind = QuranAudioErrorKind.none;
@@ -192,7 +214,7 @@ class QuranAudioController extends ChangeNotifier {
 
   void _handleCompletedPlayback() {
     final plan = _plan;
-    if (plan == null) return;
+    if (plan == null || _preparing) return;
 
     if (plan.repeatMode == AudioRepeatMode.range &&
         !plan.infiniteRepeat &&
@@ -209,6 +231,7 @@ class QuranAudioController extends ChangeNotifier {
   Future<void> _advanceFiniteRangeRepeat() async {
     if (_advancingRangeRepeat) return;
     _advancingRangeRepeat = true;
+    final requestId = _playRequestId;
 
     try {
       final plan = _plan;
@@ -222,13 +245,13 @@ class QuranAudioController extends ChangeNotifier {
       _rangeCycle++;
       _lastIndex = null;
       await _player.seek(Duration.zero, index: 0);
-      if (_plan == plan && !_player.playing) {
-        await _player.play();
+      if (_isCurrentRequest(requestId) && _plan == plan) {
+        _startPlayback(requestId);
       }
     } catch (e) {
       debugPrint('[AUDIO] Range repeat advance failed: $e');
     } finally {
-      _advancingRangeRepeat = false;
+      if (_isCurrentRequest(requestId)) _advancingRangeRepeat = false;
       notifyListeners();
     }
   }
@@ -236,19 +259,20 @@ class QuranAudioController extends ChangeNotifier {
   Future<void> _restartInfinitePlayback() async {
     if (_restartingInfinite) return;
     _restartingInfinite = true;
+    final requestId = _playRequestId;
 
     try {
       final plan = _plan;
       if (plan == null || !plan.infiniteRepeat) return;
 
       await _player.seek(Duration.zero, index: 0);
-      if (_plan == plan && !_player.playing) {
-        await _player.play();
+      if (_isCurrentRequest(requestId) && _plan == plan) {
+        _startPlayback(requestId);
       }
     } catch (e) {
       debugPrint('[AUDIO] Infinite repeat restart failed: $e');
     } finally {
-      _restartingInfinite = false;
+      if (_isCurrentRequest(requestId)) _restartingInfinite = false;
       notifyListeners();
     }
   }
@@ -260,12 +284,19 @@ class QuranAudioController extends ChangeNotifier {
     }
 
     if (_player.processingState == ProcessingState.completed) {
+      _rangeCycle = 1;
       await _player.seek(Duration.zero, index: 0);
     }
-    await _player.play();
+    _startPlayback(_playRequestId);
   }
 
   Future<void> stop() async {
+    ++_playRequestId;
+    _downloadCancelToken?.cancel('Playback stopped');
+    _downloadCancelToken = null;
+    _preparing = false;
+    _advancingRangeRepeat = false;
+    _restartingInfinite = false;
     await _player.stop();
     _downloadState = const AudioDownloadState.idle();
     notifyListeners();
@@ -298,7 +329,6 @@ class QuranAudioController extends ChangeNotifier {
   ) async {
     await _ensureCached(plan, requestId, cancelToken);
     _throwIfStale(requestId);
-    _backgroundCacheSurah(plan, cancelToken);
     final artworkUri = await _audioArtworkUri();
     return [
       for (final verse in _playbackVersesForPlayer(plan))
@@ -306,11 +336,13 @@ class QuranAudioController extends ChangeNotifier {
           await _pathFor(plan.reciter, verse.surah, verse.ayah),
           tag: MediaItem(
             id: '${plan.reciter.id}-${verse.surah}-${verse.ayah}-${verse.cycle}',
-            album: plan.surahInfo.name,
+            album: plan.sourceMode == AudioSourceMode.playlist
+                ? 'Your surah queue'
+                : plan.surahInfo.name,
             artist: plan.reciter.name,
             artUri: artworkUri,
             title:
-                '${plan.surahInfo.name} ${verse.surah}:${verse.ayah}'
+                '${quranSurahs[verse.surah - 1].name} ${verse.surah}:${verse.ayah}'
                 ' (${verse.cycle}/${plan.repeatLabel})',
             extras: {
               'surah': verse.surah,
@@ -352,25 +384,6 @@ class QuranAudioController extends ChangeNotifier {
       debugPrint('[AUDIO] Could not prepare lock screen artwork: $e');
       return null;
     }
-  }
-
-  void _backgroundCacheSurah(AudioPlaybackPlan plan, CancelToken cancelToken) {
-    final played = {
-      for (var a = plan.effectiveFromAyah; a <= plan.effectiveToAyah; a++) a,
-    };
-    () async {
-      for (var ayah = 1; ayah <= plan.ayahCount; ayah++) {
-        if (cancelToken.isCancelled) return;
-        if (played.contains(ayah)) continue;
-        try {
-          final file = File(await _pathFor(plan.reciter, plan.surah, ayah));
-          if (await file.exists() && await file.length() > 0) continue;
-          await _downloadVerse(plan.reciter, plan.surah, ayah, cancelToken);
-        } catch (_) {
-          return;
-        }
-      }
-    }();
   }
 
   Future<void> _ensureCached(
@@ -420,7 +433,7 @@ class QuranAudioController extends ChangeNotifier {
     final file = File(path);
     await file.parent.create(recursive: true);
 
-    final tempPath = '$path.part';
+    final tempPath = '$path.${identityHashCode(cancelToken)}.part';
     final tempFile = File(tempPath);
     if (await tempFile.exists()) {
       await tempFile.delete();
@@ -453,7 +466,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<String> _pathFor(Reciter reciter, int surah, int ayah) async {
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = _audioDirectory ??= await getApplicationDocumentsDirectory();
     return '${dir.path}/audio/${reciter.id}/${audioId(surah, ayah)}.mp3';
   }
 }

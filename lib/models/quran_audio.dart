@@ -2,7 +2,7 @@ import 'package:mushaf_two_page/utils/surah_mapper.dart';
 
 enum AudioRepeatMode { range, ayah }
 
-enum AudioSourceMode { range, surah }
+enum AudioSourceMode { range, surah, playlist }
 
 class Reciter {
   final String id;
@@ -38,6 +38,7 @@ class AudioPlaybackPlan {
   final int? repeatCount;
   final AudioRepeatMode repeatMode;
   final AudioSourceMode sourceMode;
+  final List<int> surahQueue;
 
   const AudioPlaybackPlan({
     required this.reciter,
@@ -47,6 +48,7 @@ class AudioPlaybackPlan {
     required this.repeatCount,
     required this.repeatMode,
     required this.sourceMode,
+    this.surahQueue = const [],
   });
 
   SurahRange get surahInfo => quranSurahs[surah - 1];
@@ -55,12 +57,20 @@ class AudioPlaybackPlan {
       sourceMode == AudioSourceMode.surah ? 1 : fromAyah;
   int get effectiveToAyah =>
       sourceMode == AudioSourceMode.surah ? ayahCount : toAyah;
-  int get uniqueAyahCount => effectiveToAyah - effectiveFromAyah + 1;
+  List<int> get effectiveSurahs => sourceMode == AudioSourceMode.playlist
+      ? (surahQueue.isEmpty ? [surah] : surahQueue)
+      : [surah];
+  int get uniqueAyahCount => sourceMode == AudioSourceMode.playlist
+      ? effectiveSurahs.fold(0, (count, s) => count + quranAyahCounts[s - 1])
+      : effectiveToAyah - effectiveFromAyah + 1;
   bool get infiniteRepeat => repeatCount == null;
   int get visibleRepeatCount => repeatCount ?? 1;
   int get totalPlaybackItems => uniqueAyahCount * visibleRepeatCount;
-  String get rangeLabel =>
-      sourceMode == AudioSourceMode.surah ? 'Full surah' : '$fromAyah-$toAyah';
+  String get rangeLabel => switch (sourceMode) {
+    AudioSourceMode.surah => 'Full surah',
+    AudioSourceMode.playlist => '${effectiveSurahs.length} surahs',
+    AudioSourceMode.range => '$fromAyah-$toAyah',
+  };
   String get repeatLabel => infiniteRepeat ? '\u221e' : '${repeatCount}x';
 
   bool matches(AudioPlaybackPlan? other) {
@@ -71,10 +81,18 @@ class AudioPlaybackPlan {
         other.effectiveToAyah == effectiveToAyah &&
         other.repeatCount == repeatCount &&
         other.repeatMode == repeatMode &&
-        other.sourceMode == sourceMode;
+        other.sourceMode == sourceMode &&
+        other.effectiveSurahs.join(',') == effectiveSurahs.join(',');
   }
 
   List<AudioVerse> uniqueVerses() {
+    if (sourceMode == AudioSourceMode.playlist) {
+      return [
+        for (final s in effectiveSurahs)
+          for (var a = 1; a <= quranAyahCounts[s - 1]; a++)
+            AudioVerse(surah: s, ayah: a, cycle: 1),
+      ];
+    }
     return [
       for (var ayah = effectiveFromAyah; ayah <= effectiveToAyah; ayah++)
         AudioVerse(surah: surah, ayah: ayah, cycle: 1),
@@ -86,16 +104,20 @@ class AudioPlaybackPlan {
 
     if (repeatMode == AudioRepeatMode.range) {
       for (var cycle = 1; cycle <= visibleRepeatCount; cycle++) {
-        for (var ayah = effectiveFromAyah; ayah <= effectiveToAyah; ayah++) {
-          verses.add(AudioVerse(surah: surah, ayah: ayah, cycle: cycle));
+        for (final verse in uniqueVerses()) {
+          verses.add(
+            AudioVerse(surah: verse.surah, ayah: verse.ayah, cycle: cycle),
+          );
         }
       }
       return verses;
     }
 
-    for (var ayah = effectiveFromAyah; ayah <= effectiveToAyah; ayah++) {
+    for (final verse in uniqueVerses()) {
       for (var cycle = 1; cycle <= visibleRepeatCount; cycle++) {
-        verses.add(AudioVerse(surah: surah, ayah: ayah, cycle: cycle));
+        verses.add(
+          AudioVerse(surah: verse.surah, ayah: verse.ayah, cycle: cycle),
+        );
       }
     }
 
@@ -154,9 +176,15 @@ const List<Reciter> quranReciters = [
   ),
   Reciter(
     id: 'minshawy',
-    name: 'Mohamed Siddiq Al-Minshawy',
+    name: 'Mohamed Siddiq Al-Minshawy Murattal',
     folder: 'Minshawy_Murattal_128kbps',
     bitrate: '128kbps',
+  ),
+  Reciter(
+    id: 'minshawy_mujawwad',
+    name: 'Mohamed Siddiq Al-Minshawy Mujawwad',
+    folder: 'Minshawy_Mujawwad_192kbps',
+    bitrate: '192kbps',
   ),
   Reciter(
     id: 'hani_rifai',
@@ -193,6 +221,36 @@ const List<Reciter> quranReciters = [
     name: 'Saud Ash-Shuraym',
     folder: 'Saood_ash-Shuraym_128kbps',
     bitrate: '128kbps',
+  ),
+  Reciter(
+    id: 'abdullah_basfar',
+    name: 'Abdullah Basfar',
+    folder: 'Abdullah_Basfar_192kbps',
+    bitrate: '192kbps',
+  ),
+  Reciter(
+    id: 'saad_ghamdi',
+    name: 'Saad Al-Ghamdi',
+    folder: 'Ghamadi_40kbps',
+    bitrate: '40kbps',
+  ),
+  Reciter(
+    id: 'fares_abbad',
+    name: 'Fares Abbad',
+    folder: 'Fares_Abbad_64kbps',
+    bitrate: '64kbps',
+  ),
+  Reciter(
+    id: 'abdullah_juhany',
+    name: 'Abdullah Al-Juhany',
+    folder: 'Abdullaah_3awwaad_Al-Juhaynee_128kbps',
+    bitrate: '128kbps',
+  ),
+  Reciter(
+    id: 'ali_jaber',
+    name: 'Ali Jaber',
+    folder: 'Ali_Jaber_64kbps',
+    bitrate: '64kbps',
   ),
 ];
 

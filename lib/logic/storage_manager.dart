@@ -181,24 +181,34 @@ class StorageManager {
     await prefs.setBool(_ayahHighlightingKey, value);
   }
 
+  static Future<bool> getReaderWhiteBackground() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('reader_white_background') ?? false;
+  }
+
+  static Future<void> saveReaderWhiteBackground(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('reader_white_background', value);
+  }
+
   static Future<void> savePageScalePortrait(double value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_pageScalePortraitKey, value);
+    await prefs.setDouble(_pageScalePortraitKey, value.clamp(0.7, 1.0));
   }
 
   static Future<double> getPageScalePortrait() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getDouble(_pageScalePortraitKey) ?? 0.8; // default
+    return (prefs.getDouble(_pageScalePortraitKey) ?? 0.8).clamp(0.7, 1.0);
   }
 
   static Future<void> savePageScaleLandscape(double value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_pageScaleLandscapeKey, value);
+    await prefs.setDouble(_pageScaleLandscapeKey, value.clamp(0.6, 1.0));
   }
 
   static Future<double> getPageScaleLandscape() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getDouble(_pageScaleLandscapeKey) ?? 0.9; // default
+    return (prefs.getDouble(_pageScaleLandscapeKey) ?? 0.9).clamp(0.6, 1.0);
   }
 
   static Future<void> saveMushaf(String mushaf) async {

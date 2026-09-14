@@ -1,3 +1,4 @@
+import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -31,6 +32,9 @@ import 'package:mushaf_two_page/utils/page_mapper.dart';
 import 'package:mushaf_two_page/pages/loading.dart';
 
 import 'components/nav_bar_icon.dart';
+import 'components/reader_dock.dart';
+import 'components/ayah_action_bar.dart';
+import 'progress/daily_reading_card.dart';
 import 'components/translation_modal.dart';
 import 'firebase_options.dart';
 import 'utils/app_review.dart';
@@ -71,7 +75,6 @@ class MyAppState extends State<MyApp> {
   bool _darkMode = false;
   bool _appDarkMode = false;
   bool _loaded = false;
-  Timer? _reviewPromptTimer;
 
   bool get darkMode => _darkMode;
   bool get appDarkMode => _appDarkMode;
@@ -79,15 +82,13 @@ class MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _reviewPromptTimer = AppReview.schedulePromptAfterOpen(
-      () => _navigatorKey.currentContext,
-    );
+    AppReview.schedulePromptAfterOpen(() => _navigatorKey.currentContext);
     _loadTheme();
   }
 
   @override
   void dispose() {
-    _reviewPromptTimer?.cancel();
+    AppReview.cancelScheduledPrompt();
     super.dispose();
   }
 
@@ -129,7 +130,7 @@ class MyPDFViewer extends StatefulWidget {
   State<MyPDFViewer> createState() => _MyPDFViewerState();
 }
 
-class _MyPDFViewerState extends State<MyPDFViewer> {
+class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   String _mushaf = 'indopak_tajweed';
 
   late Directory _docDir;
@@ -139,6 +140,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   bool _hasPageController = false;
   bool _isPortrait = true;
   bool _ayahHighlightingEnabled = true;
+  bool _readerWhite = false;
+  ReadingProgress? _dailyWelcome;
+  bool _recordingProgress = false;
+  Timer? _welcomeTimer;
 
   double _pageScalePortrait = 0.8;
   double _pageScaleLandscape = 0.7; // slightly smaller to fit side-by-side
@@ -164,6 +169,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    WidgetsBinding.instance.addObserver(this);
+    QuranAudioController.instance.addListener(_audioChanged);
     _init();
   }
 
@@ -172,6 +179,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     _mushaf = await StorageManager.getMushaf();
     await _loadBookmarks();
 
+    _readerWhite = await StorageManager.getReaderWhiteBackground();
     _pageScalePortrait = await StorageManager.getPageScalePortrait();
     _pageScaleLandscape = await StorageManager.getPageScaleLandscape();
     _ayahHighlightingEnabled =
@@ -200,12 +208,20 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 
   @override
   void dispose() {
+    _welcomeTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    QuranAudioController.instance.removeListener(_audioChanged);
     _hideScrollbarTimer?.cancel();
     if (_hasPageController) {
       _pageController.dispose();
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _ready) _recordProgress();
   }
 
   Future<void> _loadBookmarks() async {
@@ -297,12 +313,43 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     StorageManager.saveBookmarks(_bookmarks, mushaf: _mushaf);
   }
 
-  void _recordProgress() {
-    ReadingProgressStore.recordReadingActivity();
+  Future<void> _recordProgress() async {
+    if (_recordingProgress) return;
+    _recordingProgress = true;
+    try {
+      final welcome = await ReadingProgressStore.recordReadingActivity();
+      if (!mounted || welcome == null) return;
+      setState(() => _dailyWelcome = welcome);
+      _welcomeTimer?.cancel();
+      _welcomeTimer = Timer(const Duration(seconds: 9), () {
+        if (mounted) setState(() => _dailyWelcome = null);
+      });
+    } finally {
+      _recordingProgress = false;
+    }
   }
 
-  /// Highlight rectangles for the page if it holds the selected ayah.
+  void _audioChanged() {
+    if (mounted && _ready) setState(() {});
+  }
+
+  /// Playback highlighting is independent of the contextual tap selection.
   List<Rect> _highlightFor(int logicalPage) {
+    final audio = QuranAudioController.instance;
+    if (_ayahHighlightingEnabled &&
+        !audio.preparing &&
+        audio.processingState != ProcessingState.idle &&
+        audio.processingState != ProcessingState.completed &&
+        audio.currentSurah != null &&
+        audio.currentAyah != null) {
+      final rects = AyahRectIndex.rectsFor(
+        logicalPage,
+        audio.currentSurah!,
+        audio.currentAyah!,
+        mushaf: _mushaf,
+      );
+      if (rects.isNotEmpty) return rects;
+    }
     if (_ayahHighlightingEnabled &&
         _selPage != null &&
         AyahRectIndex.supportsMushaf(_mushaf)) {
@@ -385,102 +432,17 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
       (b) => b.isAyah && b.surahNumber == _selSurah && b.ayah == _selAyah,
     );
 
-    return SizedBox(
-      height: 64,
-      child: Row(
-        children: [
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.readerIcon,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$_selSurah:$_selAyah',
-                  style: TextStyle(
-                    color: palette.readerIcon.withValues(alpha: .65),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _ayahAction(
-            palette,
-            icon: Icons.play_arrow_rounded,
-            label: 'Play',
-            onTap: () => _playAyah(_selSurah, _selAyah),
-          ),
-          _ayahAction(
-            palette,
-            icon: bookmarked
-                ? Icons.bookmark_rounded
-                : Icons.bookmark_border_rounded,
-            label: 'Save',
-            onTap: () =>
-                _toggleAyahBookmark(_selSurah, _selAyah, page, !bookmarked),
-          ),
-          _ayahAction(
-            palette,
-            icon: Icons.translate_rounded,
-            label: 'Translate',
-            onTap: () => _showAyahTranslation(_selSurah, _selAyah),
-          ),
-          IconButton(
-            tooltip: 'Clear ayah selection',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => setState(() => _selPage = null),
-            icon: Icon(
-              Icons.close_rounded,
-              color: palette.readerIcon,
-              size: 20,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _ayahAction(
-    AppPalette palette, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: SizedBox(
-        width: 58,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: palette.accent, size: 21),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              style: TextStyle(
-                color: palette.readerIcon,
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AyahActionBar(
+      vertical: !_isPortrait,
+      reference: '$_selSurah:$_selAyah',
+      title: '$name  $_selSurah:$_selAyah',
+      bookmarked: bookmarked,
+      palette: palette,
+      onPlay: () => _playAyah(_selSurah, _selAyah),
+      onBookmark: () =>
+          _toggleAyahBookmark(_selSurah, _selAyah, page, !bookmarked),
+      onTranslate: () => _showAyahTranslation(_selSurah, _selAyah),
+      onClose: () => setState(() => _selPage = null),
     );
   }
 
@@ -505,6 +467,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     final name = surah_mapper.surahNameFromNumber(surah, _mushaf);
 
     showModalBottomSheet(
+      sheetAnimationStyle: AppMotion.style(context),
       context: context,
       barrierColor: Colors.transparent,
       backgroundColor: Colors.transparent,
@@ -699,6 +662,145 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
   // Build
   // -------------------------
 
+  List<Widget> _readerActions(AppPalette palette) => [
+    barIcon(
+      icon: Icons.headphones_rounded,
+      palette: palette,
+      compact: true,
+      onPressed: _showAudioModal,
+    ),
+    barIcon(
+      icon: Icons.chat_outlined,
+      palette: palette,
+      compact: true,
+      onPressed: _showTranslationModal,
+    ),
+    barIcon(
+      icon: Icons.menu_book_outlined,
+      palette: palette,
+      compact: true,
+      onPressed: () {
+        SurahJuzNavigator.show(
+          context: context,
+          onJumpToPage: (page) {
+            final actualPage = PageMapper.bookmarkGoToMapper(page, _isPortrait);
+
+            _pageController.jumpToPage(actualPage);
+
+            final logical = PageMapper.logicalFromPageIndex(
+              actualPage,
+              _isPortrait,
+            );
+
+            setState(() => _logicalPage = logical);
+          },
+          mushaf: _mushaf,
+        );
+      },
+    ),
+    barIcon(
+      icon: Icons.bookmarks_rounded,
+      palette: palette,
+      compact: true,
+      onPressed: () {
+        BookmarksModal.show(
+          context: context,
+          bookmarks: _bookmarks,
+          isPortrait: _isPortrait,
+          onAddBookmark: _addBookmark,
+          onRemoveBookmark: (b) {
+            setState(() => _bookmarks.remove(b));
+            StorageManager.saveBookmarks(_bookmarks, mushaf: _mushaf);
+          },
+          onJumpToBookmark: (b) {
+            Navigator.pop(context);
+
+            final page = PageMapper.bookmarkGoToMapper(
+              b.pageNumber,
+              _isPortrait,
+            );
+
+            _pageController.jumpToPage(page);
+
+            final logical = PageMapper.logicalFromPageIndex(page, _isPortrait);
+
+            setState(() => _logicalPage = logical);
+
+            // Resume: highlight the bookmarked ayah so you
+            // can see where you left off.
+            if (b.isAyah) {
+              _highlightAyah(b.pageNumber, b.surahNumber!, b.ayah!);
+            }
+          },
+        );
+      },
+    ),
+    barIcon(
+      icon: Icons.settings,
+      palette: palette,
+      compact: true,
+      onPressed: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const Settings()),
+        );
+
+        if (!mounted) return;
+
+        await MyApp.of(context)?.reloadTheme();
+
+        _readerWhite = await StorageManager.getReaderWhiteBackground();
+        final ayahHighlighting =
+            await StorageManager.getAyahHighlightingEnabled();
+        if (!mounted) return;
+        setState(() {
+          _ayahHighlightingEnabled = ayahHighlighting;
+          if (!ayahHighlighting) {
+            _selPage = null;
+          }
+        });
+
+        final mushaf = await StorageManager.getMushaf();
+        if (!mounted) return;
+
+        if (mushaf != _mushaf) {
+          if (_mushaf == 'indopak_tajweed' && mushaf == 'madani') {
+            _logicalPage = PageMapper.indoPakToMadani(_logicalPage);
+          }
+
+          if (_mushaf == 'madani' && mushaf == 'indopak_tajweed') {
+            _logicalPage = PageMapper.madaniToIndoPak(_logicalPage);
+          }
+
+          final newIndex = PageMapper.pageIndexFromLogical(
+            _logicalPage,
+            _isPortrait,
+          );
+
+          setState(() {
+            _mushaf = mushaf;
+            _selPage = null;
+          });
+          await _loadBookmarks();
+          _pageController.jumpToPage(newIndex);
+        }
+
+        setState(() {});
+      },
+    ),
+  ];
+
+  Widget _readerZoom(AppPalette palette) => ReaderZoom(
+    portrait: _isPortrait,
+    palette: palette,
+    scale: _isPortrait ? _pageScalePortrait : _pageScaleLandscape,
+    minimum: _isPortrait
+        ? QuranPageView.minPageScalePortrait
+        : QuranPageView.minPageScaleLandscape,
+    onDecrease: _decreaseScale,
+    onIncrease: _increaseScale,
+  );
+
   @override
   Widget build(BuildContext context) {
     if (!_ready) {
@@ -709,7 +811,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
     final palette = AppPalette.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _readerWhite ? Colors.white : Colors.black,
       body: OrientationBuilder(
         builder: (context, orientation) {
           final portraitNow = orientation == Orientation.portrait;
@@ -779,273 +881,51 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
                 },
               ),
 
-              if (_isScrollbarVisible)
-                AnimatedBuilder(
-                  animation: QuranAudioController.instance,
-                  builder: (context, _) => _MiniAudioPlayer(
-                    palette: palette,
-                    onTap: _showAudioModal,
-                    bottom: _selPage == null ? 98 : 163,
-                  ),
+              AnimatedBuilder(
+                animation: QuranAudioController.instance,
+                builder: (context, _) => _MiniAudioPlayer(
+                  visible: _isScrollbarVisible,
+                  palette: palette,
+                  onTap: _showAudioModal,
+                  bottom: _isPortrait ? (_selPage == null ? 98 : 144) : 16,
+                  rightInset: _isPortrait ? 12 : (_selPage == null ? 90 : 134),
                 ),
+              ),
 
-              if (_isScrollbarVisible)
-                Positioned(
-                  bottom: 24,
-                  left: 10,
-                  right: 10,
-                  child: Material(
-                    color: palette.readerBar,
-                    borderRadius: BorderRadius.circular(16),
-                    elevation: 4,
-                    shadowColor: palette.shadow,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 2,
-                        vertical: 6,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_selPage != null) ...[
-                            _buildAyahContextRow(palette),
-                            Divider(
-                              height: 1,
-                              indent: 8,
-                              endIndent: 8,
-                              color: palette.readerIcon.withValues(alpha: .16),
-                            ),
-                          ],
-                          IntrinsicHeight(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove),
-                                      color: palette.readerIcon,
-                                      onPressed:
-                                          (_isPortrait
-                                                  ? _pageScalePortrait
-                                                  : _pageScaleLandscape) <=
-                                              (_isPortrait
-                                                  ? QuranPageView
-                                                        .minPageScalePortrait
-                                                  : QuranPageView
-                                                        .minPageScaleLandscape)
-                                          ? null
-                                          : _decreaseScale,
-                                    ),
-
-                                    Text(
-                                      "${((_isPortrait ? _pageScalePortrait : _pageScaleLandscape) * 100).round()}%",
-                                      style: TextStyle(
-                                        color: palette.readerIcon,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-
-                                    IconButton(
-                                      icon: const Icon(Icons.add),
-                                      color: palette.readerIcon,
-                                      onPressed:
-                                          (_isPortrait
-                                                  ? _pageScalePortrait
-                                                  : _pageScaleLandscape) >=
-                                              (_isPortrait
-                                                  ? QuranPageView
-                                                        .maxPageScalePortrait
-                                                  : QuranPageView
-                                                        .maxPageScaleLandscape)
-                                          ? null
-                                          : _increaseScale,
-                                    ),
-                                  ],
-                                ),
-                                Flexible(
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    reverse: true,
-                                    child: Row(
-                                      children: [
-                                        barIcon(
-                                          icon: Icons.headphones_rounded,
-                                          palette: palette,
-                                          onPressed: _showAudioModal,
-                                        ),
-                                        barIcon(
-                                          icon: Icons.chat_outlined,
-                                          palette: palette,
-                                          onPressed: _showTranslationModal,
-                                        ),
-                                        barIcon(
-                                          icon: Icons.menu_book_outlined,
-                                          palette: palette,
-                                          onPressed: () {
-                                            SurahJuzNavigator.show(
-                                              context: context,
-                                              onJumpToPage: (page) {
-                                                final actualPage =
-                                                    PageMapper.bookmarkGoToMapper(
-                                                      page,
-                                                      _isPortrait,
-                                                    );
-
-                                                _pageController.jumpToPage(
-                                                  actualPage,
-                                                );
-
-                                                final logical =
-                                                    PageMapper.logicalFromPageIndex(
-                                                      actualPage,
-                                                      _isPortrait,
-                                                    );
-
-                                                setState(
-                                                  () => _logicalPage = logical,
-                                                );
-                                              },
-                                              mushaf: _mushaf,
-                                            );
-                                          },
-                                        ),
-                                        barIcon(
-                                          icon: Icons.bookmarks_rounded,
-                                          palette: palette,
-                                          onPressed: () {
-                                            BookmarksModal.show(
-                                              context: context,
-                                              bookmarks: _bookmarks,
-                                              isPortrait: _isPortrait,
-                                              onAddBookmark: _addBookmark,
-                                              onRemoveBookmark: (b) {
-                                                setState(
-                                                  () => _bookmarks.remove(b),
-                                                );
-                                                StorageManager.saveBookmarks(
-                                                  _bookmarks,
-                                                  mushaf: _mushaf,
-                                                );
-                                              },
-                                              onJumpToBookmark: (b) {
-                                                Navigator.pop(context);
-
-                                                final page =
-                                                    PageMapper.bookmarkGoToMapper(
-                                                      b.pageNumber,
-                                                      _isPortrait,
-                                                    );
-
-                                                _pageController.jumpToPage(
-                                                  page,
-                                                );
-
-                                                final logical =
-                                                    PageMapper.logicalFromPageIndex(
-                                                      page,
-                                                      _isPortrait,
-                                                    );
-
-                                                setState(
-                                                  () => _logicalPage = logical,
-                                                );
-
-                                                // Resume: highlight the bookmarked ayah so you
-                                                // can see where you left off.
-                                                if (b.isAyah) {
-                                                  _highlightAyah(
-                                                    b.pageNumber,
-                                                    b.surahNumber!,
-                                                    b.ayah!,
-                                                  );
-                                                }
-                                              },
-                                            );
-                                          },
-                                        ),
-                                        barIcon(
-                                          icon: Icons.settings,
-                                          palette: palette,
-                                          onPressed: () async {
-                                            await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const Settings(),
-                                              ),
-                                            );
-
-                                            if (!context.mounted) return;
-
-                                            await MyApp.of(
-                                              context,
-                                            )?.reloadTheme();
-
-                                            final ayahHighlighting =
-                                                await StorageManager.getAyahHighlightingEnabled();
-                                            if (!context.mounted) return;
-                                            setState(() {
-                                              _ayahHighlightingEnabled =
-                                                  ayahHighlighting;
-                                              if (!ayahHighlighting) {
-                                                _selPage = null;
-                                              }
-                                            });
-
-                                            final mushaf =
-                                                await StorageManager.getMushaf();
-                                            if (!context.mounted) return;
-
-                                            if (mushaf != _mushaf) {
-                                              if (_mushaf ==
-                                                      'indopak_tajweed' &&
-                                                  mushaf == 'madani') {
-                                                _logicalPage =
-                                                    PageMapper.indoPakToMadani(
-                                                      _logicalPage,
-                                                    );
-                                              }
-
-                                              if (_mushaf == 'madani' &&
-                                                  mushaf == 'indopak_tajweed') {
-                                                _logicalPage =
-                                                    PageMapper.madaniToIndoPak(
-                                                      _logicalPage,
-                                                    );
-                                              }
-
-                                              final newIndex =
-                                                  PageMapper.pageIndexFromLogical(
-                                                    _logicalPage,
-                                                    _isPortrait,
-                                                  );
-
-                                              setState(() {
-                                                _mushaf = mushaf;
-                                                _selPage = null;
-                                              });
-                                              await _loadBookmarks();
-                                              _pageController.jumpToPage(
-                                                newIndex,
-                                              );
-                                            }
-
-                                            setState(() {});
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+              Positioned(
+                top: 16,
+                left: 16,
+                right: _isPortrait ? 16 : 130,
+                child: SafeArea(
+                  bottom: false,
+                  child: MotionSwitcher(
+                    alignment: Alignment.topCenter,
+                    offset: const Offset(0, -.12),
+                    child: _dailyWelcome == null
+                        ? const SizedBox.shrink(key: ValueKey('no-welcome'))
+                        : DailyReadingCard(
+                            key: const ValueKey('daily-welcome'),
+                            streak: _dailyWelcome!.streak,
+                            compact: true,
+                            onClose: () => setState(() => _dailyWelcome = null),
                           ),
-                        ],
-                      ),
-                    ),
                   ),
                 ),
+              ),
+              ReaderDock(
+                ayahActions: _selPage == null
+                    ? null
+                    : _buildAyahContextRow(palette),
+                portrait: _isPortrait,
+                expanded: _isScrollbarVisible,
+                onToggle: () {
+                  setState(() => _isScrollbarVisible = !_isScrollbarVisible);
+                  if (_isScrollbarVisible) _startHideScrollbarTimer();
+                },
+                palette: palette,
+                zoom: _readerZoom(palette),
+                actions: _readerActions(palette),
+              ),
             ],
           );
         },
@@ -1055,13 +935,17 @@ class _MyPDFViewerState extends State<MyPDFViewer> {
 }
 
 class _MiniAudioPlayer extends StatelessWidget {
+  final bool visible;
   final AppPalette palette;
   final VoidCallback onTap;
+  final double rightInset;
   final double bottom;
 
   const _MiniAudioPlayer({
+    required this.visible,
     required this.palette,
     required this.onTap,
+    this.rightInset = 12,
     required this.bottom,
   });
 
@@ -1072,106 +956,114 @@ class _MiniAudioPlayer extends StatelessWidget {
     final ayah = controller.currentAyah;
     final repeat = controller.currentRepeat;
 
-    if (plan == null ||
-        controller.processingState == ProcessingState.idle ||
-        controller.processingState == ProcessingState.completed) {
-      return const SizedBox.shrink();
-    }
-
-    return Positioned(
+    return AnimatedPositioned(
+      duration: AppMotion.duration(context),
+      curve: AppMotion.curve,
       left: 12,
-      right: 12,
+      right: rightInset,
       bottom: bottom,
-      child: Material(
-        color: palette.readerBar,
-        borderRadius: BorderRadius.circular(18),
-        elevation: 8,
-        shadowColor: palette.shadow,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: palette.accentSoft,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(
-                    Icons.headphones_rounded,
-                    color: palette.accent,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        ayah == null
-                            ? plan.surahInfo.name
-                            : '${plan.surahInfo.name}:$ayah',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+      child: MotionSwitcher(
+        alignment: Alignment.bottomCenter,
+        child:
+            !visible ||
+                plan == null ||
+                controller.processingState == ProcessingState.idle ||
+                controller.processingState == ProcessingState.completed
+            ? const SizedBox.shrink(key: ValueKey('no-audio'))
+            : Material(
+                key: const ValueKey('mini-audio'),
+                color: palette.readerBar,
+                borderRadius: BorderRadius.circular(18),
+                elevation: 8,
+                shadowColor: palette.shadow,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: palette.accentSoft,
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: Icon(
+                            Icons.headphones_rounded,
+                            color: palette.accent,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                ayah == null
+                                    ? plan.surahInfo.name
+                                    : '${quranSurahs[(controller.currentSurah ?? plan.surah) - 1].name}:$ayah',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.readerIcon,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                '${plan.reciter.name}'
+                                '${repeat == null ? '' : ' \u2022 $repeat/${plan.repeatLabel}'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.readerIcon.withValues(
+                                    alpha: .72,
+                                  ),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Previous ayah',
+                          icon: const Icon(Icons.skip_previous_rounded),
                           color: palette.readerIcon,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                          onPressed: controller.seekPrevious,
                         ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        '${plan.reciter.name}'
-                        '${repeat == null ? '' : ' \u2022 $repeat/${plan.repeatLabel}'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: palette.readerIcon.withValues(alpha: .72),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        IconButton(
+                          tooltip: controller.playing ? 'Pause' : 'Play',
+                          icon: Icon(
+                            controller.playing
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                          ),
+                          color: palette.readerIcon,
+                          onPressed: controller.togglePlayPause,
                         ),
-                      ),
-                    ],
+                        IconButton(
+                          tooltip: 'Next ayah',
+                          icon: const Icon(Icons.skip_next_rounded),
+                          color: palette.readerIcon,
+                          onPressed: controller.seekNext,
+                        ),
+                        IconButton(
+                          tooltip: 'Audio settings',
+                          icon: const Icon(Icons.tune_rounded),
+                          color: palette.readerIcon,
+                          onPressed: onTap,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Previous ayah',
-                  icon: const Icon(Icons.skip_previous_rounded),
-                  color: palette.readerIcon,
-                  onPressed: controller.seekPrevious,
-                ),
-                IconButton(
-                  tooltip: controller.playing ? 'Pause' : 'Play',
-                  icon: Icon(
-                    controller.playing
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                  ),
-                  color: palette.readerIcon,
-                  onPressed: controller.togglePlayPause,
-                ),
-                IconButton(
-                  tooltip: 'Next ayah',
-                  icon: const Icon(Icons.skip_next_rounded),
-                  color: palette.readerIcon,
-                  onPressed: controller.seekNext,
-                ),
-                IconButton(
-                  tooltip: 'Audio settings',
-                  icon: const Icon(Icons.tune_rounded),
-                  color: palette.readerIcon,
-                  onPressed: onTap,
-                ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
   }

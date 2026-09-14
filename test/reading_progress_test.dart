@@ -48,4 +48,25 @@ void main() {
 
     expect((await ReadingProgressStore.load()).streak, 1);
   });
+  test(
+    'daily encouragement is returned only on the first activity that day',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final day = DateTime(2026, 9, 14);
+      expect(
+        (await ReadingProgressStore.recordReadingActivity(now: day))!.streak,
+        1,
+      );
+      expect(
+        await ReadingProgressStore.recordReadingActivity(now: day),
+        isNull,
+      );
+      expect(
+        (await ReadingProgressStore.recordReadingActivity(
+          now: DateTime(2026, 9, 15),
+        ))!.streak,
+        2,
+      );
+    },
+  );
 }

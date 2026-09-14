@@ -1,3 +1,4 @@
+import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/progress/progress_page.dart';
@@ -15,6 +16,7 @@ class _SettingsState extends State<Settings> {
   bool isDarkMode = false;
   bool isAppDarkMode = false;
   bool ayahHighlightingEnabled = true;
+  bool readerWhiteBackground = false;
   String selectedMushaf = 'indopak_tajweed';
   bool _loaded = false;
 
@@ -28,6 +30,7 @@ class _SettingsState extends State<Settings> {
     final dark = await StorageManager.getDarkMode();
     final appDark = await StorageManager.getAppDarkMode();
     final mushaf = await StorageManager.getMushaf();
+    final readerWhite = await StorageManager.getReaderWhiteBackground();
     final ayahHighlighting = await StorageManager.getAyahHighlightingEnabled();
 
     setState(() {
@@ -35,6 +38,7 @@ class _SettingsState extends State<Settings> {
       isAppDarkMode = appDark;
       selectedMushaf = mushaf;
       ayahHighlightingEnabled = ayahHighlighting;
+      readerWhiteBackground = readerWhite;
       _loaded = true;
     });
   }
@@ -111,6 +115,7 @@ class _SettingsState extends State<Settings> {
 
   void _showDownloadingDialog(ValueNotifier<MushafDownloadProgress> progress) {
     showDialog(
+      animationStyle: AppMotion.style(context),
       context: context,
       barrierDismissible: false,
       builder: (_) {
@@ -162,6 +167,7 @@ class _SettingsState extends State<Settings> {
     if (!mounted) return;
 
     await showDialog(
+      animationStyle: AppMotion.style(context),
       context: context,
       builder: (_) {
         return AlertDialog(
@@ -464,8 +470,8 @@ class _SettingsState extends State<Settings> {
               _navTile(
                 palette: palette,
                 icon: Icons.local_fire_department_rounded,
-                title: 'Day Streak',
-                subtitle: 'Keep your daily Quran reading streak going.',
+                title: 'Your daily practice',
+                subtitle: 'Make a little room for the Quran, every day.',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProgressPage()),
@@ -529,6 +535,19 @@ class _SettingsState extends State<Settings> {
               palette,
             ),
 
+            _settingsCard(
+              _buildSwitch(
+                'White reader background',
+                readerWhiteBackground,
+                palette,
+                (value) async {
+                  await StorageManager.saveReaderWhiteBackground(value);
+                  if (mounted) setState(() => readerWhiteBackground = value);
+                },
+                icon: Icons.contrast_rounded,
+              ),
+              palette,
+            ),
             _sectionTitle('QURAN READER', textPrimary),
 
             _settingsCard(

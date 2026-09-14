@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/surah_list.dart';
 import 'juz_list.dart';
+import 'app_motion.dart';
 
 class SurahJuzNavigator {
   static void show({
@@ -14,20 +15,21 @@ class SurahJuzNavigator {
       barrierDismissible: true,
       barrierLabel: "Surah and Juz navigation",
       barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 260),
-      pageBuilder: (_, _, _) => const SizedBox(),
-      transitionBuilder: (context, anim, _, _) {
+      transitionDuration: AppMotion.duration(context),
+      pageBuilder: (_, _, _) => Align(
+        alignment: Alignment.centerRight,
+        child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf),
+      ),
+      transitionBuilder: (context, anim, _, child) {
+        if (AppMotion.reduced(context)) return child;
         final slide = Tween(
-          begin: const Offset(1, 0),
+          begin: const Offset(.18, 0),
           end: Offset.zero,
-        ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
+        ).animate(anim.drive(CurveTween(curve: AppMotion.curve)));
 
-        return SlideTransition(
-          position: slide,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf),
-          ),
+        return FadeTransition(
+          opacity: anim.drive(CurveTween(curve: AppMotion.curve)),
+          child: SlideTransition(position: slide, child: child),
         );
       },
     );
