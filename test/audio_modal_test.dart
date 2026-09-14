@@ -1,0 +1,102 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mushaf_two_page/components/audio_modal.dart';
+import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
+import 'package:mushaf_two_page/models/quran_audio.dart';
+import 'package:mushaf_two_page/utils/audio_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'audio_playback_test.dart' show FakePlayer;
+
+void main() {
+  for (final active in [false, true]) {
+    testWidgets(
+      'surah queue stays available from a single ayah, active=$active',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 568);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        SharedPreferences.setMockInitialValues({});
+        await AudioPreferences.save(
+          AudioPreferencesData(
+            reciterId: quranReciters.first.id,
+            surah: 2,
+            fromAyah: 1,
+            toAyah: 10,
+            repeatCount: 3,
+            repeatMode: AudioRepeatMode.range,
+            sourceMode: AudioSourceMode.playlist,
+            surahQueue: [2, 1],
+          ),
+        );
+        final player = FakePlayer();
+        final controller = QuranAudioController.forTesting(
+          player: player,
+          prepareSources: (_) async => [],
+        );
+        if (active) {
+          await controller.playPlan(
+            AudioPlaybackPlan(
+              reciter: quranReciters.first,
+              surah: 2,
+              fromAyah: 7,
+              toAyah: 7,
+              repeatCount: 1,
+              repeatMode: AudioRepeatMode.range,
+              sourceMode: AudioSourceMode.range,
+            ),
+          );
+        }
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: AudioModal(
+                controller: controller,
+                initialSurah: 2,
+                initialFromAyah: 7,
+                initialToAyah: 7,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Ayah 7-7'), findsOneWidget);
+        expect(find.text('Ayah range'), findsOneWidget);
+        final source = find.byType(DropdownButton<AudioSourceMode>);
+        expect(source, findsOneWidget);
+        expect(
+          tester.getCenter(source).dy,
+          closeTo(tester.getCenter(find.text('Ayah 7-7')).dy, 1),
+        );
+        expect(tester.getRect(source).bottom, lessThan(568));
+        await tester.tap(source);
+        await tester.pumpAndSettle();
+        expect(find.text('Full surah').hitTestable(), findsOneWidget);
+        await tester.tap(find.text('Surah queue').hitTestable());
+        await tester.pumpAndSettle();
+        expect(find.text('Your listening queue'), findsOneWidget);
+        expect(find.text('1. Al-Baqarah'), findsWidgets);
+        expect(find.text('2. Al-Fatiha'), findsOneWidget);
+        // Dismissing queue editing must keep the highlighted single-ayah mode.
+        Navigator.of(tester.element(find.text('Your listening queue'))).pop();
+        await tester.pumpAndSettle();
+        expect(find.text('Ayah 7-7'), findsOneWidget);
+        await tester.tap(source);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Surah queue').hitTestable());
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save queue · 2 surahs'));
+        await tester.pumpAndSettle();
+        final saved = await AudioPreferences.load();
+        expect(saved!.sourceMode, AudioSourceMode.playlist);
+        expect(saved.surahQueue, [2, 1]);
+        expect(find.text('2 surahs · Edit'), findsOneWidget);
+        // Selecting a mode edits the plan without interrupting or starting audio.
+        expect(player.starts, active ? 1 : 0);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await controller.stop();
+      },
+    );
+  }
+}
