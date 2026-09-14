@@ -28,7 +28,7 @@ void main() {
                     palette: AppPalette.emerald,
                     zoom: const SizedBox(width: 32, height: 32),
                     actions: const [Icon(Icons.menu_book)],
-                    audioControls: ReaderAudioControls(
+                    contextControls: ReaderAudioControls(
                       portrait: portrait,
                       palette: AppPalette.emerald,
                       title: '2:7 · Selected',
@@ -39,6 +39,7 @@ void main() {
                       onNext: () => events.add('next'),
                       onPlayPause: () => events.add('pause 2:10'),
                       onSettings: () {},
+                      onStop: () => events.add('stop'),
                       selection: ReaderAudioSelection(
                         reference: '2:7',
                         bookmarked: false,
@@ -61,6 +62,7 @@ void main() {
           'Translate ayah',
           'Previous ayah',
           'Next ayah',
+          'Stop audio',
         ]) {
           await tester.tap(find.byTooltip(tooltip));
           await tester.pumpAndSettle();
@@ -72,6 +74,7 @@ void main() {
           'translate 2:7',
           'previous',
           'next',
+          'stop',
         ]);
         expect(find.byIcon(Icons.close_rounded), findsNothing);
         expect(tester.takeException(), isNull);

@@ -17,6 +17,7 @@ class _SettingsState extends State<Settings> {
   bool isAppDarkMode = false;
   bool ayahHighlightingEnabled = true;
   bool readerWhiteBackground = false;
+  bool controlsArrowOnly = false;
   String selectedMushaf = 'indopak_tajweed';
   bool _loaded = false;
 
@@ -32,6 +33,8 @@ class _SettingsState extends State<Settings> {
     final mushaf = await StorageManager.getMushaf();
     final readerWhite = await StorageManager.getReaderWhiteBackground();
     final ayahHighlighting = await StorageManager.getAyahHighlightingEnabled();
+    final arrowOnly = await StorageManager.getControlsArrowOnly();
+    if (!mounted) return;
 
     setState(() {
       isDarkMode = dark;
@@ -39,6 +42,7 @@ class _SettingsState extends State<Settings> {
       selectedMushaf = mushaf;
       ayahHighlightingEnabled = ayahHighlighting;
       readerWhiteBackground = readerWhite;
+      controlsArrowOnly = arrowOnly;
       _loaded = true;
     });
   }
@@ -227,6 +231,7 @@ class _SettingsState extends State<Settings> {
     AppPalette palette,
     ValueChanged<bool> onChanged, {
     IconData icon = Icons.dark_mode_rounded,
+    String? subtitle,
   }) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -236,13 +241,25 @@ class _SettingsState extends State<Settings> {
           Icon(icon, color: palette.accent),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: palette.surfaceText,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: palette.surfaceText,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 13, color: palette.surfaceMuted),
+                  ),
+                ],
+              ],
             ),
           ),
           Switch(
@@ -471,7 +488,8 @@ class _SettingsState extends State<Settings> {
                 palette: palette,
                 icon: Icons.auto_graph_rounded,
                 title: 'Your Quran Journey',
-                subtitle: 'Your reading, listening and reflection, all in one place.',
+                subtitle:
+                    'Your reading, listening and reflection, all in one place.',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProgressPage()),
@@ -496,15 +514,16 @@ class _SettingsState extends State<Settings> {
 
                   const SizedBox(height: 18),
 
-                  GestureDetector(
-                    onTap: () => AppReview.requestFromUser(),
-                    child: _infoTile(
-                      icon: Icons.star_rounded,
-                      title: 'Rate the app',
-                      text:
-                          'Enjoying the app? Tap here to leave a review — it really helps.',
-                      color: const Color(0xFFD9B44A),
-                      palette: palette,
+                  Semantics(
+                    button: true,
+                    child: PressMotion(
+                      child: _navTile(
+                        icon: Icons.star_rounded,
+                        title: 'Rate the app',
+                        subtitle: 'Tap to leave a review. Your support helps.',
+                        palette: palette,
+                        onTap: () => AppReview.requestFromUser(),
+                      ),
                     ),
                   ),
                 ],
@@ -557,6 +576,22 @@ class _SettingsState extends State<Settings> {
                 palette,
                 _updateAyahHighlighting,
                 icon: Icons.highlight_alt_rounded,
+              ),
+              palette,
+            ),
+
+            _settingsCard(
+              _buildSwitch(
+                'Open controls with arrow only',
+                controlsArrowOnly,
+                palette,
+                (value) async {
+                  await StorageManager.saveControlsArrowOnly(value);
+                  if (mounted) setState(() => controlsArrowOnly = value);
+                },
+                icon: Icons.touch_app_outlined,
+                subtitle:
+                    'Highlight ayahs without opening the navigation and audio bars.',
               ),
               palette,
             ),

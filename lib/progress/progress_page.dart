@@ -115,11 +115,21 @@ class _ProgressPageState extends State<ProgressPage> {
                                   ),
                                   const SizedBox(height: 12),
                                   const Text(
-                                    'Time well spent.\nA journey of your own.',
+                                    "Recite the Qur'an, for on the Day of Resurrection it will come as an intercessor for those who recite It.",
                                     style: TextStyle(
                                       color: Color(0xFFFCF8EF),
-                                      fontSize: 26,
-                                      height: 1.2,
+                                      fontSize: 20,
+                                      height: 1.45,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Prophet Muhammad (peace be upon him)\nSahih Muslim 804a',
+                                    style: TextStyle(
+                                      color: Color(0xFFE2C78D),
+                                      fontSize: 12,
+                                      height: 1.5,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),

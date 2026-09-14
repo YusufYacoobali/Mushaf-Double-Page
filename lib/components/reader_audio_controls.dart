@@ -30,20 +30,24 @@ class ReaderAudioControls extends StatelessWidget {
     required this.onPlayPause,
     required this.onNext,
     required this.onSettings,
+    required this.onStop,
+    this.playbackActive = true,
     this.selection,
   });
-  final bool portrait, playing;
+  final bool portrait, playing, playbackActive;
   final AppPalette palette;
   final String title, reference, subtitle;
   final VoidCallback onPrevious, onPlayPause, onNext, onSettings;
+  final VoidCallback? onStop;
   final ReaderAudioSelection? selection;
 
   Widget _button(
     String label,
     IconData icon,
-    VoidCallback onTap, {
+    VoidCallback? onTap, {
     bool primary = false,
   }) => PressMotion(
+    enabled: onTap != null,
     child: SizedBox(
       width: 36,
       height: 36,
@@ -57,7 +61,11 @@ class ReaderAudioControls extends StatelessWidget {
         icon: Icon(
           icon,
           size: primary ? 23 : 19,
-          color: primary ? palette.accent : palette.readerIcon,
+          color: onTap == null
+              ? palette.readerIcon.withValues(alpha: .25)
+              : primary
+              ? palette.accent
+              : palette.readerIcon,
         ),
       ),
     ),
@@ -67,23 +75,30 @@ class ReaderAudioControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final selected = selection;
     final buttons = [
-      _button('Previous ayah', Icons.skip_previous_rounded, onPrevious),
       _button(
-        playing ? 'Pause' : 'Play',
+        'Previous ayah',
+        Icons.skip_previous_rounded,
+        playbackActive ? onPrevious : null,
+      ),
+      _button(
+        playing
+            ? 'Pause'
+            : playbackActive
+            ? 'Play'
+            : 'Play ayah',
         playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
         onPlayPause,
         primary: true,
       ),
-      _button('Next ayah', Icons.skip_next_rounded, onNext),
+      _button(
+        'Next ayah',
+        Icons.skip_next_rounded,
+        playbackActive ? onNext : null,
+      ),
+      _button('Stop audio', Icons.stop_rounded, playbackActive ? onStop : null),
       if (selected == null)
         _button('Audio settings', Icons.tune_rounded, onSettings)
       else ...[
-        if (selected.onPlaySelected != null)
-          _button(
-            'Play selected ayah',
-            Icons.play_circle_outline_rounded,
-            selected.onPlaySelected!,
-          ),
         _button(
           selected.bookmarked ? 'Remove ayah bookmark' : 'Save ayah',
           selected.bookmarked
@@ -109,19 +124,24 @@ class ReaderAudioControls extends StatelessWidget {
                 'Selected',
                 style: TextStyle(color: palette.readerIcon, fontSize: 8),
               ),
-            Tooltip(
-              message:
-                  '$title\n$subtitle${selected == null ? '' : '\nAyah actions: ${selected.reference}'}',
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(4, 6, 4, 10),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    selected?.reference ?? reference,
-                    style: TextStyle(
-                      color: palette.accent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+            InkWell(
+              onTap: selected?.onPlaySelected ?? onSettings,
+              borderRadius: BorderRadius.circular(12),
+              child: Tooltip(
+                message: selected?.onPlaySelected != null
+                    ? 'Play selected ayah'
+                    : '$title\n$subtitle${selected == null ? '' : '\nAyah actions: ${selected.reference}'}',
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 6, 4, 10),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      selected?.reference ?? reference,
+                      style: TextStyle(
+                        color: palette.accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -141,10 +161,11 @@ class ReaderAudioControls extends StatelessWidget {
           children: [
             Expanded(
               child: Tooltip(
-                message:
-                    '$title\n$subtitle${selected == null ? '' : '\nAyah actions: ${selected.reference}'}',
+                message: selected?.onPlaySelected != null
+                    ? 'Play selected ayah'
+                    : '$title\n$subtitle${selected == null ? '' : '\nAyah actions: ${selected.reference}'}',
                 child: InkWell(
-                  onTap: onSettings,
+                  onTap: selected?.onPlaySelected ?? onSettings,
                   borderRadius: BorderRadius.circular(12),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

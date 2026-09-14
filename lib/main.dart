@@ -37,7 +37,6 @@ import 'package:mushaf_two_page/pages/loading.dart';
 
 import 'components/nav_bar_icon.dart';
 import 'components/reader_dock.dart';
-import 'components/ayah_action_bar.dart';
 import 'progress/daily_reading_card.dart';
 import 'components/translation_modal.dart';
 import 'firebase_options.dart';
@@ -147,6 +146,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   bool _isPortrait = true;
   bool _ayahHighlightingEnabled = true;
   bool _readerWhite = false;
+  bool _controlsArrowOnly = false;
   ReadingProgress? _dailyWelcome;
   bool _recordingProgress = false;
   Timer? _welcomeTimer;
@@ -187,6 +187,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     await _loadBookmarks();
 
     _readerWhite = await StorageManager.getReaderWhiteBackground();
+    _controlsArrowOnly = await StorageManager.getControlsArrowOnly();
+    _isScrollbarVisible = !_controlsArrowOnly;
     _pageScalePortrait = await StorageManager.getPageScalePortrait();
     _pageScaleLandscape = await StorageManager.getPageScaleLandscape();
     _ayahHighlightingEnabled =
@@ -204,7 +206,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     _pageController = PageController(initialPage: initialIndex);
     _hasPageController = true;
 
-    _startHideScrollbarTimer();
+    if (_isScrollbarVisible) _startHideScrollbarTimer();
     await TranslationManager.load();
     await SurahSummaryManager.load();
     await PageAyahIndex.load();
@@ -310,13 +312,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   }
 
   void _onScreenTap() {
-    // While an ayah is selected, an off-page/black-margin tap dismisses that
-    // selection first. It must not reveal the reader bars underneath the ayah
-    // action bar, otherwise the two controls overlap.
+    // Clear the selection independently of whether taps can reveal controls.
     if (_selPage != null) {
       setState(_forgetAyahSelection);
       return;
     }
+
+    if (_controlsArrowOnly) return;
 
     setState(() {
       _isScrollbarVisible = !_isScrollbarVisible;
@@ -441,13 +443,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   void _highlightAyah(int page, int surah, int ayah) {
     if (!_ayahHighlightingEnabled) return;
-    _hideScrollbarTimer?.cancel();
+    if (!_controlsArrowOnly) _hideScrollbarTimer?.cancel();
     setState(() {
       _selPage = page;
       _selSurah = surah;
       _selAyah = ayah;
-      // Selection swaps the normal reader bar for the expanded contextual bar.
-      _isScrollbarVisible = true;
+      if (!_controlsArrowOnly) _isScrollbarVisible = true;
     });
     _persistHighlight();
   }
@@ -509,17 +510,26 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       (b) => b.isAyah && b.surahNumber == _selSurah && b.ayah == _selAyah,
     );
 
-    return AyahActionBar(
-      vertical: !_isPortrait,
+    return ReaderAudioControls(
+      portrait: _isPortrait,
       reference: '$_selSurah:$_selAyah',
-      title: '$name  $_selSurah:$_selAyah',
-      bookmarked: bookmarked,
+      title: '$_selSurah:$_selAyah · $name',
+      subtitle: 'Selected ayah',
       palette: palette,
-      onPlay: () => _playAyah(_selSurah, _selAyah),
-      onBookmark: () =>
-          _toggleAyahBookmark(_selSurah, _selAyah, page, !bookmarked),
-      onTranslate: () => _showAyahTranslation(_selSurah, _selAyah),
-      onClose: () => setState(_forgetAyahSelection),
+      playing: false,
+      playbackActive: false,
+      onPlayPause: () => _playAyah(_selSurah, _selAyah),
+      onPrevious: () {},
+      onNext: () {},
+      onStop: null,
+      onSettings: _showAudioModal,
+      selection: ReaderAudioSelection(
+        reference: '$_selSurah:$_selAyah',
+        bookmarked: bookmarked,
+        onBookmark: () =>
+            _toggleAyahBookmark(_selSurah, _selAyah, page, !bookmarked),
+        onTranslate: () => _showAyahTranslation(_selSurah, _selAyah),
+      ),
     );
   }
 
@@ -834,8 +844,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
         _readerWhite = await StorageManager.getReaderWhiteBackground();
         final ayahHighlighting =
             await StorageManager.getAyahHighlightingEnabled();
+        final arrowOnly = await StorageManager.getControlsArrowOnly();
         if (!mounted) return;
         setState(() {
+          if (arrowOnly && !_controlsArrowOnly) {
+            _isScrollbarVisible = false;
+            _hideScrollbarTimer?.cancel();
+          }
+          _controlsArrowOnly = arrowOnly;
           _ayahHighlightingEnabled = ayahHighlighting;
           if (!ayahHighlighting) {
             _forgetAyahSelection();
@@ -914,6 +930,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       onPrevious: controller.seekPrevious,
       onPlayPause: controller.togglePlayPause,
       onNext: controller.seekNext,
+      onStop: controller.stop,
       onSettings: _showAudioModal,
       selection: actionAyah == null || actionPage == null
           ? null
@@ -1048,7 +1065,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                 Positioned(
                   top: 16,
                   left: 16,
-                  right: _isPortrait ? 16 : (audioControls == null ? 130 : 188),
+                  right: _isPortrait ? 16 : 144,
                   child: SafeArea(
                     bottom: false,
                     child: MotionSwitcher(
@@ -1067,10 +1084,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                   ),
                 ),
                 ReaderDock(
-                  audioControls: audioControls,
-                  ayahActions: _selPage == null
-                      ? null
-                      : _buildAyahContextRow(palette),
+                  contextControls:
+                      audioControls ??
+                      (_selPage == null ? null : _buildAyahContextRow(palette)),
+
                   portrait: _isPortrait,
                   expanded: _isScrollbarVisible,
                   onToggle: () {

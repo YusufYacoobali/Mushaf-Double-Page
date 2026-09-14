@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mushaf_two_page/components/ayah_action_bar.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
 import 'package:mushaf_two_page/components/reader_audio_controls.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
@@ -39,18 +38,29 @@ void main() {
                         ),
                       ),
                       ReaderDock(
-                        audioControls: hasAudio
+                        contextControls: hasAudio || selected
                             ? ReaderAudioControls(
                                 portrait: portrait,
                                 palette: palette,
-                                title: 'Al-Baqarah:7',
+                                title: '2:7 · Al-Baqarah',
                                 reference: '2:7',
-                                subtitle: 'Reciter · 2/10',
-                                playing: true,
+                                subtitle: hasAudio
+                                    ? 'Reciter · 2/10'
+                                    : 'Selected ayah',
+                                playing: hasAudio,
+                                playbackActive: hasAudio,
                                 onPrevious: () {},
-                                onPlayPause: () {},
+                                onPlayPause: () =>
+                                    refresh(() => hasAudio = !hasAudio),
                                 onNext: () {},
                                 onSettings: () {},
+                                onStop: () => refresh(() => hasAudio = false),
+                                selection: ReaderAudioSelection(
+                                  reference: '2:7',
+                                  bookmarked: false,
+                                  onBookmark: () {},
+                                  onTranslate: () {},
+                                ),
                               )
                             : null,
                         portrait: portrait,
@@ -65,19 +75,6 @@ void main() {
                             icon: const Icon(Icons.settings),
                           ),
                         ],
-                        ayahActions: selected
-                            ? AyahActionBar(
-                                title: 'Al-Baqarah 2:7',
-                                reference: '2:7',
-                                vertical: !portrait,
-                                bookmarked: false,
-                                palette: palette,
-                                onPlay: () {},
-                                onBookmark: () {},
-                                onTranslate: () {},
-                                onClose: () => refresh(() => selected = false),
-                              )
-                            : null,
                       ),
                     ],
                   ),
@@ -102,7 +99,6 @@ void main() {
           hasAudio = false;
         });
         await tester.pumpAndSettle();
-        expect(find.byType(AyahActionBar), findsNothing);
         expect(find.byTooltip('Destination'), findsNothing);
         await tester.tap(find.byTooltip('Open navigation'));
         await tester.pumpAndSettle();
@@ -114,15 +110,46 @@ void main() {
         });
         await tester.pumpAndSettle();
         expect(find.byType(ReaderAudioControls), findsOneWidget);
-        expect(find.byType(AyahActionBar), findsNothing);
-        update(() => hasAudio = false);
-        await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('Clear ayah selection'));
+        final navigationRect = tester.getRect(
+          find.byKey(const ValueKey('reader-navigation-panel')),
+        );
+        final contextRect = tester.getRect(
+          find.byKey(const ValueKey('reader-context-panel')),
+        );
+        final playPosition = tester.getCenter(find.byTooltip('Pause'));
+        final bookmarkPosition = tester.getCenter(find.byTooltip('Save ayah'));
+        await tester.tap(find.byTooltip('Stop audio'));
         await tester.pump();
-        expect(find.byType(AyahActionBar), findsOneWidget);
+        expect(find.byType(ReaderAudioControls), findsOneWidget);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('reader-navigation-panel'))),
+          navigationRect,
+        );
+        expect(
+          tester.getRect(find.byKey(const ValueKey('reader-context-panel'))),
+          contextRect,
+        );
+        expect(tester.getCenter(find.byTooltip('Play ayah')), playPosition);
+        expect(tester.getCenter(find.byTooltip('Save ayah')), bookmarkPosition);
+        await tester.tap(find.byTooltip('Play ayah'));
+        await tester.pump(const Duration(milliseconds: 80));
+        expect(
+          tester.getRect(find.byKey(const ValueKey('reader-navigation-panel'))),
+          navigationRect,
+        );
+        expect(
+          tester.getRect(find.byKey(const ValueKey('reader-context-panel'))),
+          contextRect,
+        );
+        expect(tester.getCenter(find.byTooltip('Pause')), playPosition);
+        expect(tester.getCenter(find.byTooltip('Save ayah')), bookmarkPosition);
         await tester.pumpAndSettle();
-        expect(find.byType(AyahActionBar), findsNothing);
-        update(() => hasAudio = false);
+        update(() {
+          selected = false;
+          hasAudio = false;
+        });
+        await tester.pump();
+        expect(find.byType(ReaderAudioControls), findsOneWidget);
         await tester.pumpAndSettle();
         expect(find.byType(ReaderAudioControls), findsNothing);
         expect(tester.takeException(), isNull);

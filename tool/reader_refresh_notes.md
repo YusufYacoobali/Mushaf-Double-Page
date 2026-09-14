@@ -25,7 +25,7 @@ Abdullah Basfar source: https://everyayah.com/data/Abdullah_Basfar_192kbps/
 ## Verification
 
 - Flutter analysis: clean.
-- Full suite after the follow-up: 98 tests pass, including finite 1/3/5/10 repeats, infinite recovery,
+- Verification after the follow-up: 100 tests pass, including finite 1/3/5/10 repeats, infinite recovery,
   cancellation, surah order, preferences, daily activity, geometry and controls.
 - Swipe coverage: 16 orientation/zoom combinations, forward and backward page turns,
   vertical landscape scrolling, capped pinch zoom and old preference migration.
@@ -136,3 +136,48 @@ controls. Stopping audio restores the standalone ayah strip when selected.
 Tests cover persisted selection/dismissal, rapid writes, malformed preferences,
 independent selected-ayah and playing-ayah callbacks, small screens and both
 orientations, including dock reversals while audio starts or stops.
+
+## Fixed shared context bar
+
+The reader now has two surfaces: main navigation and one shared ayah/audio bar.
+The shared bar stays below navigation in portrait and to its outer right in
+landscape. Selection and playback use the same component, dimensions and button
+positions, so starting or stopping selected-ayah playback does not transfer
+controls between surfaces. Inactive transport actions keep their slots but are
+disabled. Both bars still collapse with the attached navigation tab.
+
+A square Stop button calls the controller's full stop operation, including
+preparation cancellation and repeat guards. There is no X in either state;
+tap-away dismissal remains. When a different ayah is selected during playback,
+tapping its reference plays that selection while the transport controls continue
+to operate on current playback. Bookmark and translation target the selection.
+Regression checks assert stable bar bounds and play/bookmark positions across
+stop/start transitions, callback routing including Stop, both orientations and
+small screens. All 98 tests pass; Flutter analysis is clean.
+
+## Visible queue option and copy updates
+
+Audio keeps its compact mode dropdown beside the ayah range on the same row.
+Ayah range, Full surah and Surah queue remain available in every mode. Selecting
+Surah queue opens its editor directly; saving selects queue mode, while dismissing keeps
+the prior mode. A single-ayah active plan retains the saved queue for editing.
+Explicit initial ayah ranges also take precedence over older saved ranges.
+Regression tests cover these behaviors with and without active single-ayah audio,
+queue order, persistence, cancellation and visibility at 320px width.
+
+Quran Journey now displays the requested recitation hadith with attribution to
+Prophet Muhammad and Sahih Muslim 804a, verified at https://sunnah.com/muslim:804a.
+Its typography accommodates the longer passage. The Settings rating row uses the
+existing navigation-row styling with a chevron, press feedback, button semantics
+and the text "Tap to leave a review. Your support helps." The review action and
+automatic review cadence are unchanged.
+
+## Optional arrow-only controls
+
+Settings > Quran Reader includes "Open controls with arrow only", off by default.
+The preference persists locally and applies to both orientations. Enabling it
+collapses the bars on returning to the reader, and subsequent launches start with
+only the arrow tab visible. Selecting/restoring an ayah, opening an ayah bookmark,
+page/background taps and playback updates do not reveal the bars in this mode.
+Highlighting, tap-away deselection and playback continue independently. The tab
+opens both navigation and the shared ayah/audio bar; existing timed hiding remains.

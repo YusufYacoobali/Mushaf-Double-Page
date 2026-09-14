@@ -181,6 +181,16 @@ class StorageManager {
     await prefs.setBool(_ayahHighlightingKey, value);
   }
 
+  static Future<bool> getControlsArrowOnly() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('reader_controls_arrow_only') ?? false;
+  }
+
+  static Future<void> saveControlsArrowOnly(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('reader_controls_arrow_only', value);
+  }
+
   static Future<bool> getReaderWhiteBackground() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('reader_white_background') ?? false;

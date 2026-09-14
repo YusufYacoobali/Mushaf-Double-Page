@@ -8,6 +8,7 @@ import 'package:mushaf_two_page/utils/audio_preferences.dart';
 
 class AudioModal extends StatefulWidget {
   final int initialSurah;
+  final QuranAudioController? controller;
 
   /// Ayah range to pre-select (the ayahs on the current page). When provided,
   /// the modal opens in Range mode with these values. Ignored if audio is
@@ -20,6 +21,7 @@ class AudioModal extends StatefulWidget {
     required this.initialSurah,
     this.initialFromAyah,
     this.initialToAyah,
+    this.controller,
   });
 
   static void show(
@@ -78,6 +80,9 @@ class _AudioModalState extends State<AudioModal> {
     _restorePreferences();
   }
 
+  QuranAudioController get _controller =>
+      widget.controller ?? QuranAudioController.instance;
+
   int get _ayahCount => quranAyahCounts[_surah - 1];
 
   Future<void> _restorePreferences() async {
@@ -95,16 +100,15 @@ class _AudioModalState extends State<AudioModal> {
           : 10;
       _repeatMode = saved.repeatMode;
       _surahQueue = List.of(saved.surahQueue);
-      if (saved.surah == _surah) {
+      if (saved.surah == _surah && widget.initialFromAyah == null) {
         final maxAyah = quranAyahCounts[_surah - 1];
         _fromAyah = saved.fromAyah.clamp(1, maxAyah).toInt();
         _toAyah = saved.toAyah.clamp(_fromAyah, maxAyah).toInt();
         _sourceMode = saved.sourceMode;
       }
     }
-    final active = QuranAudioController.instance.plan;
-    if (active != null &&
-        QuranAudioController.instance.processingState != ProcessingState.idle) {
+    final active = _controller.plan;
+    if (active != null && _controller.processingState != ProcessingState.idle) {
       _reciter = active.reciter;
       _surah = active.surah;
       _fromAyah = active.fromAyah;
@@ -112,7 +116,9 @@ class _AudioModalState extends State<AudioModal> {
       _repeatCount = active.repeatCount;
       _repeatMode = active.repeatMode;
       _sourceMode = active.sourceMode;
-      _surahQueue = List.of(active.surahQueue);
+      if (active.sourceMode == AudioSourceMode.playlist) {
+        _surahQueue = List.of(active.surahQueue);
+      }
     }
     setState(() => _preferencesReady = true);
     _warmAyahOptions();
@@ -216,7 +222,7 @@ class _AudioModalState extends State<AudioModal> {
         actions: [
           TextButton(
             onPressed: () {
-              QuranAudioController.instance.clearError();
+              _controller.clearError();
               Navigator.pop(context);
             },
             child: Text('OK', style: TextStyle(color: palette.accent)),
@@ -338,13 +344,11 @@ class _AudioModalState extends State<AudioModal> {
                         AudioSourceMode.playlist => 'Surah queue',
                       },
                       onChanged: (mode) {
-                        setState(() {
-                          _sourceMode = mode;
-                          if (mode == AudioSourceMode.playlist &&
-                              _surahQueue.isEmpty) {
-                            _surahQueue = [_surah];
-                          }
-                        });
+                        if (mode == AudioSourceMode.playlist) {
+                          _showSurahQueue();
+                          return;
+                        }
+                        setState(() => _sourceMode = mode);
                         _persistPreferences();
                         if (mode == AudioSourceMode.range) _warmAyahOptions();
                       },
@@ -354,7 +358,9 @@ class _AudioModalState extends State<AudioModal> {
                   Expanded(
                     child: _compactAction(
                       palette: palette,
-                      icon: Icons.format_list_numbered_rounded,
+                      icon: _sourceMode == AudioSourceMode.playlist
+                          ? Icons.playlist_play_rounded
+                          : Icons.format_list_numbered_rounded,
                       label: _sourceMode == AudioSourceMode.playlist
                           ? '${_surahQueue.length} surahs · Edit'
                           : _sourceMode == AudioSourceMode.surah
@@ -412,9 +418,9 @@ class _AudioModalState extends State<AudioModal> {
               ),
               const SizedBox(height: 10),
               AnimatedBuilder(
-                animation: QuranAudioController.instance,
+                animation: _controller,
                 builder: (context, _) {
-                  final controller = QuranAudioController.instance;
+                  final controller = _controller;
                   if (controller.errorKind ==
                           QuranAudioErrorKind.connectionRequired &&
                       _lastHandledErrorKind != controller.errorKind) {
@@ -688,7 +694,9 @@ class _AudioModalState extends State<AudioModal> {
   }
 
   Future<void> _showSurahQueue() async {
-    final selected = List<int>.of(_surahQueue);
+    final selected = _surahQueue.isEmpty
+        ? <int>[_surah]
+        : List<int>.of(_surahQueue);
     final palette = AppPalette.of(context);
     final result = await showModalBottomSheet<List<int>>(
       sheetAnimationStyle: AppMotion.style(context),
@@ -771,7 +779,10 @@ class _AudioModalState extends State<AudioModal> {
       ),
     );
     if (result == null || !mounted) return;
-    setState(() => _surahQueue = result);
+    setState(() {
+      _surahQueue = result;
+      _sourceMode = AudioSourceMode.playlist;
+    });
     _persistPreferences();
   }
 

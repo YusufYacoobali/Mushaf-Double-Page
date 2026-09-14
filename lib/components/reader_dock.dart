@@ -12,8 +12,7 @@ class ReaderDock extends StatelessWidget {
     required this.palette,
     required this.zoom,
     required this.actions,
-    this.ayahActions,
-    this.audioControls,
+    this.contextControls,
   });
   final bool portrait;
   final bool expanded;
@@ -21,10 +20,7 @@ class ReaderDock extends StatelessWidget {
   final AppPalette palette;
   final Widget zoom;
   final List<Widget> actions;
-  final Widget? ayahActions;
-  final Widget? audioControls;
-  Widget? get _separateAyahActions =>
-      audioControls == null ? ayahActions : null;
+  final Widget? contextControls;
 
   Widget _action(Widget child, int index, double reveal) {
     final t = Interval(
@@ -55,27 +51,16 @@ class ReaderDock extends StatelessWidget {
         duration: AppMotion.duration(context, expanded),
         curve: AppMotion.curve,
         builder: (context, reveal, _) => TweenAnimationBuilder<double>(
-          tween: Tween(end: _separateAyahActions == null ? 0 : 44),
-          duration: AppMotion.duration(context, _separateAyahActions != null),
+          tween: Tween(end: contextControls == null ? 0 : (portrait ? 56 : 58)),
+          duration: AppMotion.duration(context, contextControls != null),
           curve: AppMotion.curve,
-          builder: (context, extra, _) => TweenAnimationBuilder<double>(
-            tween: Tween(end: audioControls == null ? 0 : (portrait ? 50 : 58)),
-            duration: AppMotion.duration(context, audioControls != null),
-            curve: AppMotion.curve,
-            builder: (context, audioExtra, _) =>
-                _contents(context, reveal, extra, audioExtra),
-          ),
+          builder: (context, extra, _) => _contents(context, reveal, extra),
         ),
       ),
     ),
   );
 
-  Widget _contents(
-    BuildContext context,
-    double reveal,
-    double extra,
-    double audioExtra,
-  ) {
+  Widget _contents(BuildContext context, double reveal, double extra) {
     final decoration = BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
@@ -91,19 +76,26 @@ class ReaderDock extends StatelessWidget {
         ),
       ],
     );
-    final ayahPanel = MotionSwitcher(
+    // Selection and playback update the same surface in place. Only entering or
+    // leaving the contextual state animates the secondary bar's visibility.
+    final contextPanel = MotionSwitcher(
       alignment: portrait ? Alignment.bottomCenter : Alignment.centerRight,
-      offset: portrait ? const Offset(0, .15) : const Offset(.15, 0),
-      child: _separateAyahActions == null
-          ? const SizedBox.shrink(key: ValueKey('no-ayah'))
-          : Material(
-              key: const ValueKey('ayah'),
-              color: palette.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(19),
-                side: BorderSide(color: palette.border),
+      offset: portrait ? const Offset(0, .08) : const Offset(.08, 0),
+      child: contextControls == null
+          ? const SizedBox.shrink(key: ValueKey('no-reader-context'))
+          : Container(
+              key: const ValueKey('reader-context-panel'),
+              decoration: decoration.copyWith(
+                borderRadius: BorderRadius.circular(portrait ? 25 : 23),
               ),
-              child: _separateAyahActions,
+              child: Material(
+                color: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(portrait ? 25 : 23),
+                  side: BorderSide(color: palette.border),
+                ),
+                child: contextControls,
+              ),
             ),
     );
     final tab = NavigationPullTab(
@@ -160,18 +152,10 @@ class ReaderDock extends StatelessWidget {
               ),
             ),
           );
-    final audio = MotionSwitcher(
-      child: audioControls == null
-          ? const SizedBox.shrink(key: ValueKey('no-dock-audio'))
-          : KeyedSubtree(
-              key: const ValueKey('dock-audio'),
-              child: audioControls!,
-            ),
-    );
     final panel = Container(
       key: const ValueKey('reader-navigation-panel'),
-      height: portrait ? 56 + audioExtra : null,
-      width: portrait ? null : 52 + audioExtra,
+      height: portrait ? 56 : null,
+      width: portrait ? null : 52,
       decoration: decoration,
       foregroundDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(portrait ? 28 : 23),
@@ -179,66 +163,7 @@ class ReaderDock extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(portrait ? 28 : 23),
-        child: portrait
-            ? Column(
-                children: [
-                  ClipRect(
-                    child: SizedBox(
-                      height: audioExtra,
-                      child: OverflowBox(
-                        alignment: Alignment.bottomCenter,
-                        minHeight: 50,
-                        maxHeight: 50,
-                        child: Column(
-                          children: [
-                            Expanded(child: audio),
-                            Divider(
-                              height: 1,
-                              thickness: 1,
-                              indent: 14,
-                              endIndent: 14,
-                              color: palette.border,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  navigation,
-                ],
-              )
-            : Row(
-                children: [
-                  ClipRect(
-                    child: SizedBox(
-                      width: audioExtra,
-                      child: OverflowBox(
-                        alignment: Alignment.centerRight,
-                        minWidth: 58,
-                        maxWidth: 58,
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 52,
-                              child: Center(
-                                child: SingleChildScrollView(child: audio),
-                              ),
-                            ),
-                            VerticalDivider(
-                              width: 6,
-                              thickness: 1,
-                              indent: 14,
-                              endIndent: 14,
-                              color: palette.border,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  navigation,
-                ],
-              ),
+        child: navigation,
       ),
     );
     if (portrait) {
@@ -247,7 +172,7 @@ class ReaderDock extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 680),
           child: SizedBox(
             width: double.infinity,
-            height: 24 + (54 + extra + audioExtra) * reveal,
+            height: 24 + (54 + extra) * reveal,
             child: Stack(
               alignment: Alignment.topCenter,
               clipBehavior: Clip.none,
@@ -262,8 +187,8 @@ class ReaderDock extends StatelessWidget {
                   Positioned(
                     left: 0,
                     right: 0,
-                    top: 84 + audioExtra,
-                    child: fading(ayahPanel),
+                    top: 84,
+                    child: fading(contextPanel),
                   ),
                 ],
                 tab,
@@ -274,7 +199,7 @@ class ReaderDock extends StatelessWidget {
       );
     }
     return SizedBox(
-      width: 22 + (50 + extra + audioExtra) * reveal,
+      width: 22 + (50 + extra) * reveal,
       child: Stack(
         alignment: Alignment.centerLeft,
         clipBehavior: Clip.none,
@@ -287,12 +212,12 @@ class ReaderDock extends StatelessWidget {
               child: fading(panel),
             ),
             Positioned(
-              left: 78 + audioExtra,
-              width: 38,
+              left: 78,
+              width: 52,
               top: 0,
               bottom: 0,
               child: fading(
-                Center(child: SingleChildScrollView(child: ayahPanel)),
+                Center(child: SingleChildScrollView(child: contextPanel)),
               ),
             ),
           ],

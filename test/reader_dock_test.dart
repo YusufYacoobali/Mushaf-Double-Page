@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/nav_bar_icon.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
-import 'package:mushaf_two_page/components/ayah_action_bar.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 
 void main() {
@@ -83,36 +82,28 @@ void main() {
                             ),
                           ),
                           ReaderDock(
-                            audioControls: withAudio
-                                ? ReaderAudioControls(
-                                    portrait: portrait,
-                                    palette: palette,
-                                    title: 'Al-Baqarah:7',
-                                    reference: '2:7',
-                                    subtitle: 'Abdullah Al-Juhany · 2/10',
-                                    playing: true,
-                                    selection: ReaderAudioSelection(
-                                      reference: '2:7',
-                                      bookmarked: false,
-                                      onBookmark: () => ayahTaps++,
-                                      onTranslate: () => ayahTaps++,
-                                    ),
-                                    onPrevious: () => audioTaps++,
-                                    onPlayPause: () => audioTaps++,
-                                    onNext: () => audioTaps++,
-                                    onSettings: () => audioTaps++,
-                                  )
-                                : null,
-                            ayahActions: AyahActionBar(
-                              title: 'Al-Baqarah  2:7',
-                              reference: '2:7',
-                              vertical: !portrait,
-                              bookmarked: false,
+                            contextControls: ReaderAudioControls(
+                              portrait: portrait,
                               palette: palette,
-                              onPlay: () => ayahTaps++,
-                              onBookmark: () => ayahTaps++,
-                              onTranslate: () => ayahTaps++,
-                              onClose: () => ayahTaps++,
+                              title: '2:7 · Al-Baqarah',
+                              reference: '2:7',
+                              subtitle: withAudio
+                                  ? 'Abdullah Al-Juhany · 2/10'
+                                  : 'Selected ayah',
+                              playing: withAudio,
+                              playbackActive: withAudio,
+                              selection: ReaderAudioSelection(
+                                reference: '2:7',
+                                bookmarked: false,
+                                onBookmark: () => ayahTaps++,
+                                onTranslate: () => ayahTaps++,
+                              ),
+                              onPrevious: () => audioTaps++,
+                              onPlayPause: () =>
+                                  withAudio ? audioTaps++ : ayahTaps++,
+                              onNext: () => audioTaps++,
+                              onStop: withAudio ? () => audioTaps++ : null,
+                              onSettings: () => audioTaps++,
                             ),
                             portrait: portrait,
                             expanded: expanded,
@@ -162,42 +153,30 @@ void main() {
             final navRect = tester.getRect(
               find.byKey(const ValueKey('reader-navigation-panel')),
             );
-            if (!withAudio) {
-              final ayahRect = tester.getRect(find.byType(AyahActionBar));
-              if (portrait) {
-                expect(ayahRect.height, 38);
-                expect(ayahRect.top, greaterThan(navRect.bottom));
-              } else {
-                expect(ayahRect.width, 38);
-                expect(ayahRect.left, greaterThan(navRect.right));
-              }
-              expect(ayahRect.right, lessThanOrEqualTo(size.width));
-              expect(ayahRect.bottom, lessThanOrEqualTo(size.height));
+            final contextRect = tester.getRect(
+              find.byType(ReaderAudioControls),
+            );
+            if (portrait) {
+              expect(contextRect.height, 50);
+              expect(contextRect.top, greaterThan(navRect.bottom));
+              expect(navRect.height, 56);
             } else {
-              expect(find.byType(AyahActionBar), findsNothing);
-              expect(find.byTooltip('Clear ayah selection'), findsNothing);
+              expect(contextRect.width, 52);
+              expect(contextRect.left, greaterThan(navRect.right));
+              expect(navRect.width, 52);
             }
-            if (withAudio) {
-              final audioRect = tester.getRect(
-                find.byType(ReaderAudioControls),
-              );
-              expect(audioRect.left, greaterThanOrEqualTo(navRect.left));
-              expect(audioRect.right, lessThanOrEqualTo(navRect.right));
-              expect(audioRect.top, greaterThanOrEqualTo(navRect.top));
-              expect(audioRect.bottom, lessThanOrEqualTo(navRect.bottom));
-              final destinationRect = tester.getRect(find.byTooltip('Audio'));
-              if (portrait) {
-                expect(
-                  audioRect.bottom,
-                  lessThanOrEqualTo(destinationRect.top),
-                );
-              } else {
-                expect(
-                  audioRect.right,
-                  lessThanOrEqualTo(destinationRect.left),
-                );
-              }
-            }
+            expect(contextRect.right, lessThanOrEqualTo(size.width));
+            expect(contextRect.bottom, lessThanOrEqualTo(size.height));
+            expect(find.byTooltip('Clear ayah selection'), findsNothing);
+            expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+            expect(
+              tester
+                  .widget<IconButton>(
+                    find.widgetWithIcon(IconButton, Icons.stop_rounded),
+                  )
+                  .onPressed,
+              withAudio ? isNotNull : isNull,
+            );
             expect(
               tester
                   .widget<IconButton>(
@@ -240,30 +219,33 @@ void main() {
               if (!withAudio) 'Play ayah',
               'Save ayah',
               'Translate ayah',
-              if (!withAudio) 'Clear ayah selection',
             ]) {
               await tester.tap(find.byTooltip(label));
               await tester.pumpAndSettle();
             }
-            expect(ayahTaps, withAudio ? 2 : 4);
+            expect(ayahTaps, withAudio ? 2 : 3);
             if (withAudio) {
-              for (final label in ['Previous ayah', 'Pause', 'Next ayah']) {
+              for (final label in [
+                'Previous ayah',
+                'Pause',
+                'Next ayah',
+                'Stop audio',
+              ]) {
                 await tester.tap(find.byTooltip(label));
                 await tester.pumpAndSettle();
               }
               await tester.tap(
-                find.text('Al-Baqarah:7').evaluate().isEmpty
-                    ? find.byTooltip('Audio')
-                    : find.text('Al-Baqarah:7'),
+                find.byTooltip(
+                  '2:7 · Al-Baqarah\nAbdullah Al-Juhany · 2/10\nAyah actions: 2:7',
+                ),
               );
               await tester.pumpAndSettle();
-              expect(audioTaps, portrait ? 4 : 3);
+              expect(audioTaps, 5);
             }
             {
               await tester.tap(find.byTooltip('Collapse navigation'));
               await tester.pumpAndSettle();
               expect(find.byTooltip('Audio'), findsNothing);
-              expect(find.byType(AyahActionBar), findsNothing);
               expect(find.byType(ReaderAudioControls), findsNothing);
               if (const bool.fromEnvironment('READER_PREVIEWS')) {
                 await tester.runAsync(() async {
