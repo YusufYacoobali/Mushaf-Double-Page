@@ -25,7 +25,7 @@ Abdullah Basfar source: https://everyayah.com/data/Abdullah_Basfar_192kbps/
 ## Verification
 
 - Flutter analysis: clean.
-- Verification after the follow-up: 100 tests pass, including finite 1/3/5/10 repeats, infinite recovery,
+- Verification after the follow-up: 104 tests pass, including finite 1/3/5/10 repeats, infinite recovery,
   cancellation, surah order, preferences, daily activity, geometry and controls.
 - Swipe coverage: 16 orientation/zoom combinations, forward and backward page turns,
   vertical landscape scrolling, capped pinch zoom and old preference migration.
@@ -181,3 +181,18 @@ only the arrow tab visible. Selecting/restoring an ayah, opening an ayah bookmar
 page/background taps and playback updates do not reveal the bars in this mode.
 Highlighting, tap-away deselection and playback continue independently. The tab
 opens both navigation and the shared ayah/audio bar; existing timed hiding remains.
+
+## iPhone dock edge placement
+
+Removed the outer SafeArea that added iPhone insets to the dock's existing margins.
+The collapsed tab now sits 4 logical pixels from the physical bottom/right edge.
+As controls expand, clearance interpolates to the greater of the required safe
+inset and the small dock margin, rather than their sum. Expanded buttons remain
+inside the safe region. On devices with a right-side inset, the landscape tab
+uses the lower edge to avoid the potential notch area while collapsed.
+
+Four regression cases simulate iPhone portrait/landscape insets, with and without
+the context bar. They verify edge distance, expanded safe clearance, tab/button
+taps, collapse restoration and unobstructed page swipes. All 104 tests pass and
+Flutter analysis is clean. This was verified in Flutter widget tests, not on a
+physical iPhone or a native iOS simulator.

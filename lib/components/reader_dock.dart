@@ -38,27 +38,35 @@ class ReaderDock extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Positioned(
-    left: portrait ? 10 : null,
-    right: portrait ? 10 : 6,
-    top: portrait ? null : 12,
-    bottom: 12,
-    child: SafeArea(
-      top: !portrait,
-      left: portrait,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: expanded ? 1 : 0),
-        duration: AppMotion.duration(context, expanded),
-        curve: AppMotion.curve,
-        builder: (context, reveal, _) => TweenAnimationBuilder<double>(
+  Widget build(BuildContext context) {
+    final safe = MediaQuery.paddingOf(context);
+    // The tab belongs to the screen edge, not the safe-area boundary. Only the
+    // expanded controls need home-indicator/notch clearance. Use the larger of
+    // that clearance and our margin rather than adding both together.
+    final expandedBottom = math.max(8.0, safe.bottom);
+    final expandedRight = math.max(6.0, safe.right);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: expanded ? 1 : 0),
+      duration: AppMotion.duration(context, expanded),
+      curve: AppMotion.curve,
+      builder: (context, reveal, _) => Positioned(
+        left: portrait ? math.max(10.0, safe.left) : null,
+        right: portrait
+            ? math.max(10.0, safe.right)
+            : 4 + (expandedRight - 4) * reveal,
+        top: portrait ? null : math.max(12.0, safe.top),
+        bottom: portrait
+            ? 4 + (expandedBottom - 4) * reveal
+            : math.max(12.0, safe.bottom),
+        child: TweenAnimationBuilder<double>(
           tween: Tween(end: contextControls == null ? 0 : (portrait ? 56 : 58)),
           duration: AppMotion.duration(context, contextControls != null),
           curve: AppMotion.curve,
           builder: (context, extra, _) => _contents(context, reveal, extra),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _contents(BuildContext context, double reveal, double extra) {
     final decoration = BoxDecoration(
@@ -201,7 +209,11 @@ class ReaderDock extends StatelessWidget {
     return SizedBox(
       width: 22 + (50 + extra) * reveal,
       child: Stack(
-        alignment: Alignment.centerLeft,
+        // A collapsed tab at the middle of a notched iPhone's side can be
+        // obscured. The lower edge stays reachable in either landscape rotation.
+        alignment: MediaQuery.paddingOf(context).right > 0
+            ? Alignment.bottomLeft
+            : Alignment.centerLeft,
         clipBehavior: Clip.none,
         children: [
           if (reveal > 0) ...[
