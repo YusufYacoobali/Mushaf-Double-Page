@@ -197,3 +197,27 @@ the context bar. They verify edge distance, expanded safe clearance, tab/button
 taps, collapse restoration and unobstructed page swipes. All 104 tests pass and
 Flutter analysis is clean. This was verified in Flutter widget tests, not on a
 physical iPhone or a native iOS simulator.
+
+## New-day hadith reminder
+
+The new-day welcome card now displays the recitation hadith and its attribution
+from Quran Journey (Sahih Muslim 804a). Both screens use shared text constants.
+The daily trigger, streak header, dismissal and display duration are unchanged.
+
+Quran Journey's statistics heading is now "App lifetime statistics". The two
+footer paragraphs below the statistics have been removed.
+
+## Surah/Juz selector and fast scrolling
+
+Reproduced a missed Juz-tab tap outside its text: the old GestureDetector only
+hit-tested its painted child. Both segments now use full-width InkWell targets
+44 logical pixels high, with selected/button semantics and press feedback.
+The panel respects safe-area insets around the selector. Tab changes update
+immediately, and outgoing list content cannot intercept taps during its fade.
+
+Both lists have a persistent right-hand scrollbar that can be dragged immediately,
+with a visible track and a separate controller per list. PageStorage retains each
+list's position when switching tabs. Five widget regression tests pass, covering
+off-label taps, dragging to Surah 114 and Juz 30, saved scroll positions and jump
+callbacks for both Mushaf layouts in portrait/landscape with iPhone insets.
+Flutter analysis is clean. No physical-device validation was performed.

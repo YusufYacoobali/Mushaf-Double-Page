@@ -1,3 +1,4 @@
+import 'quran_reminder.dart';
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
@@ -115,7 +116,7 @@ class _ProgressPageState extends State<ProgressPage> {
                                   ),
                                   const SizedBox(height: 12),
                                   const Text(
-                                    "Recite the Qur'an, for on the Day of Resurrection it will come as an intercessor for those who recite It.",
+                                    quranRecitationHadith,
                                     style: TextStyle(
                                       color: Color(0xFFFCF8EF),
                                       fontSize: 20,
@@ -125,7 +126,7 @@ class _ProgressPageState extends State<ProgressPage> {
                                   ),
                                   const SizedBox(height: 12),
                                   const Text(
-                                    'Prophet Muhammad (peace be upon him)\nSahih Muslim 804a',
+                                    quranRecitationHadithAttribution,
                                     style: TextStyle(
                                       color: Color(0xFFE2C78D),
                                       fontSize: 12,
@@ -166,7 +167,7 @@ class _ProgressPageState extends State<ProgressPage> {
                       ),
                       const SizedBox(height: 28),
                       Text(
-                        'Your lifetime moments',
+                        'App lifetime statistics',
                         style: TextStyle(
                           color: palette.text,
                           fontSize: 20,
@@ -289,24 +290,6 @@ class _ProgressPageState extends State<ProgressPage> {
                             ],
                           );
                         },
-                      ),
-                      const SizedBox(height: 22),
-                      Text(
-                        'Small moments, lasting meaning. Keep going at your own pace.',
-                        style: TextStyle(
-                          color: palette.text,
-                          height: 1.5,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Repeat visits and listens are included. Ayahs count after nearly the whole recording plays; translations count when viewed. Reading time pauses when you leave the reader. Total app time includes every screen and pauses in the background.',
-                        style: TextStyle(
-                          color: palette.muted,
-                          height: 1.5,
-                          fontSize: 11,
-                        ),
                       ),
                       const SizedBox(height: 22),
                       FilledButton.icon(

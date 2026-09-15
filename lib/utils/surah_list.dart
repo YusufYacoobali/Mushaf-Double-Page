@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/surah_mapper.dart';
 
 import '../components/nav_tile.dart';
+import '../components/navigation_list_view.dart';
 
 class SurahList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
@@ -18,8 +19,8 @@ class SurahList extends StatelessWidget {
   Widget build(BuildContext context) {
     final surahs = getSurahRanges(mushaf).where((s) => s.surah > 0).toList();
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
+    return NavigationListView(
+      storageKey: 'surahs-$mushaf',
       itemCount: surahs.length,
       itemBuilder: (_, i) {
         final surah = surahs[i];

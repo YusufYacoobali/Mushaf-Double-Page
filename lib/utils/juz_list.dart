@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../components/nav_tile.dart';
+import '../components/navigation_list_view.dart';
 import 'juz_mapper.dart';
 
 class JuzList extends StatelessWidget {
@@ -16,8 +17,8 @@ class JuzList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final juzRanges = getJuzRanges(mushaf);
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
+    return NavigationListView(
+      storageKey: 'juz-$mushaf',
       itemCount: juzRanges.length,
       itemBuilder: (_, i) {
         final juz = juzRanges[i];

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'quran_reminder.dart';
 
 class DailyReadingCard extends StatelessWidget {
   const DailyReadingCard({
@@ -10,15 +11,6 @@ class DailyReadingCard extends StatelessWidget {
   final int streak;
   final bool compact;
   final VoidCallback? onClose;
-
-  String get title => streak <= 1
-      ? 'A little time. A lasting connection.'
-      : streak % 7 == 0
-      ? 'A week of showing up. Beautifully done.'
-      : 'You made time for what matters.';
-  String get message => streak <= 1
-      ? 'Welcome. Even a few thoughtful verses can make this a meaningful part of your day.'
-      : 'Welcome back. Your $streak days of returning to the Quran reflect care and commitment. Keep going at your own pace.';
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +75,7 @@ class DailyReadingCard extends StatelessWidget {
             ),
             SizedBox(height: compact ? 10 : 26),
             Text(
-              title,
+              quranRecitationHadith,
               style: TextStyle(
                 color: const Color(0xFFFFFCF2),
                 fontSize: compact ? 19 : 29,
@@ -94,7 +86,7 @@ class DailyReadingCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              message,
+              quranRecitationHadithAttribution,
               style: TextStyle(
                 color: const Color(0xFFDDD2C1),
                 fontSize: compact ? 12 : 15,

@@ -46,25 +46,12 @@ class _Panel extends StatefulWidget {
   State<_Panel> createState() => _PanelState();
 }
 
-class _PanelState extends State<_Panel> with SingleTickerProviderStateMixin {
-  late final TabController _tabs;
+class _PanelState extends State<_Panel> {
+  int _index = 0;
+  final _scrollPositions = PageStorageBucket();
 
-  @override
-  void initState() {
-    super.initState();
-    _tabs = TabController(length: 2, vsync: this);
-    _tabs.addListener(_onTabChanged);
-  }
-
-  void _onTabChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _tabs.removeListener(_onTabChanged);
-    _tabs.dispose();
-    super.dispose();
+  void _selectTab(int index) {
+    if (index != _index) setState(() => _index = index);
   }
 
   @override
@@ -79,35 +66,36 @@ class _PanelState extends State<_Panel> with SingleTickerProviderStateMixin {
       child: SizedBox(
         width: 320,
         height: height,
-        child: Column(
-          children: [
-            const SizedBox(height: 40),
-
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                child: _tabs.index == 0
-                    ? SurahList(
-                        key: const ValueKey("surah"),
-                        widget.onJumpToPage,
-                        mushaf: widget.mushaf,
-                        onJump: widget.onJumpToPage,
-                      )
-                    : JuzList(
-                        key: const ValueKey("juz"),
-                        widget.onJumpToPage,
-                        onJump: widget.onJumpToPage,
-                        mushaf: widget.mushaf,
-                      ),
+        child: SafeArea(
+          left: false,
+          minimum: const EdgeInsets.only(top: 12, bottom: 12),
+          child: Column(
+            children: [
+              Expanded(
+                child: PageStorage(
+                  bucket: _scrollPositions,
+                  child: MotionSwitcher(
+                    offset: Offset.zero,
+                    child: _index == 0
+                        ? SurahList(
+                            key: const ValueKey("surah"),
+                            widget.onJumpToPage,
+                            mushaf: widget.mushaf,
+                            onJump: widget.onJumpToPage,
+                          )
+                        : JuzList(
+                            key: const ValueKey("juz"),
+                            widget.onJumpToPage,
+                            onJump: widget.onJumpToPage,
+                            mushaf: widget.mushaf,
+                          ),
+                  ),
+                ),
               ),
-            ),
 
-            _BottomSelector(index: _tabs.index, onTap: _tabs.animateTo),
-
-            const SizedBox(height: 20),
-          ],
+              _BottomSelector(index: _index, onTap: _selectTab),
+            ],
+          ),
         ),
       ),
     );
@@ -138,14 +126,14 @@ class _BottomSelector extends StatelessWidget {
           return Stack(
             children: [
               AnimatedAlign(
-                duration: const Duration(milliseconds: 260),
+                duration: AppMotion.duration(context, false),
                 curve: Curves.easeOutCubic,
                 alignment: index == 0
                     ? Alignment.centerLeft
                     : Alignment.centerRight,
                 child: Container(
                   width: segmentWidth,
-                  height: 36,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: palette.surface,
                     borderRadius: BorderRadius.circular(22),
@@ -177,16 +165,23 @@ class _BottomSelector extends StatelessWidget {
     final selected = index == i;
 
     return Expanded(
-      child: GestureDetector(
-        onTap: () => onTap(i),
-        child: SizedBox(
-          height: 36,
-          child: Center(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: selected ? palette.accent : palette.muted,
-                fontWeight: FontWeight.w600,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: PressMotion(
+          child: InkWell(
+            onTap: () => onTap(i),
+            borderRadius: BorderRadius.circular(22),
+            child: SizedBox(
+              height: 44,
+              child: Center(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: selected ? palette.accent : palette.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ),
