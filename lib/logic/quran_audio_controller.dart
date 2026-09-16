@@ -62,6 +62,13 @@ class QuranAudioController extends ChangeNotifier {
       _player.positionStream.listen((_) => _trackListening());
     }
     _player.currentIndexStream.listen((index) {
+      if (!_preparing &&
+          _sessionActive &&
+          index != null &&
+          index >= 0 &&
+          index < _playbackVerses.length) {
+        _currentPlaybackIndex = index;
+      }
       _handleCurrentIndex(index);
       notifyListeners();
     });
@@ -75,6 +82,7 @@ class QuranAudioController extends ChangeNotifier {
     });
     _player.errorStream.listen((error) {
       debugPrint('[AUDIO] Playback source error: $error');
+      _sessionActive = false;
       _errorKind = QuranAudioErrorKind.playback;
       _error = 'Audio playback failed. Please try again.';
       notifyListeners();
@@ -125,6 +133,9 @@ class QuranAudioController extends ChangeNotifier {
   String? _error;
   QuranAudioErrorKind _errorKind = QuranAudioErrorKind.none;
   bool _preparing = false;
+  bool _sessionActive = false;
+  List<AudioVerse> _playbackVerses = const [];
+  int _currentPlaybackIndex = 0;
   bool _restartingInfinite = false;
   bool _advancingRangeRepeat = false;
   int _rangeCycle = 1;
@@ -140,7 +151,11 @@ class QuranAudioController extends ChangeNotifier {
   String? get error => _error;
   QuranAudioErrorKind get errorKind => _errorKind;
   bool get preparing => _preparing;
-  bool get playing => _player.playing;
+  bool get playing => _sessionActive && _player.playing;
+
+  /// Remains active while paused, buffering or seeking into another repeat.
+  bool get hasActivePlayback => _sessionActive;
+  int get playbackSessionId => _playRequestId;
   ProcessingState get processingState => _player.processingState;
   bool get hasPlan => _plan != null;
 
@@ -152,11 +167,14 @@ class QuranAudioController extends ChangeNotifier {
     return tag is MediaItem ? tag : null;
   }
 
-  int? get currentSurah => currentMediaItem?.extras?['surah'] as int?;
-  int? get currentAyah => currentMediaItem?.extras?['ayah'] as int?;
+  AudioVerse? get currentVerse => _sessionActive && _playbackVerses.isNotEmpty
+      ? _playbackVerses[_currentPlaybackIndex]
+      : null;
+  int? get currentSurah => currentVerse?.surah;
+  int? get currentAyah => currentVerse?.ayah;
   int? get currentRepeat {
     if (_plan?.repeatMode == AudioRepeatMode.range) return _rangeCycle;
-    return currentMediaItem?.extras?['cycle'] as int?;
+    return currentVerse?.cycle;
   }
 
   Future<void> playPlan(AudioPlaybackPlan plan) async {
@@ -167,6 +185,9 @@ class QuranAudioController extends ChangeNotifier {
     _downloadCancelToken = cancelToken;
 
     _preparing = true;
+    _sessionActive = false;
+    _playbackVerses = _playbackVersesForPlayer(plan);
+    _currentPlaybackIndex = 0;
     _error = null;
     _errorKind = QuranAudioErrorKind.none;
     _downloadState = const AudioDownloadState.idle();
@@ -197,6 +218,7 @@ class QuranAudioController extends ChangeNotifier {
       _startPlayback(requestId);
     } on DioException catch (e) {
       if (!_isCurrentRequest(requestId) || CancelToken.isCancel(e)) return;
+      _sessionActive = false;
       _errorKind = QuranAudioErrorKind.connectionRequired;
       _error =
           'Connection needed to download this audio the first time. Once downloaded, it will play offline.';
@@ -205,6 +227,7 @@ class QuranAudioController extends ChangeNotifier {
     } catch (e) {
       if (!_isCurrentRequest(requestId)) return;
       _errorKind = QuranAudioErrorKind.playback;
+      _sessionActive = false;
       _error = 'Could not prepare audio. Please try again.';
     } finally {
       if (_isCurrentRequest(requestId)) {
@@ -221,9 +244,12 @@ class QuranAudioController extends ChangeNotifier {
   // AudioPlayer.play completes when playback ends, not when it starts.
   // Never await it while holding the preparation or repeat guard.
   void _startPlayback(int requestId) {
+    if (!_isCurrentRequest(requestId)) return;
+    _sessionActive = true;
     unawaited(
       _player.play().catchError((Object error) {
         if (!_isCurrentRequest(requestId)) return;
+        _sessionActive = false;
         _errorKind = QuranAudioErrorKind.playback;
         _error = 'Audio playback failed. Please try again.';
         notifyListeners();
@@ -252,7 +278,13 @@ class QuranAudioController extends ChangeNotifier {
 
   void _handleCompletedPlayback() {
     final plan = _plan;
-    if (plan == null || _preparing) return;
+    if (plan == null ||
+        _preparing ||
+        !_sessionActive ||
+        _advancingRangeRepeat ||
+        _restartingInfinite) {
+      return;
+    }
 
     if (plan.repeatMode == AudioRepeatMode.range &&
         !plan.infiniteRepeat &&
@@ -263,6 +295,8 @@ class QuranAudioController extends ChangeNotifier {
 
     if (plan.infiniteRepeat) {
       _restartInfinitePlayback();
+    } else {
+      _sessionActive = false;
     }
   }
 
@@ -284,10 +318,12 @@ class QuranAudioController extends ChangeNotifier {
       _lastIndex = null;
       await _player.seek(Duration.zero, index: 0);
       if (_isCurrentRequest(requestId) && _plan == plan) {
+        _currentPlaybackIndex = 0;
         _startPlayback(requestId);
       }
     } catch (e) {
       debugPrint('[AUDIO] Range repeat advance failed: $e');
+      _repeatFailed(requestId);
     } finally {
       if (_isCurrentRequest(requestId)) _advancingRangeRepeat = false;
       notifyListeners();
@@ -305,30 +341,42 @@ class QuranAudioController extends ChangeNotifier {
 
       await _player.seek(Duration.zero, index: 0);
       if (_isCurrentRequest(requestId) && _plan == plan) {
+        _currentPlaybackIndex = 0;
         _startPlayback(requestId);
       }
     } catch (e) {
       debugPrint('[AUDIO] Infinite repeat restart failed: $e');
+      _repeatFailed(requestId);
     } finally {
       if (_isCurrentRequest(requestId)) _restartingInfinite = false;
       notifyListeners();
     }
   }
 
+  void _repeatFailed(int requestId) {
+    if (!_isCurrentRequest(requestId)) return;
+    _sessionActive = false;
+    _errorKind = QuranAudioErrorKind.playback;
+    _error = 'Could not repeat audio. Please try again.';
+  }
+
   Future<void> togglePlayPause() async {
-    if (_player.playing) {
+    if (playing) {
       await _player.pause();
       return;
     }
 
     if (_player.processingState == ProcessingState.completed) {
       _rangeCycle = 1;
+      _currentPlaybackIndex = 0;
       await _player.seek(Duration.zero, index: 0);
     }
     _startPlayback(_playRequestId);
+    notifyListeners();
   }
 
   Future<void> stop() async {
+    _sessionActive = false;
     _listeningTracker?.reset();
     ++_playRequestId;
     _downloadCancelToken?.cancel('Playback stopped');

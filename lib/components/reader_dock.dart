@@ -43,7 +43,10 @@ class ReaderDock extends StatelessWidget {
     // The tab belongs to the screen edge, not the safe-area boundary. Only the
     // expanded controls need home-indicator/notch clearance. Use the larger of
     // that clearance and our margin rather than adding both together.
-    final expandedBottom = math.max(8.0, safe.bottom);
+    final collapsedBottom = Theme.of(context).platform == TargetPlatform.iOS
+        ? 16.0
+        : 8.0;
+    final expandedBottom = math.max(collapsedBottom, safe.bottom);
     final expandedRight = math.max(6.0, safe.right);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: expanded ? 1 : 0),
@@ -56,7 +59,7 @@ class ReaderDock extends StatelessWidget {
             : 4 + (expandedRight - 4) * reveal,
         top: portrait ? null : math.max(12.0, safe.top),
         bottom: portrait
-            ? 8 + (expandedBottom - 8) * reveal
+            ? collapsedBottom + (expandedBottom - collapsedBottom) * reveal
             : math.max(12.0, safe.bottom),
         child: TweenAnimationBuilder<double>(
           tween: Tween(end: contextControls == null ? 0 : (portrait ? 56 : 58)),

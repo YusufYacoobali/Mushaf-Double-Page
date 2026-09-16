@@ -1,6 +1,5 @@
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
@@ -108,7 +107,8 @@ class _AudioModalState extends State<AudioModal> {
       }
     }
     final active = _controller.plan;
-    if (active != null && _controller.processingState != ProcessingState.idle) {
+    if (active != null &&
+        (_controller.hasActivePlayback || _controller.preparing)) {
       _reciter = active.reciter;
       _surah = active.surah;
       _fromAyah = active.fromAyah;
@@ -446,17 +446,9 @@ class _AudioModalState extends State<AudioModal> {
     final isThisPlan = editedPlan.matches(controller.plan);
     final isDownloading = controller.preparing && isThisPlan;
     final isPlaying = isThisPlan && controller.playing;
-    final hasActiveAudio =
-        controller.preparing ||
-        controller.hasPlan &&
-            controller.processingState != ProcessingState.idle &&
-            controller.processingState != ProcessingState.completed;
+    final hasActiveAudio = controller.preparing || controller.hasActivePlayback;
     final canResume =
-        isThisPlan &&
-        controller.hasPlan &&
-        !controller.playing &&
-        controller.processingState != ProcessingState.idle &&
-        controller.processingState != ProcessingState.completed;
+        isThisPlan && controller.hasActivePlayback && !controller.playing;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

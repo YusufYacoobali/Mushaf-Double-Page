@@ -1,4 +1,5 @@
 import 'utils/reader_highlight_preferences.dart';
+import 'utils/audio_page_follower.dart';
 import 'components/reader_audio_controls.dart';
 import 'progress/app_time_tracker.dart';
 import 'progress/journey_tracking.dart';
@@ -9,7 +10,6 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:mushaf_two_page/components/audio_modal.dart';
 import 'package:mushaf_two_page/components/bookmark_modal.dart';
@@ -147,6 +147,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   bool _ayahHighlightingEnabled = true;
   bool _readerWhite = false;
   bool _controlsArrowOnly = false;
+  bool _audioWasActive = false;
+  bool _audioFollowScheduled = false;
+  final _audioPageFollower = AudioPageFollower();
   ReadingProgress? _dailyWelcome;
   bool _recordingProgress = false;
   Timer? _welcomeTimer;
@@ -229,6 +232,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       _savedHighlightIdentity = savedHighlight.identity;
     }
     setState(() => _ready = true);
+    _audioChanged();
     _persistHighlight();
     _recordProgress();
   }
@@ -305,10 +309,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   void _startHideScrollbarTimer() {
     _hideScrollbarTimer?.cancel();
-    _hideScrollbarTimer = Timer(
-      const Duration(seconds: 10),
-      () => setState(() => _isScrollbarVisible = false),
-    );
+    _hideScrollbarTimer = Timer(const Duration(seconds: 10), () {
+      // An explicitly hidden dock stays hidden, but the timer must not remove
+      // the playback controls while a recitation is running.
+      if (QuranAudioController.instance.playing) return;
+      if (mounted) setState(() => _isScrollbarVisible = false);
+    });
   }
 
   void _onScreenTap() {
@@ -359,9 +365,56 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   void _audioChanged() {
     if (mounted && _ready) {
+      final audio = QuranAudioController.instance;
+      if (audio.hasActivePlayback) {
+        _hideScrollbarTimer?.cancel();
+        if (!_audioWasActive && !_controlsArrowOnly) _isScrollbarVisible = true;
+      } else if (_audioWasActive && _isScrollbarVisible && _selPage == null) {
+        _startHideScrollbarTimer();
+      }
+      _audioWasActive = audio.hasActivePlayback;
       _persistHighlight();
       setState(() {});
+      _scheduleAudioPageFollow();
     }
+  }
+
+  void _scheduleAudioPageFollow() {
+    if (_audioFollowScheduled) return;
+    _audioFollowScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _audioFollowScheduled = false;
+      if (!mounted ||
+          !_ready ||
+          !_hasPageController ||
+          !_pageController.hasClients) {
+        return;
+      }
+      final audio = QuranAudioController.instance;
+      final target = _audioPageFollower.targetPage(
+        playing: audio.playing && !audio.preparing,
+        session: audio.playbackSessionId,
+        cycle: audio.currentRepeat,
+        surah: audio.currentSurah,
+        ayah: audio.currentAyah,
+        currentPage: _logicalPage,
+        portrait: _isPortrait,
+        mushaf: _mushaf,
+      );
+      if (target == null) return;
+      final index = PageMapper.pageIndexFromLogical(target, _isPortrait);
+      if (AppMotion.reduced(context)) {
+        _pageController.jumpToPage(index);
+      } else {
+        unawaited(
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 280),
+            curve: AppMotion.curve,
+          ),
+        );
+      }
+    });
   }
 
   void _forgetAyahSelection() {
@@ -383,8 +436,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       final audio = QuranAudioController.instance;
       if (saved == null &&
           !audio.preparing &&
-          audio.processingState != ProcessingState.idle &&
-          audio.processingState != ProcessingState.completed &&
+          audio.hasActivePlayback &&
           audio.currentSurah != null &&
           audio.currentAyah != null) {
         final page = PageAyahIndex.pageOfAyah(
@@ -416,8 +468,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     final audio = QuranAudioController.instance;
     if (_ayahHighlightingEnabled &&
         !audio.preparing &&
-        audio.processingState != ProcessingState.idle &&
-        audio.processingState != ProcessingState.completed &&
+        audio.hasActivePlayback &&
         audio.currentSurah != null &&
         audio.currentAyah != null) {
       final rects = AyahRectIndex.rectsFor(
@@ -891,9 +942,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   Widget? _readerAudioControls(AppPalette palette) {
     final controller = QuranAudioController.instance;
     final plan = controller.plan;
-    if (plan == null ||
-        controller.processingState == ProcessingState.idle ||
-        controller.processingState == ProcessingState.completed) {
+    if (plan == null || !controller.hasActivePlayback) {
       return null;
     }
     final ayah = controller.currentAyah;
@@ -985,6 +1034,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             );
             _pageController.dispose();
             _pageController = PageController(initialPage: newIndex);
+            _scheduleAudioPageFollow();
           }
 
           final pageCount = _pageCount(_isPortrait);

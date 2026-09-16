@@ -185,7 +185,8 @@ opens both navigation and the shared ayah/audio bar; existing timed hiding remai
 ## iPhone dock edge placement
 
 Removed the outer SafeArea that added iPhone insets to the dock's existing margins.
-The collapsed tab now sits 8 logical pixels from the bottom edge in portrait
+The collapsed tab now sits 16 logical pixels from the bottom edge on iOS in portrait
+(8 on other platforms)
 and 4 logical pixels from the right edge in landscape.
 As controls expand, clearance interpolates to the greater of the required safe
 inset and the small dock margin, rather than their sum. Expanded buttons remain
@@ -221,3 +222,21 @@ list's position when switching tabs. Five widget regression tests pass, covering
 off-label taps, dragging to Surah 114 and Juz 30, saved scroll positions and jump
 callbacks for both Mushaf layouts in portrait/landscape with iPhone insets.
 Flutter analysis is clean. No physical-device validation was performed.
+
+## Playback continuity and page following
+
+Playback session state now persists across repeat seeks, so temporary completion
+events do not remove the audio bar or current-ayah highlight. The current verse
+comes from the playback plan and player index, retaining its last value during
+transient null index events. The reader's idle timer no longer hides controls
+during playback. Manual hiding and the arrow-only preference remain available.
+
+The reader follows each newly playing ayah to its page or landscape spread,
+including returning to the start of a repeated range. It leaves the page alone
+when the ayah is already visible, including verses spanning two pages, and does
+not undo manual page navigation on unrelated playback notifications.
+
+All 118 tests pass, including ten range loops, duplicate completion events,
+transient index gaps, verse repeats, queued surahs, pause/stop, and page following
+for both Mushaf layouts and orientations. iOS tab placement is covered by widget
+tests with simulated safe-area insets; native iPhone validation remains pending.

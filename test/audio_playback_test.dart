@@ -164,6 +164,141 @@ void main() {
     await flush();
     expect(player.starts, 1);
   });
+  test(
+    'ten cycles retain active session and ayah across pending seeks',
+    () async {
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: (_) async => [],
+      );
+      await controller.playPlan(plan());
+      final observations = <bool>[];
+      controller.addListener(
+        () => observations.add(controller.hasActivePlayback),
+      );
+      for (var cycle = 1; cycle <= 10; cycle++) {
+        player.indexes.add(3);
+        expect(controller.currentSurah, 112);
+        expect(controller.currentAyah, 4);
+        observations.clear();
+        player.seekGate = Completer<void>();
+        player.complete();
+        if (cycle == 10) {
+          expect(controller.hasActivePlayback, isFalse);
+          expect(controller.currentAyah, isNull);
+          break;
+        }
+        expect(controller.hasActivePlayback, isTrue);
+        expect(controller.currentAyah, 4);
+        // Native metadata/indexes may momentarily be unavailable at a repeat edge.
+        player.indexes.add(null);
+        expect(controller.currentAyah, 4);
+        // Duplicate completion during the seek must not finish the next cycle.
+        player.complete();
+        player.seekGate!.complete();
+        await flush();
+        expect(controller.currentRepeat, cycle + 1);
+        expect(controller.currentAyah, 1);
+        expect(observations, everyElement(isTrue));
+        player.indexes.add(1);
+        expect(controller.currentAyah, 2);
+      }
+      expect(player.starts, 10);
+      expect(player.seeks, 9);
+      await controller.stop();
+    },
+  );
+
+  test(
+    'pause and temporary processing states keep the session; stop clears it',
+    () async {
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: (_) async => [],
+      );
+      await controller.playPlan(plan());
+      player.indexes.add(2);
+      await controller.togglePlayPause();
+      expect(controller.playing, isFalse);
+      expect(controller.hasActivePlayback, isTrue);
+      expect(controller.currentAyah, 3);
+      player.state = ProcessingState.buffering;
+      player.states.add(PlayerState(false, player.state));
+      player.indexes.add(null);
+      expect(controller.currentAyah, 3);
+      await controller.stop();
+      expect(controller.hasActivePlayback, isFalse);
+      expect(controller.currentAyah, isNull);
+      player.complete();
+      await flush();
+      expect(player.starts, 1);
+    },
+  );
+
+  test(
+    'queue verse identity survives repeats across surah boundaries',
+    () async {
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: (_) async => [],
+      );
+      await controller.playPlan(
+        AudioPlaybackPlan(
+          reciter: quranReciters.first,
+          surah: 112,
+          fromAyah: 1,
+          toAyah: 4,
+          repeatCount: 3,
+          repeatMode: AudioRepeatMode.range,
+          sourceMode: AudioSourceMode.playlist,
+          surahQueue: [112, 114],
+        ),
+      );
+      player.indexes.add(4);
+      expect((controller.currentSurah, controller.currentAyah), (114, 1));
+      player.complete();
+      await flush();
+      expect((controller.currentSurah, controller.currentAyah), (112, 1));
+      player.indexes.add(9);
+      expect((controller.currentSurah, controller.currentAyah), (114, 6));
+      await controller.stop();
+    },
+  );
+
+  test(
+    'verse repeat reports the correct ayah and repetition without source tags',
+    () async {
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: (_) async => [],
+      );
+      await controller.playPlan(
+        AudioPlaybackPlan(
+          reciter: quranReciters.first,
+          surah: 112,
+          fromAyah: 1,
+          toAyah: 2,
+          repeatCount: 3,
+          repeatMode: AudioRepeatMode.ayah,
+          sourceMode: AudioSourceMode.range,
+        ),
+      );
+      for (var index = 0; index < 6; index++) {
+        player.indexes.add(index);
+        expect(controller.currentAyah, index ~/ 3 + 1);
+        expect(controller.currentRepeat, index % 3 + 1);
+        expect(controller.hasActivePlayback, isTrue);
+      }
+      player.complete();
+      expect(controller.hasActivePlayback, isFalse);
+      await controller.stop();
+    },
+  );
+
   test('queue follows selection order and repeats across surah boundaries', () {
     final queue = AudioPlaybackPlan(
       reciter: quranReciters.first,

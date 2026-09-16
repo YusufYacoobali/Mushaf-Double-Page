@@ -86,7 +86,7 @@ void main() {
           await tester.pumpAndSettle();
           final collapsed = tester.getRect(find.byType(NavigationPullTab));
           if (portrait) {
-            expect(size.height - collapsed.bottom, closeTo(8, .01));
+            expect(size.height - collapsed.bottom, closeTo(16, .01));
           } else {
             expect(size.width - collapsed.right, closeTo(4, .01));
             expect(
