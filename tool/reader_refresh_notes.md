@@ -240,3 +240,14 @@ All 118 tests pass, including ten range loops, duplicate completion events,
 transient index gaps, verse repeats, queued surahs, pause/stop, and page following
 for both Mushaf layouts and orientations. iOS tab placement is covered by widget
 tests with simulated safe-area insets; native iPhone validation remains pending.
+
+## Android status bar
+
+MainActivity hides the time/battery status bar using AndroidX window insets on
+resume and when window focus returns. Transient swipe access remains available.
+Android no longer relies on Flutter's legacy immersive-mode calls, which can be
+ignored with enforced edge-to-edge. iOS keeps its existing system UI behavior.
+
+The Android debug Kotlin compilation and its Flutter build dependency passed
+(`:app:compileDebugKotlin --offline`). This native change requires a rebuilt
+Android app; it has not been installed or visually checked on a device.

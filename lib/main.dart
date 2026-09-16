@@ -178,7 +178,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // Android owns status-bar visibility in MainActivity, including app resume.
+    if (!Platform.isAndroid) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
     WidgetsBinding.instance.addObserver(this);
     QuranAudioController.instance.addListener(_audioChanged);
     _init();
@@ -246,7 +249,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     if (_hasPageController) {
       _pageController.dispose();
     }
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    if (!Platform.isAndroid) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     super.dispose();
   }
 
