@@ -4,19 +4,26 @@ import 'package:just_audio/just_audio.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 
-// play() deliberately never resolves until stopped, just like the native player.
+// Models just_audio's sticky playing flag at EOF and no-op play() when true.
+// An exhausted queue cannot become audible again without a fresh source load.
 class FakePlayer implements AudioPlayer {
-  final states = StreamController<PlayerState>.broadcast(sync: true);
+  final states = StreamController<PlayerState>.broadcast();
   final indexes = StreamController<int?>.broadcast(sync: true);
   final errors = StreamController<PlayerException>.broadcast(sync: true);
   final plays = <Completer<void>>[];
+  final loadedSources = <List<AudioSource>>[];
   int starts = 0;
+  int audibleStarts = 0;
   int seeks = 0;
   int sourceLoads = 0;
   int sourceCount = 0;
+  int _loadGeneration = 0;
   bool active = false;
+  bool decoderReady = false;
   ProcessingState state = ProcessingState.idle;
-  Completer<void>? seekGate;
+  Completer<void>? loadGate;
+  @override
+  LoopMode loopMode = LoopMode.off;
   @override
   Stream<PlayerState> get playerStateStream => states.stream;
   @override
@@ -29,31 +36,42 @@ class FakePlayer implements AudioPlayer {
   ProcessingState get processingState => state;
   @override
   Future<void> play() {
+    if (active) return Future<void>.value();
     starts++;
+    if (decoderReady) audibleStarts++;
     active = true;
+    states.add(PlayerState(active, state));
     final completer = Completer<void>();
     plays.add(completer);
     return completer.future;
   }
 
-  @override
-  Future<void> stop() async {
-    active = false;
-    state = ProcessingState.idle;
+  void _finishPlayRequests() {
     for (final c in plays) {
       if (!c.isCompleted) c.complete();
     }
   }
 
   @override
-  Future<void> pause() async {
+  Future<void> stop() async {
+    _loadGeneration++;
     active = false;
+    state = ProcessingState.idle;
+    _finishPlayRequests();
+    states.add(PlayerState(active, state));
+  }
+
+  @override
+  Future<void> pause() async {
+    if (!active) return;
+    active = false;
+    _finishPlayRequests();
+    states.add(PlayerState(active, state));
   }
 
   @override
   Future<void> seek(Duration? position, {int? index}) async {
     seeks++;
-    await seekGate?.future;
     state = ProcessingState.ready;
     states.add(PlayerState(active, state));
   }
@@ -66,22 +84,42 @@ class FakePlayer implements AudioPlayer {
     Duration? initialPosition,
     ShuffleOrder? shuffleOrder,
   }) async {
+    final generation = ++_loadGeneration;
     sourceLoads++;
     sourceCount = sources.length;
+    loadedSources.add(List.of(sources));
+    await loadGate?.future;
+    if (generation != _loadGeneration) throw StateError('Loading interrupted');
+    decoderReady = true;
     state = ProcessingState.ready;
+    indexes.add(initialIndex ?? 0);
+    states.add(PlayerState(active, state));
     return null;
   }
 
   @override
-  Future<void> setLoopMode(LoopMode mode) async {}
+  Future<void> setLoopMode(LoopMode mode) async {
+    loopMode = mode;
+  }
+
   void complete() {
+    decoderReady = false;
     state = ProcessingState.completed;
+    _finishPlayRequests();
     states.add(PlayerState(active, state));
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+Future<List<AudioSource>> sources(AudioPlaybackPlan p) async => [
+  for (final v
+      in p.repeatMode == AudioRepeatMode.range
+          ? p.uniqueVerses()
+          : p.playbackVerses())
+    AudioSource.uri(Uri.parse('https://example.test/${v.surah}/${v.ayah}.mp3')),
+];
 
 AudioPlaybackPlan plan({int? count = 10}) => AudioPlaybackPlan(
   reciter: quranReciters.first,
@@ -96,15 +134,12 @@ Future<void> flush() => Future<void>.delayed(Duration.zero);
 void main() {
   for (final count in [1, 3, 5, 10]) {
     test(
-      'range plays exactly $count cycles without waiting on play()',
+      'range decodes exactly $count cycles using fresh native queues',
       () async {
         final player = FakePlayer();
         final controller = QuranAudioController.forTesting(
           player: player,
-          prepareSources: (p) async => [
-            for (final v in p.uniqueVerses())
-              AudioSource.uri(Uri.parse('https://example.test/${v.ayah}.mp3')),
-          ],
+          prepareSources: sources,
         );
         await controller.playPlan(plan(count: count));
         expect(controller.preparing, isFalse);
@@ -114,8 +149,14 @@ void main() {
           await flush();
         }
         expect(player.starts, count);
-        expect(player.seeks, count - 1);
-        expect(player.sourceLoads, 1);
+        expect(player.audibleStarts, count);
+        expect(player.active, isFalse);
+        expect(controller.hasActivePlayback, isFalse);
+        expect(player.seeks, 0);
+        expect(player.sourceLoads, count);
+        expect(player.loopMode, LoopMode.off);
+        final sourceIds = player.loadedSources.expand((s) => s);
+        expect(sourceIds.toSet().length, 4);
         expect(player.sourceCount, 4);
         await controller.stop();
       },
@@ -133,6 +174,9 @@ void main() {
       await flush();
     }
     expect(player.starts, 13);
+    expect(player.audibleStarts, 13);
+    expect(player.sourceLoads, 13);
+    expect(controller.currentRepeat, 13);
     await controller.stop();
   });
   test('stop during preparation prevents late autoplay', () async {
@@ -150,22 +194,22 @@ void main() {
     expect(player.starts, 0);
     expect(controller.preparing, isFalse);
   });
-  test('stop during repeat seek prevents restart', () async {
+  test('stop during repeat loading prevents restart', () async {
     final player = FakePlayer();
     final controller = QuranAudioController.forTesting(
       player: player,
       prepareSources: (_) async => [],
     );
     await controller.playPlan(plan());
-    player.seekGate = Completer<void>();
+    player.loadGate = Completer<void>();
     player.complete();
     await controller.stop();
-    player.seekGate!.complete();
+    player.loadGate!.complete();
     await flush();
     expect(player.starts, 1);
   });
   test(
-    'ten cycles retain active session and ayah across pending seeks',
+    'ten cycles retain active session and ayah across native queue reloads',
     () async {
       final player = FakePlayer();
       final controller = QuranAudioController.forTesting(
@@ -182,8 +226,9 @@ void main() {
         expect(controller.currentSurah, 112);
         expect(controller.currentAyah, 4);
         observations.clear();
-        player.seekGate = Completer<void>();
+        player.loadGate = Completer<void>();
         player.complete();
+        await flush();
         if (cycle == 10) {
           expect(controller.hasActivePlayback, isFalse);
           expect(controller.currentAyah, isNull);
@@ -194,9 +239,9 @@ void main() {
         // Native metadata/indexes may momentarily be unavailable at a repeat edge.
         player.indexes.add(null);
         expect(controller.currentAyah, 4);
-        // Duplicate completion during the seek must not finish the next cycle.
+        // Duplicate EOF during reload must not skip or finish the next cycle.
         player.complete();
-        player.seekGate!.complete();
+        player.loadGate!.complete();
         await flush();
         expect(controller.currentRepeat, cycle + 1);
         expect(controller.currentAyah, 1);
@@ -205,7 +250,9 @@ void main() {
         expect(controller.currentAyah, 2);
       }
       expect(player.starts, 10);
-      expect(player.seeks, 9);
+      expect(player.audibleStarts, 10);
+      expect(player.seeks, 0);
+      expect(player.sourceLoads, 10);
       await controller.stop();
     },
   );
@@ -294,7 +341,101 @@ void main() {
         expect(controller.hasActivePlayback, isTrue);
       }
       player.complete();
+      await flush();
       expect(controller.hasActivePlayback, isFalse);
+      await controller.stop();
+    },
+  );
+
+  test(
+    'pause during repeat loading survives completion and resumes audibly',
+    () async {
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: sources,
+      );
+      await controller.playPlan(plan(count: 3));
+      player.loadGate = Completer<void>();
+      player.complete();
+      await flush();
+      expect(controller.playing, isTrue);
+      await controller.togglePlayPause();
+      expect(controller.playing, isFalse);
+      player.loadGate!.complete();
+      await flush();
+      expect(controller.currentRepeat, 2);
+      expect(player.starts, 1);
+      expect(controller.hasActivePlayback, isTrue);
+      await controller.togglePlayPause();
+      expect(player.audibleStarts, 2);
+      await controller.stop();
+    },
+  );
+
+  test(
+    'reload error ends the session instead of leaving silent play controls',
+    () async {
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: sources,
+      );
+      await controller.playPlan(plan());
+      player.loadGate = Completer<void>();
+      player.complete();
+      await flush();
+      player.loadGate!.completeError(StateError('unreadable cached source'));
+      await flush();
+      expect(controller.hasActivePlayback, isFalse);
+      expect(controller.playing, isFalse);
+      expect(controller.errorKind, QuranAudioErrorKind.playback);
+      expect(player.active, isFalse);
+    },
+  );
+
+  test(
+    'replacement plan wins over a delayed native load of an old repeat',
+    () async {
+      final player = FakePlayer();
+      final delayed = Completer<void>();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: sources,
+      );
+      await controller.playPlan(plan());
+      player.loadGate = delayed;
+      player.complete();
+      await flush();
+      player.loadGate = null;
+      await controller.playPlan(plan(count: 5));
+      delayed.complete();
+      await flush();
+      expect(controller.plan!.repeatCount, 5);
+      expect(controller.currentRepeat, 1);
+      expect(player.sourceLoads, 3);
+      expect(player.audibleStarts, 2);
+      expect(controller.error, isNull);
+      await controller.stop();
+    },
+  );
+
+  test(
+    'replaying a finished plan reloads rather than seeking an exhausted queue',
+    () async {
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        prepareSources: sources,
+      );
+      await controller.playPlan(plan(count: 1));
+      player.complete();
+      await flush();
+      expect(controller.hasActivePlayback, isFalse);
+      await controller.togglePlayPause();
+      expect(player.audibleStarts, 2);
+      expect(player.sourceLoads, 2);
+      expect(player.seeks, 0);
       await controller.stop();
     },
   );

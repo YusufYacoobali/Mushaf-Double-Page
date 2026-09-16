@@ -88,6 +88,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/icon/audio_artwork.png
     - assets/mushaf/
     - assets/translations/
     - assets/tafseer/

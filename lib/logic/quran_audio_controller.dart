@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
@@ -11,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../progress/journey_store.dart';
 import '../progress/journey_tracking.dart';
 import '../progress/reading_progress_store.dart';
+import '../utils/audio_artwork.dart';
 
 enum QuranAudioErrorKind { none, connectionRequired, playback }
 
@@ -63,20 +63,24 @@ class QuranAudioController extends ChangeNotifier {
     }
     _player.currentIndexStream.listen((index) {
       if (!_preparing &&
+          !_reloadingRepeat &&
           _sessionActive &&
           index != null &&
           index >= 0 &&
           index < _playbackVerses.length) {
         _currentPlaybackIndex = index;
       }
-      _handleCurrentIndex(index);
       notifyListeners();
     });
     _player.playerStateStream.listen((state) {
       _trackListening();
-      if (state.processingState == ProcessingState.completed) {
-        _downloadState = const AudioDownloadState.idle();
-        _handleCompletedPlayback();
+      if (!_preparing && !_reloadingRepeat && _sessionActive) {
+        if (state.processingState == ProcessingState.completed) {
+          _handleCompletedPlayback();
+        } else {
+          // Also honour pause/play from the lock screen and audio interruptions.
+          _playWhenReady = state.playing;
+        }
       }
       notifyListeners();
     });
@@ -108,9 +112,9 @@ class QuranAudioController extends ChangeNotifier {
     if (tracker == null) return;
     final surah = currentSurah;
     final ayah = currentAyah;
-    if (surah == null || ayah == null || _preparing) return;
+    if (surah == null || ayah == null || _preparing || _reloadingRepeat) return;
     tracker.sample(
-      occurrence: '$_playRequestId:${_player.currentIndex}',
+      occurrence: '$_playRequestId:$_rangeCycle:$_currentPlaybackIndex',
       verse: '$surah:$ayah',
       position: _player.position,
       duration: _player.duration,
@@ -135,11 +139,11 @@ class QuranAudioController extends ChangeNotifier {
   bool _preparing = false;
   bool _sessionActive = false;
   List<AudioVerse> _playbackVerses = const [];
+  List<AudioSource> _cycleSources = const [];
   int _currentPlaybackIndex = 0;
-  bool _restartingInfinite = false;
-  bool _advancingRangeRepeat = false;
+  bool _reloadingRepeat = false;
+  bool _playWhenReady = false;
   int _rangeCycle = 1;
-  int? _lastIndex;
   int _playRequestId = 0;
   CancelToken? _downloadCancelToken;
   Uri? _artworkUri;
@@ -151,9 +155,10 @@ class QuranAudioController extends ChangeNotifier {
   String? get error => _error;
   QuranAudioErrorKind get errorKind => _errorKind;
   bool get preparing => _preparing;
-  bool get playing => _sessionActive && _player.playing;
+  bool get playing =>
+      _sessionActive && (_reloadingRepeat ? _playWhenReady : _player.playing);
 
-  /// Remains active while paused, buffering or seeking into another repeat.
+  /// Remains active while paused, buffering or loading another repeat.
   bool get hasActivePlayback => _sessionActive;
   int get playbackSessionId => _playRequestId;
   ProcessingState get processingState => _player.processingState;
@@ -193,9 +198,8 @@ class QuranAudioController extends ChangeNotifier {
     _downloadState = const AudioDownloadState.idle();
     _plan = plan;
     _rangeCycle = 1;
-    _lastIndex = null;
-    _advancingRangeRepeat = false;
-    _restartingInfinite = false;
+    _reloadingRepeat = false;
+    _playWhenReady = true;
     notifyListeners();
 
     try {
@@ -206,13 +210,17 @@ class QuranAudioController extends ChangeNotifier {
           await (_sourcePreparer?.call(plan) ??
               _prepareSources(plan, requestId, cancelToken));
       _throwIfStale(requestId);
+      _cycleSources = List.unmodifiable(localSources);
 
-      await _player.setAudioSources(localSources);
+      await _player.setAudioSources(
+        List.of(_cycleSources),
+        initialIndex: 0,
+        initialPosition: Duration.zero,
+      );
       _throwIfStale(requestId);
 
-      await _player.setLoopMode(
-        plan.infiniteRepeat ? LoopMode.all : LoopMode.off,
-      );
+      // Repeat through a freshly loaded queue, never reuse an ended native queue.
+      await _player.setLoopMode(LoopMode.off);
       _throwIfStale(requestId);
 
       _startPlayback(requestId);
@@ -263,139 +271,117 @@ class QuranAudioController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _handleCurrentIndex(int? index) {
-    final plan = _plan;
-    if (plan == null || plan.repeatMode != AudioRepeatMode.range) return;
-    if (index == null) return;
-
-    final previous = _lastIndex;
-    _lastIndex = index;
-
-    if (previous != null && index < previous && plan.infiniteRepeat) {
-      _rangeCycle++;
-    }
-  }
-
   void _handleCompletedPlayback() {
     final plan = _plan;
-    if (plan == null ||
-        _preparing ||
-        !_sessionActive ||
-        _advancingRangeRepeat ||
-        _restartingInfinite) {
+    if (plan == null || _preparing || !_sessionActive || _reloadingRepeat) {
       return;
     }
-
-    if (plan.repeatMode == AudioRepeatMode.range &&
-        !plan.infiniteRepeat &&
-        _rangeCycle < plan.visibleRepeatCount) {
-      _advanceFiniteRangeRepeat();
-      return;
-    }
-
-    if (plan.infiniteRepeat) {
-      _restartInfinitePlayback();
+    final hasAnotherCycle =
+        plan.infiniteRepeat ||
+        (plan.repeatMode == AudioRepeatMode.range &&
+            _rangeCycle < plan.visibleRepeatCount);
+    if (hasAnotherCycle) {
+      // Set the guard synchronously: pause() can emit another completed event.
+      _reloadingRepeat = true;
+      unawaited(_loadNextRepeat(_playRequestId));
     } else {
       _sessionActive = false;
+      _playWhenReady = false;
+      // just_audio retains playing=true at EOF. Reset it explicitly so a later
+      // play request reaches both the background handler and the native player.
+      unawaited(_player.pause());
     }
   }
 
-  Future<void> _advanceFiniteRangeRepeat() async {
-    if (_advancingRangeRepeat) return;
-    _advancingRangeRepeat = true;
-    final requestId = _playRequestId;
-
+  Future<void> _loadNextRepeat(int requestId) async {
     try {
-      final plan = _plan;
-      if (plan == null ||
-          plan.repeatMode != AudioRepeatMode.range ||
-          plan.infiniteRepeat ||
-          _rangeCycle >= plan.visibleRepeatCount) {
-        return;
+      // Seeking the already-ended AVQueuePlayer can reuse exhausted items.
+      // Pause first, then load() rebuilds its native items from the source
+      // definitions. Reuse those definitions: just_audio retains registered Dart
+      // sources until disposal, so allocating more on every loop would grow it.
+      await _player.pause().timeout(const Duration(seconds: 10));
+      _throwIfStale(requestId);
+      final nextCycle = _rangeCycle + 1;
+      await _player
+          .setAudioSources(
+            List.of(_cycleSources),
+            initialIndex: 0,
+            initialPosition: Duration.zero,
+          )
+          .timeout(const Duration(seconds: 20));
+      _throwIfStale(requestId);
+      if (_player.processingState == ProcessingState.completed ||
+          _player.processingState == ProcessingState.idle) {
+        throw StateError('The repeated audio did not become ready');
       }
-
-      _rangeCycle++;
-      _lastIndex = null;
-      await _player.seek(Duration.zero, index: 0);
-      if (_isCurrentRequest(requestId) && _plan == plan) {
-        _currentPlaybackIndex = 0;
-        _startPlayback(requestId);
-      }
-    } catch (e) {
-      debugPrint('[AUDIO] Range repeat advance failed: $e');
-      _repeatFailed(requestId);
+      _currentPlaybackIndex = 0;
+      _rangeCycle = nextCycle;
+      _reloadingRepeat = false;
+      if (_playWhenReady) _startPlayback(requestId);
+    } on _StaleAudioRequest {
+      return;
+    } catch (error) {
+      if (!_isCurrentRequest(requestId)) return;
+      debugPrint('[AUDIO] Repeat load failed: $error');
+      _sessionActive = false;
+      _playWhenReady = false;
+      _errorKind = QuranAudioErrorKind.playback;
+      _error = 'Could not repeat audio. Please try again.';
+      await _player.stop();
     } finally {
-      if (_isCurrentRequest(requestId)) _advancingRangeRepeat = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> _restartInfinitePlayback() async {
-    if (_restartingInfinite) return;
-    _restartingInfinite = true;
-    final requestId = _playRequestId;
-
-    try {
-      final plan = _plan;
-      if (plan == null || !plan.infiniteRepeat) return;
-
-      await _player.seek(Duration.zero, index: 0);
-      if (_isCurrentRequest(requestId) && _plan == plan) {
-        _currentPlaybackIndex = 0;
-        _startPlayback(requestId);
+      if (_isCurrentRequest(requestId)) {
+        _reloadingRepeat = false;
+        notifyListeners();
       }
-    } catch (e) {
-      debugPrint('[AUDIO] Infinite repeat restart failed: $e');
-      _repeatFailed(requestId);
-    } finally {
-      if (_isCurrentRequest(requestId)) _restartingInfinite = false;
-      notifyListeners();
     }
-  }
-
-  void _repeatFailed(int requestId) {
-    if (!_isCurrentRequest(requestId)) return;
-    _sessionActive = false;
-    _errorKind = QuranAudioErrorKind.playback;
-    _error = 'Could not repeat audio. Please try again.';
   }
 
   Future<void> togglePlayPause() async {
+    if (_preparing) return;
+    if (_reloadingRepeat) {
+      // A pause during the reload must not be undone by its eventual completion.
+      _playWhenReady = !_playWhenReady;
+      notifyListeners();
+      return;
+    }
     if (playing) {
+      _playWhenReady = false;
       await _player.pause();
       return;
     }
-
-    if (_player.processingState == ProcessingState.completed) {
-      _rangeCycle = 1;
-      _currentPlaybackIndex = 0;
-      await _player.seek(Duration.zero, index: 0);
+    if (!_sessionActive) {
+      final plan = _plan;
+      if (plan != null) await playPlan(plan);
+      return;
     }
+    _playWhenReady = true;
     _startPlayback(_playRequestId);
     notifyListeners();
   }
 
   Future<void> stop() async {
     _sessionActive = false;
+    _playWhenReady = false;
     _listeningTracker?.reset();
     ++_playRequestId;
     _downloadCancelToken?.cancel('Playback stopped');
     _downloadCancelToken = null;
     _preparing = false;
-    _advancingRangeRepeat = false;
-    _restartingInfinite = false;
+    _reloadingRepeat = false;
     await _player.stop();
     _downloadState = const AudioDownloadState.idle();
     notifyListeners();
   }
 
   Future<void> seekNext() async {
+    if (_preparing || _reloadingRepeat || !_sessionActive) return;
     if (_player.hasNext) {
       await _player.seekToNext();
     }
   }
 
   Future<void> seekPrevious() async {
+    if (_preparing || _reloadingRepeat || !_sessionActive) return;
     if (_player.hasPrevious) {
       await _player.seekToPrevious();
     } else {
@@ -416,13 +402,21 @@ class QuranAudioController extends ChangeNotifier {
   ) async {
     await _ensureCached(plan, requestId, cancelToken);
     _throwIfStale(requestId);
+    return _createSources(plan, requestId);
+  }
+
+  Future<List<AudioSource>> _createSources(
+    AudioPlaybackPlan plan,
+    int requestId,
+  ) async {
     final artworkUri = await _audioArtworkUri();
+    _throwIfStale(requestId);
     return [
       for (final verse in _playbackVersesForPlayer(plan))
         AudioSource.file(
           await _pathFor(plan.reciter, verse.surah, verse.ayah),
           tag: MediaItem(
-            id: '${plan.reciter.id}-${verse.surah}-${verse.ayah}-${verse.cycle}',
+            id: '$requestId-${plan.reciter.id}-${verse.surah}-${verse.ayah}-${verse.cycle}',
             album: plan.sourceMode == AudioSourceMode.playlist
                 ? 'Your surah queue'
                 : plan.surahInfo.name,
@@ -430,7 +424,7 @@ class QuranAudioController extends ChangeNotifier {
             artUri: artworkUri,
             title:
                 '${quranSurahs[verse.surah - 1].name} ${verse.surah}:${verse.ayah}'
-                ' (${verse.cycle}/${plan.repeatLabel})',
+                '${plan.repeatMode == AudioRepeatMode.ayah ? ' (${verse.cycle}/${plan.repeatLabel})' : ''}',
             extras: {
               'surah': verse.surah,
               'ayah': verse.ayah,
@@ -456,16 +450,7 @@ class QuranAudioController extends ChangeNotifier {
 
     try {
       final dir = await getApplicationSupportDirectory();
-      final file = File('${dir.path}/audio_artwork.jpeg');
-      if (!await file.exists() || await file.length() == 0) {
-        await file.parent.create(recursive: true);
-        final data = await rootBundle.load('assets/icon/app_icon.jpeg');
-        await file.writeAsBytes(
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
-          flush: true,
-        );
-      }
-      _artworkUri = file.uri;
+      _artworkUri = await prepareAudioArtwork(dir);
       return _artworkUri;
     } catch (e) {
       debugPrint('[AUDIO] Could not prepare lock screen artwork: $e');

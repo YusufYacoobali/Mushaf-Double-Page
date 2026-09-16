@@ -57,6 +57,8 @@ Future<void> _initBackgroundAudio() async {
       androidNotificationChannelName: 'Quran audio',
       androidNotificationChannelDescription: 'Quran recitation playback',
       androidNotificationOngoing: true,
+      artDownscaleWidth: 512,
+      artDownscaleHeight: 512,
     );
   } on MissingPluginException {
     // Plugin not yet registered — requires a fresh build after adding audio deps.

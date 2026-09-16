@@ -225,7 +225,7 @@ Flutter analysis is clean. No physical-device validation was performed.
 
 ## Playback continuity and page following
 
-Playback session state now persists across repeat seeks, so temporary completion
+Playback session state now persists across repeat transitions, so temporary completion
 events do not remove the audio bar or current-ayah highlight. The current verse
 comes from the playback plan and player index, retaining its last value during
 transient null index events. The reader's idle timer no longer hides controls
@@ -251,3 +251,51 @@ ignored with enforced edge-to-edge. iOS keeps its existing system UI behavior.
 The Android debug Kotlin compilation and its Flutter build dependency passed
 (`:app:compileDebugKotlin --offline`). This native change requires a rebuilt
 Android app; it has not been installed or visually checked on a device.
+
+## Silent repeats: native queue lifecycle
+
+Replaced completion -> seek -> play with completion -> pause -> reload the native
+queue at index/position zero -> play. just_audio deliberately retains playing=true
+at EOF and ignores redundant play() calls; the earlier fake player failed to model
+this. The paused reload also avoids seeking repeatedly through an exhausted iOS
+AVQueuePlayer. Finite range repeats and infinite repeats share one transition.
+
+The repeat count advances only after loading succeeds. A pause during that load
+is retained, Stop/replacement invalidates pending work, and reload failures end
+the session with an error instead of leaving silent controls. The active bar and
+highlight persist across loading. Journey listening occurrences include the repeat
+number. Range lock-screen titles show the verse without an outdated cycle number.
+
+Only one range/queue of source definitions is prepared. Each setAudioSources call
+reconstructs native items from those definitions; reusing the definitions also
+avoids growing just_audio's retained Dart source registry on every infinite loop.
+Cached recitations are not downloaded again between repeats.
+
+The regression player now models sticky EOF, no-op redundant play(), exhausted
+decoders, asynchronous events and interrupted loads. Tests cover 1/3/5/10 cycles,
+infinite repeats, duplicate EOF, pause/stop during loading, loading errors, source
+reuse, replacement plans and replay after completion. The native diagnostic in
+audio_repeat_smoke.md additionally requires actual decoder EOF and advancing ayahs.
+It builds with a separate Android application ID so it cannot replace normal app
+data. Native execution remains unverified: no physical device was connected, and
+the configured Android emulator is missing its system image. No iOS runtime is
+available on this Windows host.
+
+Final validation: all 122 Flutter tests pass, Flutter analysis reports no issues,
+and the normal ARM64 Android debug APK builds successfully. Native diagnostic
+builds also compiled, but no decoder test was executed on a device or emulator.
+
+## Media-control app artwork
+
+The media artwork previously loaded assets/icon/app_icon.jpeg, but that subfolder
+was not declared in Flutter's asset bundle. Loading failed and every MediaItem
+received a null artUri. The existing, complete 1024px iOS app-icon PNG is now
+copied unchanged to assets/icon/audio_artwork.png and explicitly bundled for both
+platforms. Media items use a local PNG file in application support storage, with a
+new cache filename to bypass older JPEG caches. An incomplete cache is rewritten.
+The background audio service also requests a maximum artwork size of 512px.
+
+Two regressions load the real bundled asset, decode it, verify the local file URI
+and contents, bypass old JPEG artwork, and repair an incomplete PNG cache. These
+and all 16 playback regressions pass; Flutter analysis is clean. Physical iPhone
+and Android media-control appearance has not been verified on this host.
