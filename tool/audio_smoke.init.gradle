@@ -1,0 +1,11 @@
+// Install the playback diagnostic beside the user's app, with separate data.
+allprojects {
+    plugins.withId('com.android.application') {
+        androidComponents.finalizeDsl { extension ->
+            extension.defaultConfig.applicationId = 'com.quran.quran_double_page.audio_smoke'
+        }
+        tasks.configureEach { task ->
+            if (task.name.endsWith('GoogleServices')) task.enabled = false
+        }
+    }
+}
