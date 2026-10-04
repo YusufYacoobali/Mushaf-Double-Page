@@ -23,7 +23,7 @@ class BookmarksModal {
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
-      useSafeArea: false,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(

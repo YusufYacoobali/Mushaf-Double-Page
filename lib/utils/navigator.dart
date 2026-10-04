@@ -67,7 +67,6 @@ class _PanelState extends State<_Panel> {
         width: 320,
         height: height,
         child: SafeArea(
-          left: false,
           minimum: const EdgeInsets.only(top: 12, bottom: 12),
           child: Column(
             children: [

@@ -33,6 +33,7 @@ class AudioModal extends StatefulWidget {
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AudioModal(
         initialSurah: initialSurah,
@@ -694,6 +695,7 @@ class _AudioModalState extends State<AudioModal> {
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: palette.surface,
       showDragHandle: true,
       builder: (context) => StatefulBuilder(
@@ -784,6 +786,7 @@ class _AudioModalState extends State<AudioModal> {
     await showModalBottomSheet<void>(
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, refreshSheet) => Container(

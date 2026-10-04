@@ -8,6 +8,42 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_playback_test.dart' show FakePlayer;
 
 void main() {
+  testWidgets('Salah Bukhatir can be selected and restored', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final controller = QuranAudioController.forTesting(
+      player: FakePlayer(),
+      prepareSources: (_) async => [],
+    );
+    Widget modal() => MaterialApp(
+      home: Scaffold(body: AudioModal(controller: controller, initialSurah: 1)),
+    );
+    await tester.pumpWidget(modal());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButton<Reciter>));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Salah Bukhatir'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Salah Bukhatir').hitTestable());
+    await tester.pumpAndSettle();
+    expect((await AudioPreferences.load())!.reciterId, 'salah_bukhatir');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(modal());
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<DropdownButton<Reciter>>(find.byType(DropdownButton<Reciter>))
+          .value!
+          .name,
+      'Salah Bukhatir',
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await controller.stop();
+  });
+
   for (final active in [false, true]) {
     testWidgets(
       'surah queue stays available from a single ayah, active=$active',

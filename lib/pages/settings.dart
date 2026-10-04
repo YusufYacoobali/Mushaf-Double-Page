@@ -462,180 +462,187 @@ class _SettingsState extends State<Settings> {
         ),
       ),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 30),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Text(
-                'السلام عليكم ورحمة الله وبركاته',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontFamily: 'Amiri',
-                  fontWeight: FontWeight.bold,
-                  color: textPrimary,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            _sectionTitle('YOUR JOURNEY', textPrimary),
-
-            _settingsCard(
-              _navTile(
-                palette: palette,
-                icon: Icons.auto_graph_rounded,
-                title: 'Your Quran Journey',
-                subtitle:
-                    'Your reading, listening and reflection, all in one place.',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProgressPage()),
-                ),
-              ),
-              palette,
-            ),
-
-            _sectionTitle('HELP', textPrimary),
-
-            _settingsCard(
-              Column(
-                children: [
-                  _infoTile(
-                    icon: Icons.bookmark_rounded,
-                    title: 'Bookmarks',
-                    text:
-                        'Save pages while reading and jump back to them later.',
-                    color: palette.accent,
-                    palette: palette,
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 30),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Text(
+                  'السلام عليكم ورحمة الله وبركاته',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontFamily: 'Amiri',
+                    fontWeight: FontWeight.bold,
+                    color: textPrimary,
                   ),
+                ),
+              ),
 
-                  const SizedBox(height: 18),
+              const SizedBox(height: 24),
 
-                  Semantics(
-                    button: true,
-                    child: PressMotion(
-                      child: _navTile(
-                        icon: Icons.star_rounded,
-                        title: 'Rate the app',
-                        subtitle: 'Tap to leave a review. Your support helps.',
-                        palette: palette,
-                        onTap: () => AppReview.requestFromUser(),
+              _sectionTitle('YOUR JOURNEY', textPrimary),
+
+              _settingsCard(
+                _navTile(
+                  palette: palette,
+                  icon: Icons.auto_graph_rounded,
+                  title: 'Your Quran Journey',
+                  subtitle:
+                      'Your reading, listening and reflection, all in one place.',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProgressPage()),
+                  ),
+                ),
+                palette,
+              ),
+
+              _sectionTitle('HELP', textPrimary),
+
+              _settingsCard(
+                Column(
+                  children: [
+                    _infoTile(
+                      icon: Icons.bookmark_rounded,
+                      title: 'Bookmarks',
+                      text:
+                          'Save pages while reading and jump back to them later.',
+                      color: palette.accent,
+                      palette: palette,
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    Semantics(
+                      button: true,
+                      child: PressMotion(
+                        child: _navTile(
+                          icon: Icons.star_rounded,
+                          title: 'Rate the app',
+                          subtitle:
+                              'Tap to leave a review. Your support helps.',
+                          palette: palette,
+                          onTap: () => AppReview.requestFromUser(),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              palette,
-            ),
-
-            _sectionTitle('APPEARANCE', textPrimary),
-
-            _settingsCard(
-              _buildSwitch(
-                'Dark Mode',
-                isAppDarkMode,
+                  ],
+                ),
                 palette,
-                _updateAppDarkMode,
-                icon: Icons.nights_stay_rounded,
               ),
-              palette,
-            ),
 
-            _settingsCard(
-              _buildSwitch(
-                'Mushaf Dark Mode',
-                isDarkMode,
+              _sectionTitle('APPEARANCE', textPrimary),
+
+              _settingsCard(
+                _buildSwitch(
+                  'Dark Mode',
+                  isAppDarkMode,
+                  palette,
+                  _updateAppDarkMode,
+                  icon: Icons.nights_stay_rounded,
+                ),
                 palette,
-                _updateDarkMode,
               ),
-              palette,
-            ),
 
-            _settingsCard(
-              _buildSwitch(
-                'White reader background',
-                readerWhiteBackground,
+              _settingsCard(
+                _buildSwitch(
+                  'Mushaf Dark Mode',
+                  isDarkMode,
+                  palette,
+                  _updateDarkMode,
+                ),
                 palette,
-                (value) async {
-                  await StorageManager.saveReaderWhiteBackground(value);
-                  if (mounted) setState(() => readerWhiteBackground = value);
-                },
-                icon: Icons.contrast_rounded,
               ),
-              palette,
-            ),
-            _sectionTitle('QURAN READER', textPrimary),
 
-            _settingsCard(
-              _buildSwitch(
-                'Ayah highlighting',
-                ayahHighlightingEnabled,
+              _settingsCard(
+                _buildSwitch(
+                  'White reader background',
+                  readerWhiteBackground,
+                  palette,
+                  (value) async {
+                    await StorageManager.saveReaderWhiteBackground(value);
+                    if (mounted) setState(() => readerWhiteBackground = value);
+                  },
+                  icon: Icons.contrast_rounded,
+                ),
                 palette,
-                _updateAyahHighlighting,
-                icon: Icons.highlight_alt_rounded,
               ),
-              palette,
-            ),
+              _sectionTitle('QURAN READER', textPrimary),
 
-            _settingsCard(
-              _buildSwitch(
-                'Open controls with arrow only',
-                controlsArrowOnly,
+              _settingsCard(
+                _buildSwitch(
+                  'Ayah highlighting',
+                  ayahHighlightingEnabled,
+                  palette,
+                  _updateAyahHighlighting,
+                  icon: Icons.highlight_alt_rounded,
+                ),
                 palette,
-                (value) async {
-                  await StorageManager.saveControlsArrowOnly(value);
-                  if (mounted) setState(() => controlsArrowOnly = value);
-                },
-                icon: Icons.touch_app_outlined,
-                subtitle:
-                    'Highlight ayahs without opening the navigation and audio bars.',
               ),
-              palette,
-            ),
 
-            _sectionTitle('QURAN LAYOUT', textPrimary),
+              _settingsCard(
+                _buildSwitch(
+                  'Open controls with arrow only',
+                  controlsArrowOnly,
+                  palette,
+                  (value) async {
+                    await StorageManager.saveControlsArrowOnly(value);
+                    if (mounted) setState(() => controlsArrowOnly = value);
+                  },
+                  icon: Icons.touch_app_outlined,
+                  subtitle:
+                      'Highlight ayahs without opening the navigation and audio bars.',
+                ),
+                palette,
+              ),
 
-            _settingsCard(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Choose the Mushaf layout you prefer.',
-                    style: TextStyle(fontSize: 14, color: palette.surfaceMuted),
-                  ),
+              _sectionTitle('QURAN LAYOUT', textPrimary),
 
-                  const SizedBox(height: 16),
-
-                  SizedBox(
-                    height: 250,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildMushafOption(
-                          title: 'Indo-Pak Tajweed (13 lines)',
-                          value: 'indopak_tajweed',
-                          previewImage:
-                              'assets/mushaf/indopak_tajweed_preview.png',
-                          palette: palette,
-                        ),
-
-                        _buildMushafOption(
-                          title: 'Madani (15 lines)',
-                          value: 'madani',
-                          previewImage: 'assets/mushaf/madani_preview.png',
-                          palette: palette,
-                        ),
-                      ],
+              _settingsCard(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Choose the Mushaf layout you prefer.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: palette.surfaceMuted,
+                      ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 16),
+
+                    SizedBox(
+                      height: 250,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          _buildMushafOption(
+                            title: 'Indo-Pak Tajweed (13 lines)',
+                            value: 'indopak_tajweed',
+                            previewImage:
+                                'assets/mushaf/indopak_tajweed_preview.png',
+                            palette: palette,
+                          ),
+
+                          _buildMushafOption(
+                            title: 'Madani (15 lines)',
+                            value: 'madani',
+                            previewImage: 'assets/mushaf/madani_preview.png',
+                            palette: palette,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                palette,
               ),
-              palette,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
