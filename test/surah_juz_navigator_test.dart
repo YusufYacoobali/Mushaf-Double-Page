@@ -7,6 +7,68 @@ import 'package:mushaf_two_page/utils/surah_mapper.dart';
 import 'package:mushaf_two_page/components/nav_tile.dart';
 
 void main() {
+  for (final mushaf in ['indopak_tajweed', 'madani']) {
+    for (final portrait in [true, false]) {
+      for (final scale in [1.0, 1.5]) {
+        testWidgets(
+          'current location opens visible $mushaf portrait=$portrait scale=$scale',
+          (tester) async {
+            tester.view.physicalSize = portrait
+                ? const Size(390, 844)
+                : const Size(844, 390);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetDevicePixelRatio);
+            final page = pageFromSurah(52, mushaf) + 1;
+            final currentJuz = getJuzRanges(
+              mushaf,
+            ).lastWhere((j) => j.start <= page).juz;
+            final jumps = <int>[];
+            await tester.pumpWidget(
+              MaterialApp(
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(textScaler: TextScaler.linear(scale)),
+                  child: child!,
+                ),
+                home: Builder(
+                  builder: (context) => Scaffold(
+                    body: TextButton(
+                      onPressed: () => SurahJuzNavigator.show(
+                        context: context,
+                        mushaf: mushaf,
+                        currentLogicalPage: page,
+                        currentSurah: 52,
+                        onJumpToPage: jumps.add,
+                      ),
+                      child: const Text('Open'),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            await tester.tap(find.text('Open'));
+            await tester.pumpAndSettle();
+            Finder selected(int number) => find.byWidgetPredicate(
+              (w) => w is NavTile && w.selected && w.number == number,
+            );
+            expect(selected(52).hitTestable(), findsOneWidget);
+            final viewport = tester.getRect(find.byType(RawScrollbar));
+            expect(viewport.contains(tester.getCenter(selected(52))), isTrue);
+            await tester.tap(find.text('Juz'));
+            await tester.pumpAndSettle();
+            expect(selected(currentJuz).hitTestable(), findsOneWidget);
+            await tester.tap(selected(currentJuz));
+            await tester.pumpAndSettle();
+            expect(jumps, [pageFromJuz(currentJuz, mushaf)]);
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+  }
+
   testWidgets('Juz segment accepts one tap beside its label', (tester) async {
     final jumps = <int>[];
     await tester.pumpWidget(

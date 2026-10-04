@@ -7,12 +7,16 @@ import '../components/navigation_list_view.dart';
 class SurahList extends StatelessWidget {
   final void Function(int pageIndex) onJump;
   final String mushaf;
+  final int? currentSurah;
+  final void Function(int surah, int page)? onJumpToSurah;
 
   const SurahList(
     void Function(int pageIndex) onJumpToPage, {
     super.key,
     required this.onJump,
     required this.mushaf,
+    this.currentSurah,
+    this.onJumpToSurah,
   });
 
   @override
@@ -22,6 +26,13 @@ class SurahList extends StatelessWidget {
     return NavigationListView(
       storageKey: 'surahs-$mushaf',
       itemCount: surahs.length,
+      initialIndex: surahs.indexWhere((s) => s.surah == currentSurah),
+      itemExtentBuilder: (context, width, index) => NavTile.extentFor(
+        context,
+        width,
+        surahs[index].name,
+        englishTitle: surahs[index].english,
+      ),
       itemBuilder: (_, i) {
         final surah = surahs[i];
 
@@ -29,9 +40,15 @@ class SurahList extends StatelessWidget {
           number: surah.surah,
           title: surah.name,
           englishTitle: surah.english,
+          selected: surah.surah == currentSurah,
           onTap: () {
             Navigator.pop(context);
-            onJump(pageFromSurah(surah.surah, mushaf));
+            final page = pageFromSurah(surah.surah, mushaf);
+            if (onJumpToSurah != null) {
+              onJumpToSurah!(surah.surah, page);
+            } else {
+              onJump(page);
+            }
           },
         );
       },

@@ -41,6 +41,7 @@ import 'progress/daily_reading_card.dart';
 import 'components/translation_modal.dart';
 import 'firebase_options.dart';
 import 'utils/app_review.dart';
+import 'utils/recent_surah_history.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -166,6 +167,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   Timer? _hideScrollbarTimer;
 
   final List<Bookmark> _bookmarks = [];
+  late RecentSurahHistory _surahHistory;
 
   // The ayah currently highlighted on the page (tap selection / bookmark resume).
   int? _selPage;
@@ -192,6 +194,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   Future<void> _init() async {
     _docDir = await getApplicationDocumentsDirectory();
     _mushaf = await StorageManager.getMushaf();
+    _surahHistory = RecentSurahHistory(_mushaf);
+    await _surahHistory.load();
     await _loadBookmarks();
 
     _readerWhite = await StorageManager.getReaderWhiteBackground();
@@ -218,6 +222,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     await TranslationManager.load();
     await SurahSummaryManager.load();
     await PageAyahIndex.load();
+    _recordSurahVisit();
     await AyahRectIndex.load();
     final savedHighlight = await ReaderHighlightPreferences.load(_mushaf);
     if (!mounted) return;
@@ -268,6 +273,28 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     _bookmarks
       ..clear()
       ..addAll(data);
+  }
+
+  void _recordSurahVisit({int? surah}) {
+    if (_surahHistory.visit(
+      _logicalPage,
+      pagesPerView: _isPortrait ? 1 : 2,
+      surah: surah,
+    )) {
+      unawaited(_surahHistory.save());
+    }
+  }
+
+  void _jumpToReadingPage(int page, {int? surah}) {
+    final index = PageMapper.bookmarkGoToMapper(page, _isPortrait);
+    final logical = PageMapper.logicalFromPageIndex(index, _isPortrait);
+    setState(() {
+      _logicalPage = logical;
+      _forgetAyahSelection();
+      _recordSurahVisit(surah: surah);
+    });
+    _pageController.jumpToPage(index);
+    StorageManager.saveCurrentPage(logical, maxPage: maxFilePage);
   }
 
   void _increaseScale() => _adjustScale(0.05);
@@ -832,17 +859,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       onPressed: () {
         SurahJuzNavigator.show(
           context: context,
+          currentLogicalPage: _logicalPage,
+          currentSurah: _logicalPage >= 4 ? _surahHistory.current?.surah : null,
+          onJumpToSurah: (surah, page) =>
+              _jumpToReadingPage(page, surah: surah),
           onJumpToPage: (page) {
-            final actualPage = PageMapper.bookmarkGoToMapper(page, _isPortrait);
-
-            _pageController.jumpToPage(actualPage);
-
-            final logical = PageMapper.logicalFromPageIndex(
-              actualPage,
-              _isPortrait,
-            );
-
-            setState(() => _logicalPage = logical);
+            _jumpToReadingPage(page);
           },
           mushaf: _mushaf,
         );
@@ -857,6 +879,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
           context: context,
           bookmarks: _bookmarks,
           isPortrait: _isPortrait,
+          mushaf: _mushaf,
+          previousSurah: _surahHistory.previous,
+          onJumpToPreviousSurah: (visit) =>
+              _jumpToReadingPage(visit.page, surah: visit.surah),
           onAddBookmark: _addBookmark,
           onRemoveBookmark: (b) {
             setState(() => _bookmarks.remove(b));
@@ -865,16 +891,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
           onJumpToBookmark: (b) {
             Navigator.pop(context);
 
-            final page = PageMapper.bookmarkGoToMapper(
-              b.pageNumber,
-              _isPortrait,
-            );
-
-            _pageController.jumpToPage(page);
-
-            final logical = PageMapper.logicalFromPageIndex(page, _isPortrait);
-
-            setState(() => _logicalPage = logical);
+            _jumpToReadingPage(b.pageNumber, surah: b.surahNumber);
 
             // Resume: highlight the bookmarked ayah so you
             // can see where you left off.
@@ -937,6 +954,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             _mushaf = mushaf;
             _forgetAyahSelection();
           });
+          _surahHistory = RecentSurahHistory(_mushaf);
+          await _surahHistory.load();
+          if (!mounted) return;
+          _recordSurahVisit();
           await _loadBookmarks();
           _pageController.jumpToPage(newIndex);
         }
@@ -1076,6 +1097,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                         index,
                         _isPortrait,
                       );
+                      _recordSurahVisit();
                     });
                     StorageManager.saveCurrentPage(
                       _logicalPage,

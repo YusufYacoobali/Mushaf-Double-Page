@@ -4,6 +4,9 @@ import 'package:mushaf_two_page/models/bookmark.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 
 import '../pages/bookmark.dart';
+import '../utils/recent_surah_history.dart';
+import '../utils/surah_mapper.dart';
+import '../utils/page_ayah_index.dart';
 
 class BookmarksModal {
   static void show({
@@ -13,6 +16,9 @@ class BookmarksModal {
     required VoidCallback onAddBookmark,
     required void Function(Bookmark) onRemoveBookmark,
     required void Function(Bookmark) onJumpToBookmark,
+    SurahVisit? previousSurah,
+    String mushaf = 'indopak_tajweed',
+    void Function(SurahVisit visit)? onJumpToPreviousSurah,
   }) {
     final screenHeight = MediaQuery.of(context).size.height;
     final isLandscape =
@@ -117,6 +123,57 @@ class BookmarksModal {
                     ),
                   ),
 
+                  if (previousSurah != null && onJumpToPreviousSurah != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+                      child: Material(
+                        color: palette.accentSoft,
+                        borderRadius: BorderRadius.circular(10),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onJumpToPreviousSurah(previousSurah);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 9,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.swap_horiz_rounded,
+                                  size: 18,
+                                  color: palette.accent,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Last surah · ${surahNameFromNumber(previousSurah.surah, mushaf)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.text,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'p. ${PageAyahIndex.printedPage(previousSurah.page)}',
+                                  style: TextStyle(
+                                    color: palette.muted,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   Expanded(
                     child: sortedBookmarks.isEmpty
                         ? Center(
