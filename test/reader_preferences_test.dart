@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/audio_preferences.dart';
 import 'package:mushaf_two_page/utils/translation_preferences.dart';
@@ -46,4 +47,33 @@ void main() {
     expect(restored.repeatMode, AudioRepeatMode.ayah);
     expect(restored.sourceMode, AudioSourceMode.range);
   });
+  test('surah queue keeps the selected listening order', () async {
+    await AudioPreferences.save(
+      const AudioPreferencesData(
+        reciterId: 'abdullah_basfar',
+        surah: 112,
+        fromAyah: 1,
+        toAyah: 4,
+        repeatCount: 10,
+        repeatMode: AudioRepeatMode.range,
+        sourceMode: AudioSourceMode.playlist,
+        surahQueue: [114, 112, 1],
+      ),
+    );
+    final restored = await AudioPreferences.load();
+    expect(restored!.surahQueue, [114, 112, 1]);
+    expect(restored.sourceMode, AudioSourceMode.playlist);
+    expect(restored.reciterId, 'abdullah_basfar');
+  });
+  test(
+    'previously saved 120 percent reader scales restore at 100 percent',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'quran_single_page_scale': 1.2,
+        'quran_landscape_page_scale': 1.2,
+      });
+      expect(await StorageManager.getPageScalePortrait(), 1.0);
+      expect(await StorageManager.getPageScaleLandscape(), 1.0);
+    },
+  );
 }

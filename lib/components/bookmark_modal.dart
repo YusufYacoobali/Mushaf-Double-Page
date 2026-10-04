@@ -1,3 +1,4 @@
+import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/models/bookmark.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
@@ -19,6 +20,7 @@ class BookmarksModal {
     final palette = AppPalette.of(context);
 
     showModalBottomSheet(
+      sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
       useSafeArea: false,
@@ -99,7 +101,7 @@ class BookmarksModal {
                           },
                           style: FilledButton.styleFrom(
                             backgroundColor: palette.accent,
-                            foregroundColor: Colors.white,
+                            foregroundColor: palette.onAccent,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 12,

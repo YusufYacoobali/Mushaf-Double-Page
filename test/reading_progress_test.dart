@@ -11,7 +11,10 @@ void main() {
       now: DateTime(2026, 7, 20),
     );
 
-    expect((await ReadingProgressStore.load()).streak, 1);
+    expect(
+      (await ReadingProgressStore.load(now: DateTime(2026, 7, 20))).streak,
+      1,
+    );
   });
 
   test('same-day activity does not inflate the streak', () async {
@@ -22,7 +25,10 @@ void main() {
       now: day.add(const Duration(hours: 6)),
     );
 
-    expect((await ReadingProgressStore.load()).streak, 1);
+    expect(
+      (await ReadingProgressStore.load(now: DateTime(2026, 7, 20))).streak,
+      1,
+    );
   });
 
   test('consecutive reading days extend the streak', () async {
@@ -34,7 +40,10 @@ void main() {
       now: DateTime(2026, 7, 21),
     );
 
-    expect((await ReadingProgressStore.load()).streak, 2);
+    expect(
+      (await ReadingProgressStore.load(now: DateTime(2026, 7, 21))).streak,
+      2,
+    );
   });
 
   test('a missed day restarts the streak', () async {
@@ -46,6 +55,30 @@ void main() {
       now: DateTime(2026, 7, 22),
     );
 
-    expect((await ReadingProgressStore.load()).streak, 1);
+    expect(
+      (await ReadingProgressStore.load(now: DateTime(2026, 7, 22))).streak,
+      1,
+    );
   });
+  test(
+    'daily encouragement is returned only on the first activity that day',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final day = DateTime(2026, 9, 14);
+      expect(
+        (await ReadingProgressStore.recordReadingActivity(now: day))!.streak,
+        1,
+      );
+      expect(
+        await ReadingProgressStore.recordReadingActivity(now: day),
+        isNull,
+      );
+      expect(
+        (await ReadingProgressStore.recordReadingActivity(
+          now: DateTime(2026, 9, 15),
+        ))!.streak,
+        2,
+      );
+    },
+  );
 }

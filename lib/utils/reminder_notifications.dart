@@ -129,7 +129,7 @@ class ReminderNotifications {
             'Gentle reminders to keep your connection with the Quran.',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        color: const Color(0xFF025C32),
+        color: const Color(0xFF80643B),
         styleInformation: BigTextStyleInformation(message),
       ),
       iOS: const DarwinNotificationDetails(

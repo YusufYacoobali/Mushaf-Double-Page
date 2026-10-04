@@ -106,6 +106,10 @@ void main() {
     await tester.pump();
 
     expect(transformationController.value.getMaxScaleOnAxis(), greaterThan(1));
+    expect(
+      transformationController.value.getMaxScaleOnAxis(),
+      lessThanOrEqualTo(1 / QuranPageView.minPageScalePortrait + .001),
+    );
     expect(backgroundTaps, 0);
 
     await leftFinger.up();
@@ -113,7 +117,7 @@ void main() {
     transformationController.dispose();
   });
 
-  testWidgets('portrait toolbar zoom changes only height and stays centred', (
+  testWidgets('portrait toolbar zoom up to 100 percent stays centred', (
     tester,
   ) async {
     Widget readerAt(double scale) => MaterialApp(
@@ -138,7 +142,7 @@ void main() {
     final minimumSize = tester.getSize(pageSurface);
     final minimumRect = tester.getRect(pageSurface);
 
-    await tester.pumpWidget(readerAt(QuranPageView.maxPageScalePortrait));
+    await tester.pumpWidget(readerAt(1.0));
     await tester.pumpAndSettle();
     final maximumSize = tester.getSize(pageSurface);
     final maximumRect = tester.getRect(pageSurface);
@@ -147,6 +151,111 @@ void main() {
     expect(maximumSize.height, greaterThan(minimumSize.height + 20));
     expect(minimumRect.center, maximumRect.center);
   });
+
+  testWidgets('old 120 percent zoom is capped at 100 percent', (tester) async {
+    final transform = TransformationController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: QuranPageView.singlePage(
+            logicalPage: 4,
+            pageScale: 1.2,
+            imagePath: (_) => imageFile.path,
+            isDarkMode: false,
+            transformationController: transform,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byType(FittedBox).first).height,
+      closeTo(600, 1),
+    );
+    final center = tester.getCenter(find.byType(Scaffold));
+    final first = await tester.startGesture(
+      center - const Offset(35, 0),
+      pointer: 1,
+    );
+    final second = await tester.startGesture(
+      center + const Offset(35, 0),
+      pointer: 2,
+    );
+    await first.moveBy(const Offset(-150, 0));
+    await second.moveBy(const Offset(150, 0));
+    await tester.pump();
+    expect(transform.value.getMaxScaleOnAxis(), lessThanOrEqualTo(1.0));
+    await first.up();
+    await second.up();
+    await tester.pumpWidget(const SizedBox());
+    transform.dispose();
+  });
+
+  for (final portrait in [false, true]) {
+    for (var percent = portrait ? 70 : 60; percent <= 100; percent += 5) {
+      testWidgets(
+        '${portrait ? 'portrait' : 'landscape'} turns pages both ways at $percent percent',
+        (tester) async {
+          tester.view.physicalSize = portrait
+              ? const Size(400, 800)
+              : const Size(800, 400);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          var page = 0;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: PageView.builder(
+                  reverse: true,
+                  itemCount: 3,
+                  onPageChanged: (index) => page = index,
+                  itemBuilder: (_, index) => portrait
+                      ? QuranPageView.singlePage(
+                          logicalPage: index,
+                          pageScale: percent / 100,
+                          imagePath: (_) => imageFile.path,
+                          isDarkMode: false,
+                          onTap: (_, _, _) {},
+                        )
+                      : QuranPageView.doublePage(
+                          spreadIndex: index,
+                          totalPages: 6,
+                          pageScale: percent / 100,
+                          imagePath: (_) => imageFile.path,
+                          isDarkMode: false,
+                          onTap: (_, _, _) {},
+                        ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final dx = portrait ? 300.0 : 600.0;
+          await tester.dragFrom(const Offset(80, 200), Offset(dx, 0));
+          await tester.pumpAndSettle();
+          expect(page, 1);
+          await tester.dragFrom(Offset(dx + 80, 200), Offset(-dx, 0));
+          await tester.pumpAndSettle();
+          expect(page, 0);
+          if (!portrait && percent == 100) {
+            final before = tester.getTopLeft(find.byType(AspectRatio).first).dy;
+            await tester.dragFrom(
+              const Offset(400, 300),
+              const Offset(0, -200),
+            );
+            await tester.pumpAndSettle();
+            expect(page, 0);
+            expect(
+              tester.getTopLeft(find.byType(AspectRatio).first).dy,
+              lessThan(before),
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
 
   testWidgets('landscape toolbar zoom widens a top-centred spread', (
     tester,

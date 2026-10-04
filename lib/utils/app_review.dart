@@ -1,8 +1,8 @@
-import 'dart:async';
-
+import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
+import 'review_prompt_session.dart';
 
 /// Shows reliable app-owned review prompts and opens the platform store page.
 class AppReview {
@@ -17,15 +17,13 @@ class AppReview {
       'https://apps.apple.com/gb/app/quran-dual-page/id$_iosAppStoreId';
 
   static final _review = InAppReview.instance;
+  static final _session = ReviewPromptSession();
 
-  /// Android prompts after three minutes; iOS prompts after five minutes.
-  static Timer schedulePromptAfterOpen(
+  /// Prompt after two minutes on alternate launches, once per session.
+  static void schedulePromptAfterOpen(
     BuildContext? Function() contextProvider,
   ) {
-    final delay = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
-        ? const Duration(minutes: 5)
-        : const Duration(minutes: 3);
-    return Timer(delay, () async {
+    _session.schedule(() async {
       if (!kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.android ||
               defaultTargetPlatform == TargetPlatform.iOS)) {
@@ -42,8 +40,11 @@ class AppReview {
     });
   }
 
+  static void cancelScheduledPrompt() => _session.cancel();
+
   /// Call directly when the user taps "Rate / Review" in settings.
   static Future<void> requestFromUser() async {
+    _session.cancel();
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS)) {
@@ -58,6 +59,7 @@ class AppReview {
     required bool isIos,
   }) async {
     final openStore = await showDialog<bool>(
+      animationStyle: AppMotion.style(context),
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Enjoying the Quran app?'),

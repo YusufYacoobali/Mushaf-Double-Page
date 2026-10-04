@@ -1,3 +1,5 @@
+import '../progress/journey_tracking.dart';
+import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
@@ -89,6 +91,7 @@ class _TranslationModalState extends State<TranslationModal> {
   final Set<String> _bookmarkedAyahs = {}; // 'surah:ayah' keys
   final _scrollController = ScrollController();
   final _focusedAyahKey = GlobalKey();
+  final _translationsSeen = <String>{};
 
   // Page mode (Indo-Pak): show exactly the ayahs printed on the current view.
   // The view is one page in portrait, or a two-page spread in landscape, with
@@ -374,6 +377,7 @@ class _TranslationModalState extends State<TranslationModal> {
 
   void _showSummary(SurahRange surah) {
     showModalBottomSheet(
+      sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -389,6 +393,7 @@ class _TranslationModalState extends State<TranslationModal> {
     var tempArabicScript = _arabicScript;
 
     showModalBottomSheet(
+      sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -489,10 +494,10 @@ class _TranslationModalState extends State<TranslationModal> {
                                 color: palette.accent,
                                 borderRadius: BorderRadius.circular(99),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'Done',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: palette.onAccent,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
                                 ),
@@ -547,7 +552,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                       script.$2,
                                       style: TextStyle(
                                         color: tempArabicScript == script.$1
-                                            ? Colors.white
+                                            ? palette.onAccent
                                             : palette.text,
                                         fontWeight: FontWeight.w600,
                                         fontSize: 13,
@@ -590,7 +595,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                     size,
                                     style: TextStyle(
                                       color: tempFontSize == size
-                                          ? Colors.white
+                                          ? palette.onAccent
                                           : palette.text,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13,
@@ -659,6 +664,7 @@ class _TranslationModalState extends State<TranslationModal> {
         : {_activeSurah.surah};
     final palette = AppPalette.of(context);
     showModalBottomSheet(
+      sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -735,7 +741,7 @@ class _TranslationModalState extends State<TranslationModal> {
                           child: Text(
                             '${s.surah}',
                             style: TextStyle(
-                              color: active ? Colors.white : palette.muted,
+                              color: active ? palette.onAccent : palette.muted,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1349,6 +1355,9 @@ class _TranslationModalState extends State<TranslationModal> {
                                         ),
                                       ),
                                       PopupMenuButton<String>(
+                                        popUpAnimationStyle: AppMotion.style(
+                                          context,
+                                        ),
                                         icon: Icon(
                                           Icons.more_vert_rounded,
                                           color: palette.surfaceMuted,
@@ -1482,16 +1491,21 @@ class _TranslationModalState extends State<TranslationModal> {
                                                 ],
                                               ),
                                             ),
-                                            if (!srcCollapsed) ...[
+                                            if (!srcCollapsed &&
+                                                text.trim().isNotEmpty) ...[
                                               const SizedBox(height: 4),
-                                              SelectableText(
-                                                text,
-                                                style: TextStyle(
-                                                  fontSize:
-                                                      _fontSizeMap[_fontSize]!
-                                                          .trans,
-                                                  height: 1.45,
-                                                  color: palette.surfaceText,
+                                              TranslationExposure(
+                                                verse: '$surahNum:$ayahNumber',
+                                                seen: _translationsSeen,
+                                                child: SelectableText(
+                                                  text,
+                                                  style: TextStyle(
+                                                    fontSize:
+                                                        _fontSizeMap[_fontSize]!
+                                                            .trans,
+                                                    height: 1.45,
+                                                    color: palette.surfaceText,
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -1858,7 +1872,7 @@ class _LangSegment extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            color: active ? Colors.white : palette.muted,
+            color: active ? palette.onAccent : palette.muted,
             fontWeight: FontWeight.w700,
             fontSize: 13,
           ),

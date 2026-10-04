@@ -12,9 +12,9 @@ class QuranPageView {
       mushaf == 'madani' ? madaniPageAspectRatio : pageAspectRatio;
 
   static const double minPageScalePortrait = 0.7;
-  static const double maxPageScalePortrait = 0.85;
+  static const double maxPageScalePortrait = 1.0;
   static const double minPageScaleLandscape = 0.60;
-  static const double maxPageScaleLandscape = 0.90;
+  static const double maxPageScaleLandscape = 1.0;
 
   static const ColorFilter invertFilter = ColorFilter.matrix([
     -1,
@@ -46,7 +46,7 @@ class QuranPageView {
     required bool isDarkMode,
     double aspectRatio = pageAspectRatio,
     List<Rect> highlightRects = const [],
-    Color highlightColor = const Color(0x553BA776),
+    Color highlightColor = const Color(0x5580643B),
     void Function(int logicalPage, double nx, double ny)? onTap,
     VoidCallback? onBackgroundTap,
     TransformationController? transformationController,
@@ -67,24 +67,30 @@ class QuranPageView {
           // Its width always fills the screen and the page remains centred.
           return SizedBox.expand(
             child: InteractiveViewer(
+              key: ValueKey(clamped),
               transformationController: transformationController,
+              constrained: false,
               panEnabled: false,
               minScale: 1,
-              maxScale: 3,
-              child: Center(
-                child: SizedBox(
-                  width: constraints.maxWidth,
-                  height: constraints.maxHeight * clamped,
-                  child: _PageContent(
-                    surfaceKey: pageSurfaceKey,
-                    image: FittedBox(fit: BoxFit.fill, child: image),
-                    aspectRatio: aspectRatio,
-                    stretchToFit: true,
-                    highlightRects: highlightRects,
-                    highlightColor: highlightColor,
-                    onTap: onTap == null
-                        ? null
-                        : (nx, ny) => onTap(logicalPage, nx, ny),
+              maxScale: maxPageScalePortrait / clamped,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                height: constraints.maxHeight,
+                child: Center(
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight * clamped,
+                    child: _PageContent(
+                      surfaceKey: pageSurfaceKey,
+                      image: FittedBox(fit: BoxFit.fill, child: image),
+                      aspectRatio: aspectRatio,
+                      stretchToFit: true,
+                      highlightRects: highlightRects,
+                      highlightColor: highlightColor,
+                      onTap: onTap == null
+                          ? null
+                          : (nx, ny) => onTap(logicalPage, nx, ny),
+                    ),
                   ),
                 ),
               ),
@@ -103,7 +109,7 @@ class QuranPageView {
     required bool isDarkMode,
     double aspectRatio = pageAspectRatio,
     List<Rect> Function(int logicalPage)? highlightFor,
-    Color highlightColor = const Color(0x553BA776),
+    Color highlightColor = const Color(0x5580643B),
     void Function(int logicalPage, double nx, double ny)? onTap,
     VoidCallback? onBackgroundTap,
   }) {
@@ -143,7 +149,7 @@ class QuranPageView {
           // Landscape toolbar zoom changes only the spread width. At minimum
           // both full pages fit vertically; at maximum they nearly fill the
           // screen width. The spread always starts at the top and is centred.
-          final pageWidth = constraints.maxWidth / 2 * clamped;
+          final pageWidth = (constraints.maxWidth - 1) / 2 * clamped;
 
           Widget? leftPage;
           Widget? rightPage;
@@ -161,6 +167,8 @@ class QuranPageView {
             );
           }
 
+          // Only vertical scrolling belongs to the spread. Horizontal gestures
+          // must reach the enclosing PageView to turn the page.
           return SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: Row(

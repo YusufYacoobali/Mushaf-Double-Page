@@ -1,3 +1,4 @@
+import 'app_motion.dart';
 import 'package:flutter/material.dart';
 
 class AppPalette extends ThemeExtension<AppPalette> {
@@ -38,58 +39,61 @@ class AppPalette extends ThemeExtension<AppPalette> {
   bool get isDark =>
       ThemeData.estimateBrightnessForColor(scaffold) == Brightness.dark;
 
+  Color get onAccent =>
+      accent.computeLuminance() > .179 ? const Color(0xFF211D17) : Colors.white;
+
   static const emerald = AppPalette(
     id: 'emerald',
-    name: 'Emerald',
-    scaffold: Color(0xFFEBF3EC),
-    surface: Color(0xFFEBF3EC),
-    surfaceRaised: Color(0xFFF6FBF5),
-    accent: Color(0xFF025C32),
-    accentSoft: Color(0xFFD9EBDD),
-    text: Color(0xFF13251A),
-    muted: Color(0xFF5F6F64),
-    surfaceText: Color(0xFF13251A),
-    surfaceMuted: Color(0xFF5F6F64),
-    border: Color(0xFFC9D9CC),
-    shadow: Color(0x22000000),
-    readerBar: Color(0xFFEBF3EC),
-    readerIcon: Color(0xFF025C32),
+    name: 'Ivory',
+    scaffold: Color(0xFFF4F0E8),
+    surface: Color(0xFFF4F0E8),
+    surfaceRaised: Color(0xFFFCFAF5),
+    accent: Color(0xFF80643B),
+    accentSoft: Color(0xFFEBE2D2),
+    text: Color(0xFF302B26),
+    muted: Color(0xFF7A7267),
+    surfaceText: Color(0xFF302B26),
+    surfaceMuted: Color(0xFF7A7267),
+    border: Color(0xFFDED5C4),
+    shadow: Color(0x292C2416),
+    readerBar: Color(0xFFF4F0E8),
+    readerIcon: Color(0xFF80643B),
   );
 
   static const darkEmerald = AppPalette(
     id: 'dark_emerald',
-    name: 'Dark Emerald',
-    scaffold: Color(0xFF112608),
-    surface: Color(0xFFEBF3EC),
-    surfaceRaised: Color(0xFFF6FBF5),
-    accent: Color(0xFF025C32),
-    accentSoft: Color(0xFFD9EBDD),
-    text: Color(0xFFF7FBF7),
-    muted: Color(0xCDDDE8D0),
-    surfaceText: Color(0xFF13251A),
-    surfaceMuted: Color(0xFF5F6F64),
-    border: Color(0xFFC9D9CC),
+    name: 'Charcoal',
+    scaffold: Color(0xFF24211E),
+    surface: Color(0xFFF4F0E8),
+    surfaceRaised: Color(0xFFFCFAF5),
+    accent: Color(0xFF80643B),
+    accentSoft: Color(0xFFEBE2D2),
+    text: Color(0xFFFAF6EF),
+    muted: Color(0xCDDCD3C6),
+    surfaceText: Color(0xFF302B26),
+    surfaceMuted: Color(0xFF7A7267),
+    border: Color(0xFFDED5C4),
     shadow: Color(0x66000000),
-    readerBar: Color(0xFF112608),
-    readerIcon: Color(0xFFF7FBF7),
+    readerBar: Color(0xFF24211E),
+    readerIcon: Color(0xFFFAF6EF),
   );
 
   static const blackDark = AppPalette(
     id: 'black_dark',
     name: 'Dark',
-    scaffold: Color(0xFF121212),
-    surface: Color(0xFF1E1E1E),
-    surfaceRaised: Color(0xFF2A2A2A),
-    accent: Color(0xFF4CAF7D),
-    accentSoft: Color(0xFF163326),
+    scaffold: Color(0xFF171615),
+    surface: Color(0xFF23211F),
+    surfaceRaised: Color(0xFF302D29),
+    accent: Color(0xFFC2A574),
+    accentSoft: Color(0xFF3B3225),
     text: Color(0xFFEEEEEE),
-    muted: Color(0xFF888888),
+    muted: Color(0xFFBDB4A7),
     surfaceText: Color(0xFFDDDDDD),
-    surfaceMuted: Color(0xFF666666),
+    surfaceMuted: Color(0xFFB8AFA2),
     border: Color(0xFF333333),
     shadow: Color(0x88000000),
-    readerBar: Color(0xFF1E1E1E),
-    readerIcon: Color(0xFF888888),
+    readerBar: Color(0xFF23211F),
+    readerIcon: Color(0xFFBDB4A7),
   );
 
   static AppPalette forDarkMode(bool darkMode) {
@@ -112,15 +116,24 @@ class AppPalette extends ThemeExtension<AppPalette> {
           brightness: isDark ? Brightness.dark : Brightness.light,
         ).copyWith(
           primary: accent,
-          onPrimary: Colors.white,
+          onPrimary: onAccent,
           surface: surface,
           onSurface: surfaceText,
         );
 
     return ThemeData(
       colorScheme: scheme,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: PremiumPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: PremiumPageTransitionsBuilder(),
+          TargetPlatform.windows: PremiumPageTransitionsBuilder(),
+          TargetPlatform.linux: PremiumPageTransitionsBuilder(),
+        },
+      ),
       fontFamily: 'Inter',
-      scaffoldBackgroundColor: Colors.black,
+      scaffoldBackgroundColor: scaffold,
       dialogTheme: DialogThemeData(backgroundColor: surface),
       appBarTheme: AppBarTheme(
         backgroundColor: scaffold,

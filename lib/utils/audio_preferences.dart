@@ -9,6 +9,7 @@ class AudioPreferencesData {
   final int? repeatCount;
   final AudioRepeatMode repeatMode;
   final AudioSourceMode sourceMode;
+  final List<int> surahQueue;
 
   const AudioPreferencesData({
     required this.reciterId,
@@ -18,6 +19,7 @@ class AudioPreferencesData {
     required this.repeatCount,
     required this.repeatMode,
     required this.sourceMode,
+    this.surahQueue = const [],
   });
 }
 
@@ -39,6 +41,12 @@ class AudioPreferences {
     final repeatName = prefs.getString(_repeatModeKey);
     final sourceName = prefs.getString(_sourceModeKey);
     return AudioPreferencesData(
+      surahQueue: (prefs.getStringList('audio_surah_queue') ?? [])
+          .map(int.tryParse)
+          .whereType<int>()
+          .where((s) => s >= 1 && s <= 114)
+          .toSet()
+          .toList(),
       reciterId: prefs.getString(_reciterKey) ?? quranReciters.first.id,
       surah: prefs.getInt(_surahKey) ?? 1,
       fromAyah: prefs.getInt(_fromAyahKey) ?? 1,
@@ -60,6 +68,10 @@ class AudioPreferences {
   static Future<void> save(AudioPreferencesData value) async {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
+      prefs.setStringList(
+        'audio_surah_queue',
+        value.surahQueue.map((s) => '$s').toList(),
+      ),
       prefs.setBool(_configuredKey, true),
       prefs.setString(_reciterKey, value.reciterId),
       prefs.setInt(_surahKey, value.surah),

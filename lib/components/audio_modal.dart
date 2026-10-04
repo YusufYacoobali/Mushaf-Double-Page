@@ -1,5 +1,5 @@
+import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
@@ -7,6 +7,7 @@ import 'package:mushaf_two_page/utils/audio_preferences.dart';
 
 class AudioModal extends StatefulWidget {
   final int initialSurah;
+  final QuranAudioController? controller;
 
   /// Ayah range to pre-select (the ayahs on the current page). When provided,
   /// the modal opens in Range mode with these values. Ignored if audio is
@@ -19,6 +20,7 @@ class AudioModal extends StatefulWidget {
     required this.initialSurah,
     this.initialFromAyah,
     this.initialToAyah,
+    this.controller,
   });
 
   static void show(
@@ -28,6 +30,7 @@ class AudioModal extends StatefulWidget {
     int? initialToAyah,
   }) {
     showModalBottomSheet(
+      sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -57,6 +60,7 @@ class _AudioModalState extends State<AudioModal> {
   List<int>? _ayahOptions;
   int? _ayahOptionsSurah;
   bool _preferencesReady = false;
+  List<int> _surahQueue = [];
 
   @override
   void initState() {
@@ -75,6 +79,9 @@ class _AudioModalState extends State<AudioModal> {
     _restorePreferences();
   }
 
+  QuranAudioController get _controller =>
+      widget.controller ?? QuranAudioController.instance;
+
   int get _ayahCount => quranAyahCounts[_surah - 1];
 
   Future<void> _restorePreferences() async {
@@ -91,11 +98,26 @@ class _AudioModalState extends State<AudioModal> {
           ? saved.repeatCount
           : 10;
       _repeatMode = saved.repeatMode;
-      if (saved.surah == _surah) {
+      _surahQueue = List.of(saved.surahQueue);
+      if (saved.surah == _surah && widget.initialFromAyah == null) {
         final maxAyah = quranAyahCounts[_surah - 1];
         _fromAyah = saved.fromAyah.clamp(1, maxAyah).toInt();
         _toAyah = saved.toAyah.clamp(_fromAyah, maxAyah).toInt();
         _sourceMode = saved.sourceMode;
+      }
+    }
+    final active = _controller.plan;
+    if (active != null &&
+        (_controller.hasActivePlayback || _controller.preparing)) {
+      _reciter = active.reciter;
+      _surah = active.surah;
+      _fromAyah = active.fromAyah;
+      _toAyah = active.toAyah;
+      _repeatCount = active.repeatCount;
+      _repeatMode = active.repeatMode;
+      _sourceMode = active.sourceMode;
+      if (active.sourceMode == AudioSourceMode.playlist) {
+        _surahQueue = List.of(active.surahQueue);
       }
     }
     setState(() => _preferencesReady = true);
@@ -112,6 +134,7 @@ class _AudioModalState extends State<AudioModal> {
         repeatCount: _repeatCount,
         repeatMode: _repeatMode,
         sourceMode: _sourceMode,
+        surahQueue: List.of(_surahQueue),
       ),
     ).ignore();
   }
@@ -125,6 +148,7 @@ class _AudioModalState extends State<AudioModal> {
       repeatCount: _repeatCount,
       repeatMode: _repeatMode,
       sourceMode: _sourceMode,
+      surahQueue: List.unmodifiable(_surahQueue),
     );
   }
 
@@ -180,6 +204,7 @@ class _AudioModalState extends State<AudioModal> {
 
     final palette = AppPalette.of(context);
     await showDialog(
+      animationStyle: AppMotion.style(context),
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: palette.surface,
@@ -197,7 +222,7 @@ class _AudioModalState extends State<AudioModal> {
         actions: [
           TextButton(
             onPressed: () {
-              QuranAudioController.instance.clearError();
+              _controller.clearError();
               Navigator.pop(context);
             },
             child: Text('OK', style: TextStyle(color: palette.accent)),
@@ -313,10 +338,16 @@ class _AudioModalState extends State<AudioModal> {
                       icon: Icons.playlist_play_rounded,
                       value: _sourceMode,
                       items: AudioSourceMode.values,
-                      label: (mode) => mode == AudioSourceMode.range
-                          ? 'Ayah range'
-                          : 'Full surah',
+                      label: (mode) => switch (mode) {
+                        AudioSourceMode.range => 'Ayah range',
+                        AudioSourceMode.surah => 'Full surah',
+                        AudioSourceMode.playlist => 'Surah queue',
+                      },
                       onChanged: (mode) {
+                        if (mode == AudioSourceMode.playlist) {
+                          _showSurahQueue();
+                          return;
+                        }
                         setState(() => _sourceMode = mode);
                         _persistPreferences();
                         if (mode == AudioSourceMode.range) _warmAyahOptions();
@@ -327,16 +358,34 @@ class _AudioModalState extends State<AudioModal> {
                   Expanded(
                     child: _compactAction(
                       palette: palette,
-                      icon: Icons.format_list_numbered_rounded,
-                      label: _sourceMode == AudioSourceMode.surah
+                      icon: _sourceMode == AudioSourceMode.playlist
+                          ? Icons.playlist_play_rounded
+                          : Icons.format_list_numbered_rounded,
+                      label: _sourceMode == AudioSourceMode.playlist
+                          ? '${_surahQueue.length} surahs · Edit'
+                          : _sourceMode == AudioSourceMode.surah
                           ? 'All ayahs'
                           : 'Ayah $_fromAyah-$_toAyah',
-                      onTap: _showAyahRangePicker,
-                      enabled: _sourceMode == AudioSourceMode.range,
+                      onTap: _sourceMode == AudioSourceMode.playlist
+                          ? _showSurahQueue
+                          : _showAyahRangePicker,
+                      enabled: _sourceMode != AudioSourceMode.surah,
                     ),
                   ),
                 ],
               ),
+              if (_sourceMode == AudioSourceMode.playlist)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    'Your queue plays in selection order. Audio is downloaded first for offline listening; longer queues take more time to prepare.',
+                    style: TextStyle(
+                      color: palette.surfaceMuted,
+                      fontSize: 12,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 10),
               Divider(height: 1, color: palette.border.withValues(alpha: .8)),
               const SizedBox(height: 10),
@@ -346,7 +395,9 @@ class _AudioModalState extends State<AudioModal> {
                 value: _repeatMode,
                 items: AudioRepeatMode.values,
                 label: (mode) => mode == AudioRepeatMode.range
-                    ? 'Range repeat'
+                    ? (_sourceMode == AudioSourceMode.playlist
+                          ? 'Repeat entire queue'
+                          : 'Range repeat')
                     : 'Verse repeat',
                 onChanged: (mode) {
                   setState(() => _repeatMode = mode);
@@ -367,9 +418,9 @@ class _AudioModalState extends State<AudioModal> {
               ),
               const SizedBox(height: 10),
               AnimatedBuilder(
-                animation: QuranAudioController.instance,
+                animation: _controller,
                 builder: (context, _) {
-                  final controller = QuranAudioController.instance;
+                  final controller = _controller;
                   if (controller.errorKind ==
                           QuranAudioErrorKind.connectionRequired &&
                       _lastHandledErrorKind != controller.errorKind) {
@@ -393,18 +444,11 @@ class _AudioModalState extends State<AudioModal> {
   Widget _compactPlayer(AppPalette palette, QuranAudioController controller) {
     final editedPlan = _plan;
     final isThisPlan = editedPlan.matches(controller.plan);
-    final isDownloading = controller.downloadState.active && isThisPlan;
+    final isDownloading = controller.preparing && isThisPlan;
     final isPlaying = isThisPlan && controller.playing;
-    final hasActiveAudio =
-        controller.hasPlan &&
-        controller.processingState != ProcessingState.idle &&
-        controller.processingState != ProcessingState.completed;
+    final hasActiveAudio = controller.preparing || controller.hasActivePlayback;
     final canResume =
-        isThisPlan &&
-        controller.hasPlan &&
-        !controller.playing &&
-        controller.processingState != ProcessingState.idle &&
-        controller.processingState != ProcessingState.completed;
+        isThisPlan && controller.hasActivePlayback && !controller.playing;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -445,7 +489,7 @@ class _AudioModalState extends State<AudioModal> {
                       },
                 style: FilledButton.styleFrom(
                   backgroundColor: palette.accent,
-                  foregroundColor: Colors.white,
+                  foregroundColor: palette.onAccent,
                   minimumSize: const Size.fromHeight(54),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -632,7 +676,7 @@ class _AudioModalState extends State<AudioModal> {
         child: Text(
           count == null ? '∞' : '${count}x',
           style: TextStyle(
-            color: selected ? Colors.white : palette.surfaceText,
+            color: selected ? palette.onAccent : palette.surfaceText,
             fontSize: 14,
             fontWeight: FontWeight.w700,
           ),
@@ -641,10 +685,104 @@ class _AudioModalState extends State<AudioModal> {
     );
   }
 
+  Future<void> _showSurahQueue() async {
+    final selected = _surahQueue.isEmpty
+        ? <int>[_surah]
+        : List<int>.of(_surahQueue);
+    final palette = AppPalette.of(context);
+    final result = await showModalBottomSheet<List<int>>(
+      sheetAnimationStyle: AppMotion.style(context),
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: palette.surface,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, refresh) {
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .72,
+              child: Column(
+                children: [
+                  const Text(
+                    'Your listening queue',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text(
+                      'Select surahs in the order you want to hear them.',
+                    ),
+                  ),
+                  if (selected.isNotEmpty)
+                    SizedBox(
+                      height: 52,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          for (var i = 0; i < selected.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: InputChip(
+                                label: Text(
+                                  '${i + 1}. ${quranSurahs[selected[i] - 1].name}',
+                                ),
+                                onDeleted: () =>
+                                    refresh(() => selected.removeAt(i)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: 114,
+                      itemBuilder: (context, i) => CheckboxListTile(
+                        title: Text('${i + 1}. ${quranSurahs[i].name}'),
+                        subtitle: Text('${quranAyahCounts[i]} ayahs'),
+                        value: selected.contains(i + 1),
+                        onChanged: (checked) => refresh(() {
+                          if (checked == true) {
+                            selected.add(i + 1);
+                          } else {
+                            selected.remove(i + 1);
+                          }
+                        }),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: selected.isEmpty
+                            ? null
+                            : () => Navigator.pop(context, selected),
+                        child: Text('Save queue · ${selected.length} surahs'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _surahQueue = result;
+      _sourceMode = AudioSourceMode.playlist;
+    });
+    _persistPreferences();
+  }
+
   Future<void> _showAyahRangePicker() async {
     _ensureAyahOptions();
     final palette = AppPalette.of(context);
     await showModalBottomSheet<void>(
+      sheetAnimationStyle: AppMotion.style(context),
       context: context,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
