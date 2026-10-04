@@ -40,12 +40,12 @@ class ReaderDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safe = MediaQuery.paddingOf(context);
-    // The tab belongs to the screen edge, not the safe-area boundary. Only the
-    // expanded controls need home-indicator/notch clearance. Use the larger of
-    // that clearance and our margin rather than adding both together.
-    final collapsedBottom = Theme.of(context).platform == TargetPlatform.iOS
-        ? 16.0
-        : 8.0;
+    // iOS keeps the pull tab near the physical edge. Android's system navigation
+    // bar can occupy the bottom or right edge, so the collapsed tab must clear it
+    // as well as the expanded controls. Avoid adding the inset and margin twice.
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+    final collapsedBottom = isIOS ? 16.0 : math.max(8.0, safe.bottom);
+    final collapsedRight = isIOS ? 4.0 : math.max(4.0, safe.right);
     final expandedBottom = math.max(collapsedBottom, safe.bottom);
     final expandedRight = math.max(6.0, safe.right);
     return TweenAnimationBuilder<double>(
@@ -56,7 +56,7 @@ class ReaderDock extends StatelessWidget {
         left: portrait ? math.max(10.0, safe.left) : null,
         right: portrait
             ? math.max(10.0, safe.right)
-            : 4 + (expandedRight - 4) * reveal,
+            : collapsedRight + (expandedRight - collapsedRight) * reveal,
         top: portrait ? null : math.max(12.0, safe.top),
         bottom: portrait
             ? collapsedBottom + (expandedBottom - collapsedBottom) * reveal
