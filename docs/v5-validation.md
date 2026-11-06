@@ -60,6 +60,48 @@ request deadlines, native load deadlines and buffering-stall recovery remain.
 Canonical Bismillah hashes validate cached and downloaded introductions, including
 offline selection downloads. Original numbered cache paths remain compatible.
 
+### Play intent and preparation
+
+A native `ready, playing=false` event previously cleared `_intent`, turning an
+asynchronous first-recording start into a pause and forcing a second Resume tap.
+Native observations now update readiness without cancelling the requested Play.
+`_install` preserves intent through downloading, retries and native source setup;
+`_startNative` starts once a current source exists and waits for the player state
+to confirm `ready, playing=true` before marking the occurrence begun. It does not
+await the play Future, which completes when playback ends. A pending-start guard
+and request serial reject duplicate starts and stale failure callbacks. An early
+play-Future return in ready/false enters bounded recovery rather than remaining
+in Preparing indefinitely; normal EOF/Pause completion never triggers this retry.
+
+| Event | Status/control | Play intent |
+| --- | --- | --- |
+| First recording downloading, preparing or retrying | Downloading / Preparing / Recovering | Retained |
+| Initial native ready/false | Preparing | Retained |
+| Native ready/true | Playing / Pause | Retained |
+| Temporary ready/false after recitation began | Buffering / Pause | Retained |
+| User Pause, interruption begin or headset disconnection | Paused / Resume | Cleared |
+| Interruption end or late readiness after Pause | Paused / Resume | Stays cleared |
+| Stop or completed selection | Stopped/Completed / Play | Cleared |
+
+The audio modal and reader transport reserve Resume for an actual pause. Preparing
+controls cannot enqueue a duplicate Play; Stop stays available. Errors retain the
+failed occurrence and offer Retry. The audio-service bridge uses the same explicit
+Pause command for production interruption/noisy streams, and interruption end never
+resumes speech automatically. Late native start acknowledgements after Pause/Stop
+are paused again rather than allowed to undo the command. Offline saving reports
+progress independently and never changes playback intent or resets the native queue.
+
+Regression tests delay both initial acquisition and native startup, inject
+ready/false snapshots, retry initial failures, exercise actual cached/offline
+access and production Bismillah/Surah Queue repeat order, and verify modal/reader
+control labels. They also cover Pause during downloading/native startup, active
+pause/duck interruptions, headset disconnection, late positive acknowledgements,
+bounded early-return recovery, duplicate Play, Stop and retained occurrence
+identity/position on explicit Resume.
+The existing native transition, recovery, highlight and listening-statistics
+regressions remain enabled. These are controlled event/stream regressions, not
+Android/iOS hardware certification.
+
 ### Why just_audio is vendored
 
 The published 0.10.5 Dart registration map and Android MediaSource cache retain
@@ -206,7 +248,7 @@ cream-and-charcoal specification was used instead.
 ## Validation and remaining device checks
 
 Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze --no-pub` reports
-no issues; `flutter test --no-pub --reporter expanded` passes all **358 tests**.
+no issues; `flutter test --no-pub --reporter expanded` passes all **376 tests**.
 `git diff --check` is clean. The audit builder reproduces 22 canonical sources
 from 163 clip records; its Python syntax check also passes.
 

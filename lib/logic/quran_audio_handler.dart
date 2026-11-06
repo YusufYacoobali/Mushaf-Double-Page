@@ -12,6 +12,31 @@ class QuranAudioHandler extends BaseAudioHandler with SeekHandler {
     _publish();
   }
   final QuranAudioController controller;
+  final _sessionSubscriptions = <StreamSubscription<dynamic>>[];
+
+  void bindSessionEvents({
+    required Stream<void> becomingNoisy,
+    required Stream<AudioInterruptionEvent> interruptions,
+  }) {
+    for (final subscription in _sessionSubscriptions) {
+      unawaited(subscription.cancel());
+    }
+    _sessionSubscriptions
+      ..clear()
+      ..add(becomingNoisy.listen((_) => unawaited(pause())))
+      ..add(
+        interruptions.listen((event) {
+          // Interruption end is not permission to resume. Only a Play command is.
+          if (event.begin) unawaited(pause());
+        }),
+      );
+  }
+
+  Future<void> dispose() async {
+    controller.removeListener(_publish);
+    await Future.wait(_sessionSubscriptions.map((s) => s.cancel()));
+    _sessionSubscriptions.clear();
+  }
 
   static Future<QuranAudioHandler> initialize() async {
     final handler = await AudioService.init(
@@ -27,12 +52,10 @@ class QuranAudioHandler extends BaseAudioHandler with SeekHandler {
     );
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.speech());
-    session.becomingNoisyEventStream.listen((_) => unawaited(handler.pause()));
-    session.interruptionEventStream.listen((event) {
-      // Require explicit resume after calls, lost focus or headphone disconnect.
-      // Interruption end is not permission to start playback automatically.
-      if (event.begin) unawaited(handler.pause());
-    });
+    handler.bindSessionEvents(
+      becomingNoisy: session.becomingNoisyEventStream,
+      interruptions: session.interruptionEventStream,
+    );
     await handler.controller.prepareArtwork();
     return handler;
   }

@@ -403,8 +403,11 @@ class _AudioModalState extends State<AudioModal> {
     final isThisPlan = editedPlan.matches(controller.plan);
     final isPlaying = isThisPlan && controller.playing;
     final hasActiveAudio = controller.preparing || controller.hasActivePlayback;
-    final canResume =
-        isThisPlan && controller.hasActivePlayback && !controller.playing;
+    final canResume = isThisPlan && controller.paused;
+    final canRetry =
+        isThisPlan && controller.phase == QuranPlaybackPhase.failed;
+    final isPreparing =
+        isThisPlan && controller.preparing && !controller.paused;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -474,13 +477,17 @@ class _AudioModalState extends State<AudioModal> {
           children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: () {
-                  if (isPlaying || canResume) {
-                    controller.togglePlayPause();
-                  } else {
-                    controller.playPlan(editedPlan);
-                  }
-                },
+                onPressed: isPreparing
+                    ? null
+                    : () {
+                        if (canRetry) {
+                          controller.retry();
+                        } else if (isPlaying || canResume) {
+                          controller.togglePlayPause();
+                        } else {
+                          controller.playPlan(editedPlan);
+                        }
+                      },
                 style: FilledButton.styleFrom(
                   backgroundColor: palette.accent,
                   foregroundColor: palette.onAccent,
@@ -490,11 +497,19 @@ class _AudioModalState extends State<AudioModal> {
                   ),
                 ),
                 icon: Icon(
-                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  isPreparing
+                      ? Icons.hourglass_empty_rounded
+                      : isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
                 ),
                 label: Text(
-                  isPlaying
+                  isPreparing
+                      ? controller.statusLabel
+                      : isPlaying
                       ? 'Pause'
+                      : canRetry
+                      ? 'Retry'
                       : canResume
                       ? 'Resume'
                       : 'Play',

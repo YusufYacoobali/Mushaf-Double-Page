@@ -128,6 +128,8 @@ class QuranAudioController extends ChangeNotifier {
   AudioDownloadState _offlineDownload = const AudioDownloadState.idle();
   bool _active = false, _intent = false, _installing = false, _begun = false;
   bool _exhausted = false, _disposed = false;
+  bool _starting = false;
+  int _playRequest = 0;
   String? introductionNotice;
   int _session = 0, _revision = 0, _ordinal = 0;
   int _queueReloads = 0;
@@ -154,8 +156,11 @@ class QuranAudioController extends ChangeNotifier {
       : failure!.kind == AudioFailureKind.connectivity
       ? QuranAudioErrorKind.connectionRequired
       : QuranAudioErrorKind.playback;
-  bool get preparing => phase == QuranPlaybackPhase.preparing;
+  bool get preparing =>
+      phase == QuranPlaybackPhase.preparing ||
+      (phase == QuranPlaybackPhase.recovering && _current == null);
   bool get playing => _active && _intent && phase != QuranPlaybackPhase.failed;
+  bool get paused => _active && !_intent && phase != QuranPlaybackPhase.failed;
   bool get audible => phase == QuranPlaybackPhase.playing && _begun;
   bool get hasActivePlayback => _active;
   bool get hasPlan => _plan != null;
@@ -334,17 +339,38 @@ class QuranAudioController extends ChangeNotifier {
       _pending.removeWhere(_queue.contains);
     }
     _adopt(entry, begun: _intent && _player.playing);
-    _phase = _intent ? QuranPlaybackPhase.playing : QuranPlaybackPhase.paused;
+    _phase = !_intent
+        ? QuranPlaybackPhase.paused
+        : _player.playing
+        ? QuranPlaybackPhase.playing
+        : QuranPlaybackPhase.buffering;
     _publish();
     _kickFill();
   }
 
   void _nativeState(PlayerState state) {
+    if (_disposed ||
+        state.processingState != _player.processingState ||
+        state.playing != _player.playing) {
+      return;
+    }
+    // Only commands/session interruptions change intent. A late native start
+    // must not undo Pause/Stop, even while a source is being installed.
+    if (!_intent && state.playing) {
+      final generation = _session;
+      scheduleMicrotask(() {
+        if (!_disposed &&
+            generation == _session &&
+            !_intent &&
+            _player.playing) {
+          unawaited(_player.pause());
+        }
+      });
+    }
     if (!_active ||
         _installing ||
         phase == QuranPlaybackPhase.failed ||
-        state.processingState != _player.processingState ||
-        state.playing != _player.playing) {
+        _current == null) {
       return;
     }
     _trackListening();
@@ -357,15 +383,29 @@ class QuranAudioController extends ChangeNotifier {
       });
     } else if (state.processingState == ProcessingState.buffering ||
         state.processingState == ProcessingState.loading) {
-      _phase = _intent
+      _phase = !_intent
+          ? QuranPlaybackPhase.paused
+          : _begun
           ? QuranPlaybackPhase.buffering
-          : QuranPlaybackPhase.paused;
+          : QuranPlaybackPhase.preparing;
       _watchStall();
       _publish();
     } else if (state.processingState == ProcessingState.ready && !_exhausted) {
-      _stall?.cancel();
-      if (!state.playing) _intent = false;
-      _phase = _intent ? QuranPlaybackPhase.playing : QuranPlaybackPhase.paused;
+      if (!_intent) {
+        _phase = QuranPlaybackPhase.paused;
+      } else if (state.playing) {
+        _stall?.cancel();
+        _starting = false;
+        _begun = true;
+        _phase = QuranPlaybackPhase.playing;
+      } else {
+        // Ready does not imply that the asynchronous play request has started.
+        // In particular, do not turn preparation/background saving into Pause.
+        _phase = _begun
+            ? QuranPlaybackPhase.buffering
+            : QuranPlaybackPhase.preparing;
+        _watchStall();
+      }
       _publish();
     } else if (state.processingState == ProcessingState.idle &&
         _intent &&
@@ -445,6 +485,8 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _cancelWork({bool cancelRecordings = true}) {
+    _starting = false;
+    _playRequest++;
     if (cancelRecordings) {
       _token.cancel('Playback selection replaced');
       _token = CancelToken();
@@ -567,7 +609,9 @@ class QuranAudioController extends ChangeNotifier {
             _fail(entry, failure);
             return false;
           }
-          _phase = QuranPlaybackPhase.recovering;
+          _phase = _intent
+              ? QuranPlaybackPhase.recovering
+              : QuranPlaybackPhase.paused;
           recoveryAttempt = entry.attempts.clamp(1, 3);
           _publish();
           await Future.any([
@@ -600,11 +644,15 @@ class QuranAudioController extends ChangeNotifier {
     Duration position = Duration.zero,
   }) async {
     _installing = true;
+    _starting = false;
+    _playRequest++;
     _begun = false;
     _waiting = entry;
     _metadata(entry);
     if (entry.failure == null) {
-      _phase = _current == null
+      _phase = !_intent
+          ? QuranPlaybackPhase.paused
+          : _current == null
           ? QuranPlaybackPhase.preparing
           : QuranPlaybackPhase.buffering;
     }
@@ -617,7 +665,9 @@ class QuranAudioController extends ChangeNotifier {
         _installing = true;
         _waiting = entry;
         _metadata(entry);
-        _phase = QuranPlaybackPhase.preparing;
+        _phase = _intent
+            ? QuranPlaybackPhase.preparing
+            : QuranPlaybackPhase.paused;
         continue;
       }
       try {
@@ -648,7 +698,7 @@ class QuranAudioController extends ChangeNotifier {
         recoveryAttempt = 0;
         _adopt(entry, begun: false);
         _phase = _intent
-            ? QuranPlaybackPhase.playing
+            ? QuranPlaybackPhase.preparing
             : QuranPlaybackPhase.paused;
         if (_intent) _startNative(generation, revision);
         if (_offlineNeedsRefresh) {
@@ -688,19 +738,49 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _startNative(int generation, int revision) {
-    if (!_valid(generation, revision) || !_intent || _installing) return;
-    _begun = true;
+    if (!_valid(generation, revision) ||
+        !_intent ||
+        _installing ||
+        _starting ||
+        _current == null) {
+      return;
+    }
+    final request = ++_playRequest;
+    _starting = true;
+    _phase = _begun
+        ? QuranPlaybackPhase.buffering
+        : QuranPlaybackPhase.preparing;
     unawaited(
-      _player.play().catchError((Object error) {
-        if (_valid(generation, revision) && !_installing) {
-          if (error is PlayerException) {
-            _nativeError(error);
-          } else {
+      _player.play().then<void>(
+        (_) {
+          // A play Future normally ends at EOF/Pause. Some interrupted startup
+          // paths return early in ready/false; recover those without another tap.
+          if (_valid(generation, revision) &&
+              request == _playRequest &&
+              _intent &&
+              !_installing &&
+              !_exhausted &&
+              _player.processingState == ProcessingState.ready &&
+              !_player.playing) {
             unawaited(_recoverCurrent(invalidate: false));
           }
-        }
-      }),
+        },
+        onError: (Object error) {
+          if (_valid(generation, revision) &&
+              request == _playRequest &&
+              !_installing) {
+            if (error is PlayerException) {
+              _nativeError(error);
+            } else {
+              unawaited(_recoverCurrent(invalidate: false));
+            }
+          }
+        },
+      ),
     );
+    // play() may update getters before its state stream delivers the event, or
+    // may already be active. Awaiting its Future would wait until playback ends.
+    _nativeState(PlayerState(_player.playing, _player.processingState));
   }
 
   void _fail(_QueueEntry entry, AudioFailure problem) {
@@ -710,6 +790,8 @@ class QuranAudioController extends ChangeNotifier {
     _metadata(entry);
     _phase = QuranPlaybackPhase.failed;
     _installing = false;
+    _starting = false;
+    _playRequest++;
     _begun = false;
     _download = const AudioDownloadState.idle();
     _publish();
@@ -872,7 +954,7 @@ class QuranAudioController extends ChangeNotifier {
       _publish();
       return;
     }
-    _phase = QuranPlaybackPhase.buffering;
+    _phase = _intent ? QuranPlaybackPhase.buffering : QuranPlaybackPhase.paused;
     if (_pending.isNotEmpty) {
       unawaited(
         _prepare(
@@ -974,7 +1056,9 @@ class QuranAudioController extends ChangeNotifier {
     _installing = true;
     _fillRevision = null;
     _pending.clear();
-    _phase = QuranPlaybackPhase.recovering;
+    _phase = _intent
+        ? QuranPlaybackPhase.recovering
+        : QuranPlaybackPhase.paused;
     _publish();
     await _player.pause();
     if (!_valid(generation, revision)) return;
@@ -1001,17 +1085,25 @@ class QuranAudioController extends ChangeNotifier {
       await retry();
       return;
     }
-    if (!_installing && !_exhausted) {
-      _phase = QuranPlaybackPhase.playing;
+    if (_installing || _current == null) {
+      _phase = _current == null
+          ? QuranPlaybackPhase.preparing
+          : QuranPlaybackPhase.buffering;
+    } else if (_exhausted) {
+      _phase = QuranPlaybackPhase.buffering;
+    } else {
       _startNative(_session, _revision);
     }
     _publish();
   }
 
   Future<void> pause() async {
+    if (!_active) return;
     _intent = false;
+    _starting = false;
+    _playRequest++;
     _stall?.cancel();
-    if (!_installing && phase != QuranPlaybackPhase.failed) {
+    if (phase != QuranPlaybackPhase.failed) {
       _phase = QuranPlaybackPhase.paused;
     }
     _trackListening();

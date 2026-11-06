@@ -1009,6 +1009,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       subtitle:
           '${controller.statusLabel} · ${differentSelection ? 'Playing $surah:$ayah · ' : ''}${plan.reciter.name}${repeat == null ? '' : ' · $repeat/${plan.repeatLabel}'}',
       playing: controller.playing,
+      paused: controller.paused,
+      preparingLabel: controller.preparing && !controller.paused
+          ? controller.statusLabel
+          : null,
       onPrevious: controller.seekPrevious,
       onPlayPause: controller.togglePlayPause,
       onNext: controller.seekNext,

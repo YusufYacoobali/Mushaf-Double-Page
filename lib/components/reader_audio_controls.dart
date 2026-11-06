@@ -32,9 +32,12 @@ class ReaderAudioControls extends StatelessWidget {
     required this.onSettings,
     required this.onStop,
     this.playbackActive = true,
+    this.paused = false,
+    this.preparingLabel,
     this.selection,
   });
-  final bool portrait, playing, playbackActive;
+  final bool portrait, playing, playbackActive, paused;
+  final String? preparingLabel;
   final AppPalette palette;
   final String title, reference, subtitle;
   final VoidCallback onPrevious, onPlayPause, onNext, onSettings;
@@ -81,13 +84,20 @@ class ReaderAudioControls extends StatelessWidget {
         playbackActive ? onPrevious : null,
       ),
       _button(
-        playing
-            ? 'Pause'
-            : playbackActive
-            ? 'Play'
-            : 'Play ayah',
-        playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-        onPlayPause,
+        preparingLabel ??
+            (playing
+                ? 'Pause'
+                : paused
+                ? 'Resume'
+                : playbackActive
+                ? 'Play'
+                : 'Play ayah'),
+        preparingLabel != null
+            ? Icons.hourglass_empty_rounded
+            : playing
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded,
+        preparingLabel == null ? onPlayPause : null,
         primary: true,
       ),
       _button(
