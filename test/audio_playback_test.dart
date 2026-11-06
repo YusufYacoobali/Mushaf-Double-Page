@@ -286,7 +286,11 @@ void main() {
       player.advance();
       await flush();
       expect(c.phase, QuranPlaybackPhase.failed);
-      expect(repo.requested.where((k) => k == 'alafasy/112:3').length, 4);
+      expect(repo.urgentRequests.where((k) => k == 'alafasy/112:3').length, 4);
+      expect(
+        repo.requested.where((k) => k == 'alafasy/112:3').length,
+        lessThanOrEqualTo(8),
+      );
       await c.seekNext();
       expect(c.currentAyah, 4);
     },
@@ -424,9 +428,9 @@ void main() {
     () async {
       repo.remainingFailures['112:bismillah'] = 100;
       await c.playPlan(plan(from: 1, to: 2, count: 2));
-      expect(c.phase, QuranPlaybackPhase.failed);
-      await c.seekNext();
       await flush();
+      expect(c.phase, QuranPlaybackPhase.playing);
+      expect(c.introductionNotice, contains('unavailable'));
       expect(c.currentAyah, 1);
       for (var i = 0; i < 4; i++) {
         player.advance();

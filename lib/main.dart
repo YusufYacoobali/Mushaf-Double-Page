@@ -84,12 +84,6 @@ class MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    QuranAudioController.instance.requestOpeningConsent =
-        (reciter, surahs) async {
-          final context = _navigatorKey.currentContext;
-          if (!mounted || context == null) return const OpeningConsent.cancel();
-          return AudioModal.confirmUnverifiedOpenings(context, reciter, surahs);
-        };
     AppTimeTracker.instance.start();
     AppReview.schedulePromptAfterOpen(
       () => _navigatorKey.currentContext,

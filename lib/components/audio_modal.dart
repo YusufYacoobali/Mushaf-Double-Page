@@ -43,63 +43,6 @@ class AudioModal extends StatefulWidget {
     );
   }
 
-  static Future<OpeningConsent> confirmUnverifiedOpenings(
-    BuildContext context,
-    Reciter reciter,
-    List<int> surahs,
-  ) async {
-    var remember = false;
-    return await showDialog<OpeningConsent>(
-          context: context,
-          animationStyle: AppMotion.style(context),
-          builder: (dialogContext) => StatefulBuilder(
-            builder: (context, refresh) => AlertDialog(
-              title: Text('${reciter.name} · openings'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Some openings for this reciter have not been verified. '
-                      'Continue using the original recordings without adding a separate Bismillah?',
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'This does not guarantee Bismillah is present in the original recordings. '
-                      'Verified introductions elsewhere in your selection will still play.',
-                    ),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Remember for this reciter'),
-                      value: remember,
-                      onChanged: (value) =>
-                          refresh(() => remember = value ?? false),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(
-                    dialogContext,
-                    const OpeningConsent.cancel(),
-                  ),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(
-                    dialogContext,
-                    OpeningConsent(continueOriginal: true, remember: remember),
-                  ),
-                  child: const Text('Continue'),
-                ),
-              ],
-            ),
-          ),
-        ) ??
-        const OpeningConsent.cancel();
-  }
-
   @override
   State<AudioModal> createState() => _AudioModalState();
 }
@@ -514,21 +457,19 @@ class _AudioModalState extends State<AudioModal> {
             controller.downloadState.message,
             style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
           ),
-        TextButton.icon(
-          onPressed: controller.offlineDownloading
-              ? controller.cancelDownload
-              : () => controller.downloadSelection(editedPlan),
-          icon: Icon(
-            controller.offlineDownloading
-                ? Icons.close
-                : Icons.download_outlined,
+        if (controller.introductionNotice != null)
+          Text(
+            controller.introductionNotice!,
+            style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
           ),
-          label: Text(
-            controller.offlineDownloading
-                ? 'Cancel download'
-                : 'Download selection for offline use',
+        if (controller.offlineDownloading)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: controller.cancelDownload,
+              child: const Text('Cancel saving offline'),
+            ),
           ),
-        ),
         Row(
           children: [
             Expanded(

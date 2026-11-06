@@ -177,12 +177,6 @@ class BismillahResolution {
 typedef BismillahResolver =
     BismillahResolution Function(Reciter reciter, int surah);
 
-class OpeningConsent {
-  const OpeningConsent({required this.continueOriginal, this.remember = false});
-  const OpeningConsent.cancel() : continueOriginal = false, remember = false;
-  final bool continueOriginal, remember;
-}
-
 /// Scheduled occurrence identity never depends on a mutable native queue index.
 class QuranAudioOccurrence {
   const QuranAudioOccurrence({

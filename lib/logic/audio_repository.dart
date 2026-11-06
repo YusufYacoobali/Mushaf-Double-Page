@@ -31,26 +31,28 @@ abstract class AudioRecordingRepository {
   Future<void> invalidate(Reciter reciter, QuranAudioItem item);
 }
 
+class _DownloadWaiter {
+  _DownloadWaiter(this.urgent, this.onProgress);
+  final bool urgent;
+  final void Function(double)? onProgress;
+}
+
 class _DownloadJob {
-  _DownloadJob(
-    this.key,
-    this.reciter,
-    this.item,
-    this.token,
-    this.urgent,
-    this.onProgress,
-  );
+  _DownloadJob(this.key, this.reciter, this.item, this.order);
   final String key;
   final Reciter reciter;
   final QuranAudioItem item;
-  final CancelToken token;
-  bool urgent;
-  void Function(double)? onProgress;
+  final int order;
+  final token = CancelToken();
+  final waiters = <_DownloadWaiter>[];
+  bool background = false;
+  bool get urgent => waiters.any((w) => w.urgent);
   final result = Completer<String>();
 }
 
 /// Cache paths for numbered ayahs are unchanged. A single scheduler bounds all
-/// foreground, offline and speculative work to two requests.
+/// foreground and offline work to two requests. Only one background request can
+/// run at a time, reserving capacity for upcoming playback recordings.
 class AudioRepository implements AudioRecordingRepository {
   AudioRepository({Dio? dio, Future<Directory> Function()? directory})
     : _dio =
@@ -67,7 +69,7 @@ class AudioRepository implements AudioRecordingRepository {
   final Future<Directory> Function() _directory;
   final _pending = <_DownloadJob>[];
   final _jobs = <String, _DownloadJob>{};
-  int _running = 0;
+  int _running = 0, _backgroundRunning = 0, _order = 0;
 
   static String audioId(int surah, int ayah) =>
       '${surah.toString().padLeft(3, '0')}${ayah.toString().padLeft(3, '0')}';
@@ -80,7 +82,7 @@ class AudioRepository implements AudioRecordingRepository {
           resolution.source == null) {
         throw const AudioFailure(
           AudioFailureKind.unavailable,
-          'This introduction has no verified source. Resolve opening consent before playback.',
+          'No verified same-reciter Bismillah recording is available.',
         );
       }
       return resolution.source!;
@@ -117,27 +119,55 @@ class AudioRepository implements AudioRecordingRepository {
     void Function(double)? onProgress,
   }) async {
     if (token.isCancelled) throw token.cancelError!;
-    final key =
-        '${identityHashCode(token)}:${reciter.id}:${filename(reciter, item)}';
-    final existing = _jobs[key];
-    if (existing != null) {
-      existing.urgent |= urgent;
-      existing.onProgress = onProgress ?? existing.onProgress;
-      _pump();
-      return existing.result.future;
-    }
-    final job = _DownloadJob(key, reciter, item, token, urgent, onProgress);
-    _jobs[key] = job;
-    _pending.add(job);
-    // Defer scheduling so a burst of urgent requests precedes prefetch work.
+    final key = '${reciter.id}:${filename(reciter, item)}';
+    final job = _jobs.putIfAbsent(key, () {
+      final job = _DownloadJob(key, reciter, item, _order++);
+      _pending.add(job);
+      return job;
+    });
+    final waiter = _DownloadWaiter(urgent, onProgress);
+    job.waiters.add(waiter);
     scheduleMicrotask(_pump);
-    return job.result.future;
+    try {
+      final path = await Future.any([
+        job.result.future,
+        token.whenCancel.then<String>((error) => throw error),
+      ]);
+      if (token.isCancelled) throw token.cancelError!;
+      // A numbered 1:1 request can share an introduction's physical file. Check
+      // each consumer's descriptor even if the first job had no audited hash.
+      if (!await _matchesAudit(File(path), sourceFor(reciter, item))) {
+        throw const AudioFailure(
+          AudioFailureKind.corrupt,
+          'The recording differs from the file used for opening verification.',
+        );
+      }
+      return path;
+    } finally {
+      job.waiters.remove(waiter);
+      if (job.waiters.isEmpty && !job.result.isCompleted) {
+        job.token.cancel('No remaining recording consumers');
+        if (_jobs[key] == job) _jobs.remove(key);
+        if (_pending.remove(job)) {
+          job.result.completeError(job.token.cancelError!);
+        }
+      }
+    }
   }
 
   void _pump() {
-    _pending.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+    _pending.sort((a, b) {
+      final priority = (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0);
+      return priority == 0 ? a.order.compareTo(b.order) : priority;
+    });
     while (_running < 2 && _pending.isNotEmpty) {
-      final job = _pending.removeAt(0);
+      final index = _pending.indexWhere(
+        (job) => job.urgent || _backgroundRunning == 0,
+      );
+      if (index < 0) return;
+      final job = _pending.removeAt(index);
+      job.background = !job.urgent;
+      if (job.background) _backgroundRunning++;
       _running++;
       unawaited(_run(job));
     }
@@ -151,7 +181,8 @@ class AudioRepository implements AudioRecordingRepository {
       job.result.completeError(e, stack);
     } finally {
       _running--;
-      _jobs.remove(job.key);
+      if (job.background) _backgroundRunning--;
+      if (_jobs[job.key] == job) _jobs.remove(job.key);
       _pump();
     }
   }
@@ -182,7 +213,9 @@ class AudioRepository implements AudioRecordingRepository {
             cancelToken: requestToken,
             onReceiveProgress: (received, total) {
               if (!job.token.isCancelled && total > 0) {
-                job.onProgress?.call(received / total);
+                for (final waiter in List.of(job.waiters)) {
+                  waiter.onProgress?.call(received / total);
+                }
               }
             },
           )

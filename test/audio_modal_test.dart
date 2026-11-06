@@ -145,7 +145,7 @@ void main() {
     );
   }
   testWidgets(
-    'failed introduction keeps recovery actions after modal reopening',
+    'failed introduction continues without a prompt after modal reopening',
     (tester) async {
       SharedPreferences.setMockInitialValues({});
       final repository = ControlledRepository();
@@ -167,15 +167,13 @@ void main() {
       );
       await tester.pumpWidget(modal());
       await tester.pumpAndSettle();
-      expect(find.text('Retry'), findsOneWidget);
-      expect(find.text('Continue without Bismillah'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.textContaining('Bismillah is unavailable'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpWidget(modal());
       await tester.pumpAndSettle();
-      expect(find.text('Retry'), findsOneWidget);
-      await tester.ensureVisible(find.text('Continue without Bismillah'));
-      await tester.tap(find.text('Continue without Bismillah'));
-      await tester.pumpAndSettle();
+      expect(find.text('Retry'), findsNothing);
+      expect(find.textContaining('Bismillah is unavailable'), findsOneWidget);
       expect(controller.currentAyah, 1);
       expect(controller.error, isNull);
       await tester.pumpWidget(const SizedBox.shrink());

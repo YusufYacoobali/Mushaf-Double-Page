@@ -12,7 +12,6 @@ import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
-import 'package:mushaf_two_page/components/audio_modal.dart';
 import 'package:mushaf_two_page/utils/bismillah_sources.dart';
 
 const _realAudio = bool.fromEnvironment('AUDIO_SMOKE_REAL');
@@ -70,11 +69,6 @@ Future<void> main() async {
           ? BismillahSources.resolve
           : _fixturePolicy,
     );
-    controller.requestOpeningConsent = (reciter, surahs) async {
-      final context = _navigator.currentContext;
-      if (context == null) return const OpeningConsent.cancel();
-      return AudioModal.confirmUnverifiedOpenings(context, reciter, surahs);
-    };
     await AudioService.init(
       builder: () => QuranAudioHandler(controller),
       config: const AudioServiceConfig(

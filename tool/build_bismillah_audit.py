@@ -1,107 +1,89 @@
-"""Build hash-bound policies from the recorded automated content review.
+"""Select one hash-bound Bismillah-only recording per production reciter.
 
-This consumes actual Arabic ASR results, not filename assertions. It never labels
-ASR output as human listening. Missing/ambiguous destinations remain unverified.
-See docs/v5-validation.md for corpus, model provenance and limitations.
+The committed audit contains decoded MP3/Arabic ASR evidence. Source verification
+is independent of the destination surah: a clean recording can introduce all
+112 applicable surahs. No destination whitelist is generated.
 """
 import argparse
 import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import unicodedata
 
 
 def normalized(text):
-    text = ''.join(c for c in unicodedata.normalize('NFKD', text) if not unicodedata.combining(c))
+    text = ''.join(c for c in unicodedata.normalize('NFKD', text or '')
+                   if not unicodedata.combining(c))
     return re.sub('[^ء-ي]', '', text.replace('ى', 'ي').replace('ٱ', 'ا'))
 
 
 def build(args):
-    tiny = json.loads(Path(args.tiny).read_text())
-    small = {(r['folder'], r['file']): r for r in json.loads(Path(args.small).read_text())}
-    base = {(r['folder'], r['file']): r for r in json.loads(Path(args.base).read_text())}
-    registry = {r['source_folder']: r for r in json.loads(Path(args.registry).read_text())['reciters']}
-    app = Path('lib/models/quran_audio.dart').read_text()
-    reciters = {folder: reciter for reciter, folder in re.findall(
-        r"id: '([^']+)'[\s\S]*?folder: '([^']+)'", app)}
-    rows = {}
-    for raw in tiny:
-        row = dict(raw)
-        row.pop('tokens', None)
-        row.pop('timestamps', None)
-        key = (row['folder'], row['file'])
-        row['tinyTranscript'] = row.pop('transcript')
-        row['smallTranscript'] = small.get(key, {}).get('smallTranscript')
-        row['baseTranscript'] = base.get(key, {}).get('baseTranscript')
-        manifest = json.loads((Path(args.manifests) / (row['slug'] + '.json')).read_text())
-        listing = next((f for f in manifest['files'] + manifest['extra'] if Path(f[0]).name == row['file']), None)
-        row['mirrorHashMatches'] = listing is not None and listing[3] == row['sha256']
-        row['upstreamMd5State'] = listing[4] if listing and len(listing) > 4 else 'standalone-extra-manifest'
-        row['reciterName'] = registry[row['folder']]['name']
-        row['style'] = registry[row['folder']]['style']
-        rows[key] = row
+    audit = json.loads(Path(args.audit).read_text())
+    reciters = re.findall(r"id: '([^']+)'[\s\S]*?folder: '([^']+)'",
+                          Path('lib/models/quran_audio.dart').read_text())
     phrase = normalized('بسم الله الرحمن الرحيم')
-    expected = {2: {normalized('الم'), normalized('ألف لام ميم')},
-                112: {normalized('قل هو الله أحد')}, 114: {normalized('قل أعوذ برب الناس')}}
-    policies = {}
-    for folder, reciter in reciters.items():
-        result = {}
-        for surah, endings in expected.items():
-            opening = rows.get((folder, f'{surah:03}001.mp3'))
-            if not opening or not opening['mirrorHashMatches'] or not opening['smallTranscript']:
+    sources, unsupported = {}, []
+    for reciter, folder in reciters:
+        for filename in ['bismillah.mp3', '001001.mp3', '112000.mp3',
+                         '114000.mp3', '002000.mp3']:
+            row = next((r for r in audit['clips']
+                        if r['folder'] == folder and r['file'] == filename), None)
+            if not row or not row['mirrorHashMatches']:
                 continue
-            transcript = normalized(opening['smallTranscript'])
-            if phrase in transcript and any(transcript.endswith(ending) for ending in endings):
-                result[str(surah)] = {'kind': 'embeddedInOpeningAyah', 'openingSha256': opening['sha256'],
-                    'evidence': 'Exact automated transcript contains Bismillah and the destination ayah; original file retained.'}
+            transcripts = [row.get(k) or '' for k in
+                           ['tinyTranscript', 'baseTranscript', 'smallTranscript']]
+            if not any(normalized(row.get(k)) == phrase
+                       for k in ['smallTranscript', 'baseTranscript']):
                 continue
-            if transcript not in endings:
+            if any('شيطان' in normalized(t) or 'seek refuge' in t.lower()
+                   for t in transcripts):
                 continue
-            candidates = []
-            for filename in ['bismillah.mp3', '001001.mp3', f'{surah:03}000.mp3']:
-                row = rows.get((folder, filename))
-                if not row or not row['mirrorHashMatches'] or normalized(row['smallTranscript'] or '') != phrase:
-                    continue
-                other = ' '.join([row.get('tinyTranscript') or '', row.get('baseTranscript') or ''])
-                if 'شيطان' in normalized(other) or 'seek refuge' in other.lower():
-                    continue
-                candidates.append({'id': f'{reciter}/{filename}', 'url': f'https://everyayah.com/data/{folder}/{filename}',
-                    'cacheFilename': filename, 'sha256': row['sha256'],
-                    'verification': 'Arabic Whisper-small transcription matches only Bismillah; mirror SHA-256 checked. '
-                        'Source folder identifies reciter/style. Automated content evidence, not human listening; '
-                        'see docs/bismillah-content-audit.json.'})
-            if candidates:
-                result[str(surah)] = {'kind': 'separateVerifiedRecording', 'sources': candidates,
-                    'openingSha256': opening['sha256'], 'evidence':
-                    'Automated Arabic transcript matches the numbered opening alone, with no Bismillah; '
-                    'added source transcript matches only Bismillah. Both files bound to audited SHA-256. '
-                    'No human listening or independent voice identification claimed.'}
-        if result:
-            policies[reciter] = result
-    evidence = {'date': '2026-11-06', 'scope': 'EveryAyah files 001000/001001, 002000/002001, 112000/112001, 114000/114001 where available, plus named bismillah.mp3 for Husary, Hani Rifai and Ghamdi',
-        'method': 'Actual MP3 bytes decoded with ffmpeg and transcribed with sherpa-onnx multilingual Whisper tiny, base and small int8 (Arabic). '
-            'No human listening. Policies require exact normalized small-model phrase and destination text; ambiguous clips remain unverified.',
-        'mirror': 'https://github.com/Abdalla-Eldoumani/maqra',
-        'mirrorRevision': args.mirror_revision,
-        'models': {name: f'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-{name}.tar.bz2'
-                   for name in ['tiny', 'base', 'small']},
-        'clips': list(rows.values()), 'enabledPolicies': policies,
-        'limitations': ['ASR can omit or hallucinate words, especially recitation and muqattaat.',
-            'This is automated content review, not human listening or speaker identification.',
-            'Only hash-bound enabled destinations are covered; other surahs need further review.']}
-    Path(args.output).write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + '\n')
-    Path(args.dart_output).write_text('// Generated from the content audit by tool/build_bismillah_audit.py.\n'
-        '// Automatic transcription evidence; never a claim of human listening.\n'
-        'const Map<String, dynamic> verifiedOpeningData = ' + json.dumps(policies, ensure_ascii=False, indent=2) + ';\n')
-    print('Audited clips:', len(rows), 'reciters:', len(reciters))
-    print('Enabled destinations:', sum(map(len, policies.values())), 'reciters:', len(policies))
-    for reciter, data in policies.items():
-        print(reciter, ', '.join(data))
+            if args.audio_directory:
+                path = Path(args.audio_directory) / f"{row['slug']}-{filename}"
+                assert hashlib.sha256(path.read_bytes()).hexdigest() == row['sha256'], path
+                subprocess.run(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path),
+                                '-f', 'null', '-'], check=True)
+            sources[reciter] = {
+                'id': f'{reciter}/{filename}',
+                'url': f'https://everyayah.com/data/{folder}/{filename}',
+                'cacheFilename': filename, 'sha256': row['sha256'],
+                'verification': 'Bismillah-only Arabic ASR content review (Whisper small/base); '
+                    'decoded MP3 and mirror SHA-256 checked. Same EveryAyah reciter/style '
+                    'collection. See docs/bismillah-content-audit.json; automated review, '
+                    'not human listening or independent speaker identification.',
+            }
+            break
+        else:
+            unsupported.append(reciter)
+    audit.pop('enabledPolicies', None)
+    audit['standaloneSources'] = sources
+    audit['unsupportedReciters'] = unsupported
+    audit['method'] = ('Actual MP3 bytes decoded with ffmpeg and transcribed with sherpa-onnx '
+        'multilingual Whisper tiny/base/small int8 (Arabic). A canonical source requires '
+        'an exact normalized Bismillah-only small or base transcript and no istiadhah '
+        'in any reviewed transcript. Same-reciter source identity and SHA-256 are retained. '
+        'Source selection does not depend on a destination-surah whitelist.')
+    audit['limitations'] = [
+        'Automated content review, not human listening or independent speaker identification.',
+        'ASR can omit or hallucinate words. These source checks do not certify every numbered ayah in the collection.',
+        'The source corpus is an upstream-checksummed EveryAyah mirror. Live upstream availability can change; playback handles unavailable introductions internally.',
+    ]
+    Path(args.audit).write_text(json.dumps(audit, ensure_ascii=False, indent=2) + '\n')
+    Path(args.dart_output).write_text(
+        '// Generated by tool/build_bismillah_audit.py from the committed content audit.\n'
+        '// One reusable, hash-bound Bismillah-only source per reciter.\n'
+        'const Map<String, dynamic> verifiedBismillahData = '
+        + json.dumps(sources, ensure_ascii=False, indent=2) + ';\n')
+    print(f'Canonical sources: {len(sources)}/{len(reciters)}; unsupported: {unsupported}')
+    for reciter, source in sources.items():
+        print(reciter, source['cacheFilename'], source['sha256'])
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    for name in ['tiny', 'small', 'base', 'registry', 'manifests', 'mirror-revision', 'output', 'dart-output']:
-        parser.add_argument('--' + name, required=True)
+    parser.add_argument('--audit', default='docs/bismillah-content-audit.json')
+    parser.add_argument('--dart-output', default='lib/utils/bismillah_verified_sources.dart')
+    parser.add_argument('--audio-directory', help='Also verify actual cached audit MP3 hashes and decode them')
     build(parser.parse_args())

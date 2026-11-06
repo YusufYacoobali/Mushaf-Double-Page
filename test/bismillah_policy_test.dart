@@ -1,78 +1,364 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/audio_modal.dart';
 import 'package:mushaf_two_page/logic/audio_repository.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
+import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/audio_preferences.dart';
 import 'package:mushaf_two_page/utils/bismillah_sources.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_test_fixtures.dart';
 
+const productionQueues = [
+  [112, 113, 114],
+  [2, 3, 4],
+  [8, 9, 10],
+  [1, 2],
+];
+
+// Independent product specification, rather than deriving expected output by
+// advancing the production cursor or consulting the introduction resolver.
+List<String> expectedSequence(AudioPlaybackPlan p) {
+  final sequence = <String>[];
+  final verses = [
+    for (final surah in p.effectiveSurahs)
+      for (
+        var ayah = p.sourceMode == AudioSourceMode.range ? p.fromAyah : 1;
+        ayah <=
+            (p.sourceMode == AudioSourceMode.range
+                ? p.toAyah
+                : quranAyahCounts[surah - 1]);
+        ayah++
+      )
+        (surah, ayah),
+  ];
+  for (
+    var cycle = 1;
+    cycle <= (p.repeatMode == AudioRepeatMode.range ? p.visibleRepeatCount : 1);
+    cycle++
+  ) {
+    for (final verse in verses) {
+      if (verse.$2 == 1 && verse.$1 != 1 && verse.$1 != 9) {
+        sequence.add('${verse.$1}:bismillah/$cycle/1');
+      }
+      for (
+        var repeat = 1;
+        repeat <=
+            (p.repeatMode == AudioRepeatMode.ayah ? p.visibleRepeatCount : 1);
+        repeat++
+      ) {
+        sequence.add('${verse.$1}:${verse.$2}/$cycle/$repeat');
+      }
+    }
+  }
+  return sequence;
+}
+
+String occurrenceLabel(QuranAudioOccurrence o) =>
+    '${o.item.key}/${o.rangeCycle}/${o.verseRepetition}';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
-  BismillahResolution mixed(Reciter r, int s) => s == 113
-      ? const BismillahResolution(
-          BismillahPolicyKind.unverified,
-          evidence: 'Synthetic unresolved opening',
-        )
-      : s == 114
-      ? const BismillahResolution(
-          BismillahPolicyKind.embeddedInOpeningAyah,
-          evidence: 'Synthetic embedded opening',
-        )
-      : fixtureIntroduction(r, s);
   test(
-    'enabled production descriptors match the committed content evidence for the same collection',
-    () {
+    'all 22 canonical production sources match actual MP3 bytes and content evidence',
+    () async {
       final audit =
           jsonDecode(
                 File('docs/bismillah-content-audit.json').readAsStringSync(),
               )
               as Map<String, dynamic>;
       final clips = (audit['clips'] as List).cast<Map<String, dynamic>>();
-      var enabled = 0;
+      final fresh = (audit['canonicalVerification']['recordings'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(audit['unsupportedReciters'], isEmpty);
+      final sources = <String>{};
       for (final reciter in quranReciters) {
-        for (var surah = 2; surah <= 114; surah++) {
+        final source = BismillahSources.resolve(reciter, 2).source!;
+        final clip = clips.singleWhere(
+          (c) =>
+              c['folder'] == reciter.folder &&
+              c['file'] == source.cacheFilename,
+        );
+        final actual = await File(
+          'test/fixtures/bismillah/${reciter.id}.mp3',
+        ).readAsBytes();
+        expect(AudioRepository.validMp3Bytes(actual), isTrue);
+        expect(crypto.sha256.convert(actual).toString(), source.sha256);
+        expect(source.sha256, clip['sha256']);
+        expect(clip['mirrorHashMatches'], isTrue);
+        expect(
+          fresh.singleWhere((c) => c['reciter'] == reciter.id)['sha256'],
+          source.sha256,
+        );
+        expect(
+          source.url,
+          'https://everyayah.com/data/${reciter.folder}/${source.cacheFilename}',
+        );
+        expect(source.id, '${reciter.id}/${source.cacheFilename}');
+        sources.add(source.id);
+        for (var surah = 1; surah <= 114; surah++) {
           final policy = BismillahSources.resolve(reciter, surah);
-          if (policy.kind != BismillahPolicyKind.separateVerifiedRecording &&
-              policy.kind != BismillahPolicyKind.embeddedInOpeningAyah) {
-            continue;
-          }
-          enabled++;
-          final opening = clips.singleWhere(
-            (c) =>
-                c['folder'] == reciter.folder &&
-                c['file'] == '${surah.toString().padLeft(3, '0')}001.mp3',
+          expect(
+            policy.kind,
+            surah == 1 || surah == 9
+                ? BismillahPolicyKind.notRequired
+                : BismillahPolicyKind.separateVerifiedRecording,
           );
-          expect(policy.openingSha256, opening['sha256']);
-          expect(opening['mirrorHashMatches'], isTrue);
-          if (policy.source == null) continue;
-          for (final source in [
-            policy.source!,
-            ...policy.source!.alternatives,
-          ]) {
-            final clip = clips.singleWhere(
-              (c) =>
-                  c['folder'] == reciter.folder &&
-                  c['file'] == source.cacheFilename,
-            );
-            expect(source.sha256, clip['sha256']);
-            expect(clip['mirrorHashMatches'], isTrue);
-            expect(
-              source.url,
-              'https://everyayah.com/data/${reciter.folder}/${source.cacheFilename}',
-            );
-            expect(source.id, startsWith('${reciter.id}/'));
+          if (surah != 1 && surah != 9) {
+            expect(identical(policy.source, source), isTrue);
           }
         }
       }
-      expect(enabled, 32);
-      // This checks artifact consistency, not the accuracy of automatic ASR.
+      expect(sources.length, 22);
+      // Ali Jaber 1:1 includes istiadhah; Shaatree's SSS000 is istiadhah alone.
+      expect(
+        BismillahSources.resolve(
+          quranReciters.firstWhere((r) => r.id == 'ali_jaber'),
+          2,
+        ).source!.cacheFilename,
+        '112000.mp3',
+      );
+      expect(
+        BismillahSources.resolve(
+          quranReciters.firstWhere((r) => r.id == 'shaatree'),
+          2,
+        ).source!.cacheFilename,
+        '001001.mp3',
+      );
+    },
+  );
+
+  for (final reciter in quranReciters) {
+    test('production cursor exact queues and repeat cycles: ${reciter.id}', () {
+      final midway = QuranPlaybackCursor(
+        plan(reciter: reciter, from: 2, to: 4),
+        introductionForSurah: (s) =>
+            BismillahSources.resolve(reciter, s).source != null,
+      );
+      expect(midway.needsIntroduction, isFalse);
+      final midwayItems = <String>[];
+      do {
+        midwayItems.add(midway.item.key);
+      } while (midway.advance());
+      expect(midwayItems, ['112:2', '112:3', '112:4']);
+      for (final queue in productionQueues) {
+        for (final mode in AudioRepeatMode.values) {
+          final selection = plan(
+            reciter: reciter,
+            queue: queue,
+            count: 3,
+            repeat: mode,
+          );
+          final cursor = QuranPlaybackCursor(
+            selection,
+            introductionForSurah: (s) =>
+                BismillahSources.resolve(reciter, s).source != null,
+          );
+          cursor.introduction = cursor.needsIntroduction;
+          final heard = <String>[];
+          do {
+            heard.add(
+              '${cursor.item.key}/${cursor.rangeCycle}/${cursor.verseRepeat}',
+            );
+          } while (cursor.advance());
+          expect(heard, expectedSequence(selection), reason: '$queue $mode');
+        }
+      }
+    });
+  }
+  test(
+    'production infinite Surah Queue repeats all applicable introductions with bounded native sources',
+    () async {
+      final player = FakePlayer();
+      final c = QuranAudioController.forTesting(
+        player: player,
+        repository: ControlledRepository(),
+      );
+      await c.playPlan(plan(queue: [112, 113, 114], count: null));
+      await flush();
+      for (final expected in expectedSequence(
+        plan(queue: [112, 113, 114], count: 3),
+      )) {
+        expect(occurrenceLabel(c.currentOccurrence!), expected);
+        expect(c.nativeQueueLength, lessThanOrEqualTo(6));
+        player.advance();
+        await flush();
+      }
+      expect(c.phase, QuranPlaybackPhase.playing);
+      expect(c.currentItem!.key, '112:bismillah');
+      expect(c.currentRepeat, 4);
+      expect(player.sourceLoads, 1);
+      await c.stop();
+      c.dispose();
+    },
+  );
+  // Exercise native source adoption as well as the cursor, including long queues.
+  for (final queue in productionQueues) {
+    for (final mode in AudioRepeatMode.values) {
+      test('production native queue exact items $queue ${mode.name}', () async {
+        final player = FakePlayer(), repo = ControlledRepository();
+        final c = QuranAudioController.forTesting(
+          player: player,
+          repository: repo,
+        );
+        final selection = plan(queue: queue, count: 2, repeat: mode);
+        await c.playPlan(selection);
+        await flush();
+        final heard = <String>[];
+        for (final expected in expectedSequence(selection)) {
+          final o = c.currentOccurrence!;
+          heard.add(occurrenceLabel(o));
+          expect(occurrenceLabel(o), expected);
+          if (o.item.isIntroduction) {
+            expect(
+              o.recordingId,
+              BismillahSources.resolve(
+                selection.reciter,
+                o.item.surah,
+              ).source!.id,
+            );
+            expect(c.currentAyah, isNull);
+          } else {
+            expect(c.currentAyah, o.item.ayah);
+          }
+          expect(
+            c.nativeQueueLength,
+            lessThanOrEqualTo(QuranAudioController.nativeQueueLimit),
+          );
+          player.advance();
+          await flush();
+        }
+        expect(heard, expectedSequence(selection));
+        expect(c.phase, QuranPlaybackPhase.completed);
+        expect(player.sourceLoads, 1);
+        await c.stop();
+        c.dispose();
+      });
+    }
+  }
+  test(
+    'unavailable/embedded introductions start directly and do not block a mixed queue',
+    () async {
+      final player = FakePlayer(), repo = ControlledRepository();
+      final c = QuranAudioController.forTesting(
+        player: player,
+        repository: repo,
+        resolveIntroduction: (r, s) => s == 113
+            ? const BismillahResolution(
+                BismillahPolicyKind.unverified,
+                evidence: 'Unavailable test source',
+              )
+            : s == 114
+            ? const BismillahResolution(
+                BismillahPolicyKind.embeddedInOpeningAyah,
+                evidence: 'Already embedded test source',
+              )
+            : BismillahSources.resolve(r, s),
+      );
+      await c.playPlan(plan(queue: [112, 113, 114], count: 2));
+      await flush();
+      final heard = <String>[];
+      for (var i = 0; i < 32; i++) {
+        heard.add(c.currentItem!.key);
+        player.advance();
+        await flush();
+      }
+      expect(c.phase, QuranPlaybackPhase.completed);
+      expect(heard.where((s) => s == '112:bismillah').length, 2);
+      expect(heard, isNot(contains('113:bismillah')));
+      expect(heard, isNot(contains('114:bismillah')));
+      expect(c.introductionNotice, contains('unavailable'));
+      expect(c.downloadState.message, contains('incomplete'));
+      expect(c.error, isNull);
+      await c.stop();
+      c.dispose();
+    },
+  );
+  test(
+    'lock-screen controls preserve production introduction identity and verse numbering',
+    () async {
+      final player = FakePlayer();
+      final c = QuranAudioController.forTesting(
+        player: player,
+        repository: ControlledRepository(),
+      );
+      final handler = QuranAudioHandler(c);
+      final selection = plan(queue: [112, 113, 114], count: 2);
+      await c.playPlan(selection);
+      await flush();
+      for (final expected in expectedSequence(selection)) {
+        final before = c.currentOccurrence!;
+        expect(occurrenceLabel(before), expected);
+        expect(
+          handler.mediaItem.value!.extras!['introduction'],
+          before.item.isIntroduction,
+        );
+        await handler.pause();
+        await handler.play();
+        expect(c.currentOccurrence!.occurrenceId, before.occurrenceId);
+        player.advance();
+        await flush();
+      }
+      expect(c.phase, QuranPlaybackPhase.completed);
+      await c.stop();
+      c.dispose();
+    },
+  );
+  test(
+    'legacy consent preferences are removed while selected reciter survives',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'audio_original_openings_v1_alafasy': true,
+        'audio_selection_configured': true,
+        'audio_reciter': 'shaatree',
+      });
+      expect((await AudioPreferences.load())!.reciterId, 'shaatree');
+      expect(
+        (await SharedPreferences.getInstance()).getKeys().where(
+          (k) => k.startsWith('audio_original_openings_v1_'),
+        ),
+        isEmpty,
+      );
+    },
+  );
+  testWidgets(
+    'Play starts directly with no consent or manual-download button',
+    (tester) async {
+      final player = FakePlayer();
+      final c = QuranAudioController.forTesting(
+        player: player,
+        repository: ControlledRepository(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AudioModal(
+              controller: c,
+              initialSurah: 113,
+              initialFromAyah: 1,
+              initialToAyah: 2,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Download selection for offline use'), findsNothing);
+      await tester.ensureVisible(find.text('Play'));
+      await tester.tap(find.text('Play'));
+      await tester.pumpAndSettle();
+      expect(player.starts, 1);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.textContaining('not been verified'), findsNothing);
+      expect(find.text('Remember for this reciter'), findsNothing);
+      expect(find.text('Selection available offline'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await c.stop();
+      c.dispose();
     },
   );
   test(
@@ -113,95 +399,6 @@ void main() {
       await flush();
       expect(c.currentAyah, 1);
       await c.stop();
-      c.dispose();
-    },
-  );
-  test(
-    'one preflight covers unresolved playlist openings and every repeat',
-    () async {
-      final player = FakePlayer(), repo = ControlledRepository();
-      var prompts = 0;
-      final c = QuranAudioController.forTesting(
-        player: player,
-        repository: repo,
-        resolveIntroduction: mixed,
-      );
-      c.requestOpeningConsent = (r, s) async {
-        prompts++;
-        expect(s, [113]);
-        return const OpeningConsent(continueOriginal: true);
-      };
-      await c.playPlan(plan(queue: [112, 113, 114], count: 2));
-      await flush();
-      final heard = <String>[];
-      for (var i = 0; i < 2 * (1 + 4 + 5 + 6); i++) {
-        heard.add(c.currentItem!.key);
-        player.advance();
-        await flush();
-      }
-      expect(prompts, 1);
-      expect(c.phase, QuranPlaybackPhase.completed);
-      expect(heard.where((s) => s == '112:bismillah').length, 2);
-      expect(heard, isNot(contains('113:bismillah')));
-      expect(heard, isNot(contains('114:bismillah')));
-      expect(repo.requested.where((s) => s.contains('113:bismillah')), isEmpty);
-      expect(c.error, isNull);
-      await c.stop();
-      c.dispose();
-    },
-  );
-  test(
-    'remembered consent is per reciter and persists through fresh controllers',
-    () async {
-      var prompts = 0;
-      Future<void> run(Reciter reciter) async {
-        final c = QuranAudioController.forTesting(
-          player: FakePlayer(),
-          repository: ControlledRepository(),
-          resolveIntroduction: mixed,
-          readConsent: AudioPreferences.openingConsent,
-          writeConsent: AudioPreferences.rememberOpeningConsent,
-        );
-        c.requestOpeningConsent = (r, s) async {
-          prompts++;
-          return const OpeningConsent(continueOriginal: true, remember: true);
-        };
-        await c.playPlan(plan(surah: 113, from: 1, to: 2, reciter: reciter));
-        await c.stop();
-        c.dispose();
-      }
-
-      await run(quranReciters.first);
-      await run(quranReciters.first);
-      expect(prompts, 1);
-      await run(quranReciters[1]);
-      expect(prompts, 2);
-    },
-  );
-  test(
-    'Cancel and Stop during pending consent cannot start or remember late audio',
-    () async {
-      final player = FakePlayer(), repo = ControlledRepository();
-      final choice = Completer<OpeningConsent>();
-      final c = QuranAudioController.forTesting(
-        player: player,
-        repository: repo,
-        resolveIntroduction: mixed,
-        writeConsent: (_, _) async => fail('Late consent must not be saved'),
-      );
-      c.requestOpeningConsent = (_, _) => choice.future;
-      final pending = c.playPlan(plan(surah: 113, from: 1));
-      await flush();
-      expect(c.awaitingOpeningConsent, isTrue);
-      expect(player.starts, 0);
-      expect(repo.requested, isEmpty);
-      await c.stop();
-      choice.complete(
-        const OpeningConsent(continueOriginal: true, remember: true),
-      );
-      await pending;
-      expect(c.phase, QuranPlaybackPhase.idle);
-      expect(player.starts, 0);
       c.dispose();
     },
   );
@@ -274,42 +471,6 @@ void main() {
       expect(active.index, 0);
       expect(active.rangeCycle, 1);
       expect(tail.item.ayah, 2);
-    },
-  );
-  testWidgets(
-    'unverified coverage shows Continue/Cancel and the original-recording disclaimer',
-    (tester) async {
-      OpeningConsent? result;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (ctx) => Scaffold(
-              body: TextButton(
-                onPressed: () async {
-                  result = await AudioModal.confirmUnverifiedOpenings(
-                    ctx,
-                    quranReciters.first,
-                    [2, 3],
-                  );
-                },
-                child: const Text('Open consent'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('Open consent'));
-      await tester.pumpAndSettle();
-      expect(
-        find.textContaining('does not guarantee Bismillah'),
-        findsOneWidget,
-      );
-      expect(find.text('Retry'), findsNothing);
-      await tester.tap(find.text('Remember for this reciter'));
-      await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
-      expect(result!.continueOriginal, isTrue);
-      expect(result!.remember, isTrue);
     },
   );
 }

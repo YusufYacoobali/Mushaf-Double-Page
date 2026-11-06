@@ -34,23 +34,13 @@ class AudioPreferences {
   static const _repeatModeKey = 'audio_repeat_mode';
   static const _sourceModeKey = 'audio_source_mode';
 
-  static Future<bool> openingConsent(String reciterId) async =>
-      (await SharedPreferences.getInstance()).getBool(
-        'audio_original_openings_v1_$reciterId',
-      ) ??
-      false;
-  static Future<void> rememberOpeningConsent(
-    String reciterId,
-    bool value,
-  ) async {
-    await (await SharedPreferences.getInstance()).setBool(
-      'audio_original_openings_v1_$reciterId',
-      value,
-    );
-  }
-
   static Future<AudioPreferencesData?> load() async {
     final prefs = await SharedPreferences.getInstance();
+    for (final key in prefs.getKeys().where(
+      (key) => key.startsWith('audio_original_openings_v1_'),
+    )) {
+      await prefs.remove(key);
+    }
     if (!(prefs.getBool(_configuredKey) ?? false)) return null;
 
     final repeatName = prefs.getString(_repeatModeKey);

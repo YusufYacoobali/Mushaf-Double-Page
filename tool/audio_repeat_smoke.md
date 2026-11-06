@@ -17,13 +17,13 @@ of head silence and 60 ms of tail silence** per recording. Those 100 ms at a
 boundary are intentional recording content. The app does not remove them.
 
 Set `AUDIO_SMOKE_REAL=true` for real EveryAyah downloads/cache playback at audible
-volume. This uses production hash-bound Bismillah policies and the unresolved
-opening consent dialog. It runs seven cases including Al-Ikhlas short ayahs,
+volume. This uses the production hash-bound reusable Bismillah sources and
+automatically saves the selection without an opening-consent dialog. It runs
+seven cases including Al-Ikhlas short ayahs,
 Al-Ikhlas/An-Nas introductions, verse/range repetitions and an infinite range.
 Run again with networking disabled after all required files have been cached to
 check offline transitions. Real cases time out after ten minutes each; generated
-cases time out after two minutes. Cache preparation and any consent interaction
-are included in elapsed timing.
+cases time out after two minutes. Cache preparation is included in elapsed timing.
 
 The JSON report is `audio_repeat_report.json` in the application-support directory
 (Android: `files/audio_repeat_report.json`). It starts as `running` and ends as

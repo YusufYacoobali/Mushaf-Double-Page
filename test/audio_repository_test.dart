@@ -26,6 +26,9 @@ class TestTransport implements HttpClientAdapter {
   int active = 0, maxActive = 0, calls = 0;
   int status = 200;
   bool html = false;
+  final payloads = <String, Uint8List>{};
+  final statuses = <String, int>{};
+  final transientFailures = <String, int>{};
   final started = <String>[];
   final gates = <String, Completer<void>>{};
   @override
@@ -53,9 +56,11 @@ class TestTransport implements HttpClientAdapter {
             ),
         ]);
       }
+      final failures = transientFailures[name] ?? 0;
+      if (failures > 0) transientFailures[name] = failures - 1;
       return ResponseBody.fromBytes(
-        html ? '<html>error</html>'.codeUnits : bytes,
-        status,
+        html ? '<html>error</html>'.codeUnits : (payloads[name] ?? bytes),
+        failures > 0 ? 503 : (statuses[name] ?? status),
         headers: {
           'content-type': [html ? 'text/html' : 'audio/mpeg'],
         },
@@ -175,7 +180,7 @@ void main() {
         token,
         urgent: urgent,
       );
-      final first = get(2), second = get(3), future = get(4);
+      final first = get(2), second = get(3, urgent: true), future = get(4);
       await waitFor(() => transport.started.length == 2);
       final needed = get(1, urgent: true);
       transport.gates['112002.mp3']!.complete();
@@ -219,6 +224,81 @@ void main() {
     expect(await a, await b);
     expect(transport.calls, 1);
   });
+  test(
+    'background requests reserve a slot for playback and cannot starve upcoming ayahs',
+    () async {
+      transport.gates['112002.mp3'] = Completer<void>();
+      final token = CancelToken();
+      final background = repo.recording(reciter, item, token, urgent: false);
+      final later = repo.recording(
+        reciter,
+        const QuranAudioItem(surah: 112, ayah: 3),
+        token,
+        urgent: false,
+      );
+      await waitFor(() => transport.started.length == 1);
+      final upcoming = repo.recording(
+        reciter,
+        const QuranAudioItem(surah: 112, ayah: 4),
+        token,
+      );
+      await upcoming;
+      expect(transport.started, ['112002.mp3', '112004.mp3']);
+      expect(transport.maxActive, 2);
+      transport.gates['112002.mp3']!.complete();
+      await background;
+      await later;
+    },
+  );
+  test(
+    'playback and automatic-saving tokens share physical work; cancelling one consumer preserves the other',
+    () async {
+      transport.gates['112002.mp3'] = Completer<void>();
+      final backgroundToken = CancelToken(), playbackToken = CancelToken();
+      final background = repo.recording(
+        reciter,
+        item,
+        backgroundToken,
+        urgent: false,
+      );
+      final cancelled = expectLater(background, throwsA(isA<DioException>()));
+      await waitFor(() => transport.started.length == 1);
+      final playback = repo.recording(reciter, item, playbackToken);
+      await Future<void>.delayed(Duration.zero);
+      backgroundToken.cancel();
+      await cancelled;
+      expect(transport.calls, 1);
+      transport.gates['112002.mp3']!.complete();
+      final path = await playback;
+      expect(await AudioRepository.validMp3(File(path)), isTrue);
+      expect(transport.calls, 1);
+    },
+  );
+  test(
+    'replacement can re-request a just-cancelled physical recording without stale cancellation',
+    () async {
+      transport.gates['112002.mp3'] = Completer<void>();
+      final old = CancelToken();
+      final abandoned = expectLater(
+        repo.recording(reciter, item, old),
+        throwsA(isA<DioException>()),
+      );
+      await waitFor(() => transport.started.length == 1);
+      old.cancel();
+      await abandoned;
+      transport.gates.remove('112002.mp3');
+      final path = await repo.recording(reciter, item, CancelToken());
+      expect(await AudioRepository.validMp3(File(path)), isTrue);
+      expect(transport.calls, 2);
+      expect(
+        await dir
+            .list(recursive: true)
+            .where((f) => f.path.endsWith('.part'))
+            .length,
+        0,
+      );
+    },
+  );
   test(
     'introduction is cached separately without numbered verse identity',
     () async {
@@ -332,10 +412,7 @@ void main() {
       );
       await controller.downloadSelection(plan(from: 1, to: 1));
       expect(controller.downloadState.completed, 0);
-      expect(
-        controller.downloadState.message,
-        contains('differs from the file'),
-      );
+      expect(controller.downloadState.message, contains('incomplete'));
       final file = await repo.fileFor(
         reciter,
         const QuranAudioItem(surah: 112, ayah: 1),
