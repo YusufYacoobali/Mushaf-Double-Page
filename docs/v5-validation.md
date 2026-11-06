@@ -1,5 +1,8 @@
 # v5 implementation and validation
 
+The later responsive-layout, review-prompt and daily-reminder changes are covered
+in [v5 responsive validation](v5-responsive-validation.md).
+
 This follow-up starts from `de190cf` on the existing `v5` branch. It changes audio
 and Bismillah handling only. Tasbeeh implementation, settings and its captured
 preview are unchanged. Nothing is merged into `main`.

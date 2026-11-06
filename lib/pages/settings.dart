@@ -1,3 +1,4 @@
+import 'package:mushaf_two_page/components/adaptive_surface.dart';
 import 'tasbeeh.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
@@ -432,7 +433,10 @@ class _SettingsState extends State<Settings> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AdaptiveSurface(child: Builder(builder: _buildScaffold));
+
+  Widget _buildScaffold(BuildContext context) {
     if (!_loaded) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

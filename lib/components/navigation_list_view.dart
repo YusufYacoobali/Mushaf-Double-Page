@@ -24,6 +24,8 @@ class NavigationListView extends StatefulWidget {
 
 class _NavigationListViewState extends State<NavigationListView> {
   ScrollController? _scroll;
+  List<double>? _extents;
+  int _metricsGeneration = 0;
 
   @override
   void dispose() {
@@ -47,6 +49,34 @@ class _NavigationListViewState extends State<NavigationListView> {
                   ),
               ];
         var initialOffset = 0.0;
+        if (_scroll?.hasClients == true &&
+            _extents != null &&
+            extents != null &&
+            !_sameExtents(_extents!, extents)) {
+          var remaining = (_scroll!.offset - 12).clamp(0.0, double.infinity);
+          var anchor = 0;
+          while (anchor < _extents!.length - 1 &&
+              remaining >= _extents![anchor]) {
+            remaining -= _extents![anchor++];
+          }
+          final fraction = remaining / _extents![anchor];
+          final target =
+              12 +
+              extents.take(anchor).fold(0.0, (sum, height) => sum + height) +
+              fraction * extents[anchor];
+          final generation = ++_metricsGeneration;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted ||
+                generation != _metricsGeneration ||
+                !_scroll!.hasClients) {
+              return;
+            }
+            _scroll!.jumpTo(
+              target.clamp(0.0, _scroll!.position.maxScrollExtent),
+            );
+          });
+        }
+        _extents = extents;
         if (extents != null && extents.isNotEmpty && widget.initialIndex > 0) {
           final index = widget.initialIndex.clamp(0, extents.length - 1);
           final before = extents
@@ -93,4 +123,8 @@ class _NavigationListViewState extends State<NavigationListView> {
       },
     );
   }
+
+  bool _sameExtents(List<double> a, List<double> b) =>
+      a.length == b.length &&
+      Iterable<int>.generate(a.length).every((i) => (a[i] - b[i]).abs() < .01);
 }

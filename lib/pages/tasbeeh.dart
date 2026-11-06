@@ -1,3 +1,4 @@
+import 'package:mushaf_two_page/components/adaptive_surface.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -307,7 +308,10 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AdaptiveSurface(child: Builder(builder: _buildScaffold));
+
+  Widget _buildScaffold(BuildContext context) {
     final p = AppPalette.of(context);
     return ListenableBuilder(
       listenable: _store,

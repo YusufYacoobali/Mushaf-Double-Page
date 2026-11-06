@@ -1,3 +1,4 @@
+import 'package:mushaf_two_page/components/adaptive_surface.dart';
 import 'quran_reminder.dart';
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
@@ -59,7 +60,10 @@ class _ProgressPageState extends State<ProgressPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AdaptiveSurface(child: Builder(builder: _buildScaffold));
+
+  Widget _buildScaffold(BuildContext context) {
     final palette = AppPalette.of(context);
     final stats = _stats;
     return Scaffold(

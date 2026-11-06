@@ -20,9 +20,6 @@ class BookmarksModal {
     String mushaf = 'indopak_tajweed',
     void Function(SurahVisit visit)? onJumpToPreviousSurah,
   }) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
     final palette = AppPalette.of(context);
 
     showModalBottomSheet(
@@ -34,6 +31,9 @@ class BookmarksModal {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
+            final screenHeight = MediaQuery.sizeOf(context).height;
+            final isLandscape =
+                MediaQuery.orientationOf(context) == Orientation.landscape;
             final bottomInset = MediaQuery.of(context).viewPadding.bottom;
             final sortedBookmarks = [...bookmarks]
               ..sort((a, b) {

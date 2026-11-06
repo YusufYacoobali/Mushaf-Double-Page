@@ -133,9 +133,7 @@ void main() {
       ),
     );
 
-    final pageSurface = find.byWidgetPredicate(
-      (widget) => widget is FittedBox && widget.fit == BoxFit.fill,
-    );
+    final pageSurface = find.byType(Image);
 
     await tester.pumpWidget(readerAt(QuranPageView.minPageScalePortrait));
     await tester.pumpAndSettle();
@@ -147,7 +145,15 @@ void main() {
     final maximumSize = tester.getSize(pageSurface);
     final maximumRect = tester.getRect(pageSurface);
 
-    expect(maximumSize.width, closeTo(minimumSize.width, .01));
+    expect(maximumSize.width, greaterThan(minimumSize.width + 20));
+    expect(
+      maximumSize.width / maximumSize.height,
+      closeTo(QuranPageView.pageAspectRatio, .001),
+    );
+    expect(
+      minimumSize.width / minimumSize.height,
+      closeTo(QuranPageView.pageAspectRatio, .001),
+    );
     expect(maximumSize.height, greaterThan(minimumSize.height + 20));
     expect(minimumRect.center, maximumRect.center);
   });
@@ -168,10 +174,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(
-      tester.getRect(find.byType(FittedBox).first).height,
-      closeTo(600, 1),
-    );
+    expect(tester.getRect(find.byType(Image).first).height, closeTo(600, 1));
     final center = tester.getCenter(find.byType(Scaffold));
     final first = await tester.startGesture(
       center - const Offset(35, 0),

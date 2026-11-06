@@ -4,6 +4,34 @@ import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'review_prompt_session.dart';
 
+class ReviewRouteObserver extends NavigatorObserver {
+  final _routes = <Route<dynamic>>[];
+  bool get hasUncoveredPage =>
+      _routes.lastOrNull is PageRoute &&
+      (_routes.lastOrNull?.isCurrent ?? false);
+  String? get currentPageName => _routes.lastOrNull?.settings.name;
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _routes.add(route);
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _routes.remove(route);
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _routes.remove(route);
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final index = oldRoute == null ? -1 : _routes.indexOf(oldRoute);
+    if (index >= 0) {
+      if (newRoute == null) {
+        _routes.removeAt(index);
+      } else {
+        _routes[index] = newRoute;
+      }
+    }
+  }
+}
+
 /// Shows reliable app-owned review prompts and opens the platform store page.
 class AppReview {
   // Android's openStoreListing resolves this exact application ID:
@@ -18,40 +46,46 @@ class AppReview {
 
   static final _review = InAppReview.instance;
   static final _session = ReviewPromptSession();
+  static final navigatorObserver = ReviewRouteObserver();
 
-  /// Prompt after two minutes on alternate launches, once per session.
+  /// Prompt after two minutes on launches 1–5, then 15, 25, 35, ...
   static void schedulePromptAfterOpen(
-    BuildContext? Function() contextProvider,
-  ) {
-    _session.schedule(() async {
-      if (!kIsWeb &&
-          (defaultTargetPlatform == TargetPlatform.android ||
-              defaultTargetPlatform == TargetPlatform.iOS)) {
-        final context = contextProvider();
-        if (context != null && context.mounted) {
-          await _showStorePrompt(
-            context,
-            isIos: defaultTargetPlatform == TargetPlatform.iOS,
-          );
+    BuildContext? Function() contextProvider, {
+    bool Function()? canShowPrompt,
+  }) {
+    _session.schedule(
+      () async {
+        if (!kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS)) {
+          final context = contextProvider();
+          if (context != null && context.mounted) {
+            await _showStorePrompt(
+              context,
+              isIos: defaultTargetPlatform == TargetPlatform.iOS,
+            );
+          }
+          return;
         }
-        return;
-      }
-      await _requestNativeReview();
-    });
+        await _requestNativeReview();
+      },
+      canShowPrompt: () =>
+          navigatorObserver.hasUncoveredPage && (canShowPrompt?.call() ?? true),
+    );
   }
 
   static void cancelScheduledPrompt() => _session.cancel();
 
   /// Call directly when the user taps "Rate / Review" in settings.
   static Future<void> requestFromUser() async {
-    _session.cancel();
+    await _session.recordRateChoice();
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS)) {
       await _openStoreListingIfPossible();
       return;
     }
-    await _requestNativeReview();
+    await _requestNativeReview(fromUser: true);
   }
 
   static Future<void> _showStorePrompt(
@@ -81,20 +115,23 @@ class AppReview {
       ),
     );
 
-    if (openStore == true) await _openStoreListingIfPossible();
+    if (openStore == true) {
+      await _session.recordRateChoice();
+      await _openStoreListingIfPossible();
+    }
   }
 
-  static Future<void> _requestNativeReview() async {
+  static Future<void> _requestNativeReview({bool fromUser = false}) async {
     try {
       if (await _review.isAvailable()) {
         await _review.requestReview();
         return;
       }
 
-      await _openStoreListingIfPossible();
+      if (fromUser) await _openStoreListingIfPossible();
     } catch (e) {
       debugPrint('[REVIEW] Native review request failed: $e');
-      await _openStoreListingIfPossible();
+      if (fromUser) await _openStoreListingIfPossible();
     }
   }
 

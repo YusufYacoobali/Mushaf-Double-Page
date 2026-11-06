@@ -51,6 +51,26 @@ void main() {
       );
     }
   }
+  test(
+    'changing page mode cannot refollow the same playing ayah after a manual move',
+    () {
+      final follower = AudioPageFollower();
+      int? follow(bool single, int ayah) => follower.targetPage(
+        playing: true,
+        session: 42,
+        cycle: 1,
+        surah: 2,
+        ayah: ayah,
+        currentPage: 237,
+        portrait: single,
+        mushaf: 'madani',
+      );
+      expect(follow(true, 1), isNotNull);
+      expect(follow(false, 1), isNull);
+      expect(follow(true, 1), isNull);
+      expect(follow(false, 2), isNotNull);
+    },
+  );
   test('keeps the visible part of a straddling ayah', () {
     final follower = AudioPageFollower();
     expect(

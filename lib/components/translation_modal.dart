@@ -1,3 +1,4 @@
+import 'package:mushaf_two_page/components/adaptive_surface.dart';
 import '../progress/journey_tracking.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
@@ -1066,12 +1067,20 @@ class _TranslationModalState extends State<TranslationModal> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AdaptiveSurface(child: Builder(builder: _buildScaffold));
+
+  Widget _buildScaffold(BuildContext context) {
     final palette = AppPalette.of(context);
 
     return Scaffold(
       backgroundColor: palette.scaffold,
       appBar: AppBar(
+        toolbarHeight:
+            (MediaQuery.textScalerOf(context).scale(20) +
+                    MediaQuery.textScalerOf(context).scale(12) +
+                    16)
+                .clamp(56.0, 104.0),
         backgroundColor: palette.scaffold,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -1081,23 +1090,29 @@ class _TranslationModalState extends State<TranslationModal> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _headerSurah.name,
-                    style: TextStyle(
-                      color: palette.text,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _headerSurah.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.text,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                  Text(
-                    _headerSurah.english,
-                    style: TextStyle(color: palette.muted, fontSize: 12),
-                  ),
-                ],
+                    Text(
+                      _headerSurah.english,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 4),
               Icon(

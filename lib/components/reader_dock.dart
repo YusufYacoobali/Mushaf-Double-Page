@@ -2,19 +2,24 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/app_palette.dart';
 import '../utils/app_motion.dart';
+import '../utils/reader_layout.dart';
 
 class ReaderDock extends StatelessWidget {
   const ReaderDock({
     super.key,
-    required this.portrait,
+    bool? portrait,
+    DockPlacement? placement,
     required this.expanded,
     required this.onToggle,
     required this.palette,
     required this.zoom,
     required this.actions,
     this.contextControls,
-  });
-  final bool portrait;
+  }) : placement =
+           placement ??
+           (portrait == false ? DockPlacement.side : DockPlacement.bottom);
+  final DockPlacement placement;
+  bool get portrait => placement == DockPlacement.bottom;
   final bool expanded;
   final VoidCallback onToggle;
   final AppPalette palette;

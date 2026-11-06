@@ -19,7 +19,7 @@ class AudioPageFollower {
     if (!playing || surah == null || ayah == null) {
       return null;
     }
-    final identity = '$session:$cycle:$surah:$ayah:$portrait:$mushaf';
+    final identity = '$session:$cycle:$surah:$ayah:$mushaf';
     if (identity == _lastVerse) return null;
     if (!visible) {
       _lastVerse = identity;

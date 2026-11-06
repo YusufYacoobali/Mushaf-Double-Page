@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import '../utils/cache.dart';
 
 class QuranPageView {
@@ -50,6 +51,7 @@ class QuranPageView {
     void Function(int logicalPage, double nx, double ny)? onTap,
     VoidCallback? onBackgroundTap,
     TransformationController? transformationController,
+    ValueChanged<int>? onFocus,
   }) {
     final clamped = pageScale.clamp(minPageScalePortrait, maxPageScalePortrait);
     final path = imagePath(logicalPage);
@@ -63,8 +65,10 @@ class QuranPageView {
       onBackgroundTap: onBackgroundTap,
       builder: (pageSurfaceKey) => LayoutBuilder(
         builder: (context, constraints) {
-          // Portrait toolbar zoom intentionally changes only the page height.
-          // Its width always fills the screen and the page remains centred.
+          final width = math.min(
+            constraints.maxWidth,
+            constraints.maxHeight * clamped * aspectRatio,
+          );
           return SizedBox.expand(
             child: InteractiveViewer(
               key: ValueKey(clamped),
@@ -78,18 +82,21 @@ class QuranPageView {
                 height: constraints.maxHeight,
                 child: Center(
                   child: SizedBox(
-                    width: constraints.maxWidth,
-                    height: constraints.maxHeight * clamped,
-                    child: _PageContent(
-                      surfaceKey: pageSurfaceKey,
-                      image: FittedBox(fit: BoxFit.fill, child: image),
-                      aspectRatio: aspectRatio,
-                      stretchToFit: true,
-                      highlightRects: highlightRects,
-                      highlightColor: highlightColor,
-                      onTap: onTap == null
-                          ? null
-                          : (nx, ny) => onTap(logicalPage, nx, ny),
+                    width: width,
+                    height: width / aspectRatio,
+                    child: Listener(
+                      onPointerDown: (_) => onFocus?.call(logicalPage),
+                      child: _PageContent(
+                        surfaceKey: pageSurfaceKey,
+                        image: image,
+                        aspectRatio: aspectRatio,
+                        stretchToFit: true,
+                        highlightRects: highlightRects,
+                        highlightColor: highlightColor,
+                        onTap: onTap == null
+                            ? null
+                            : (nx, ny) => onTap(logicalPage, nx, ny),
+                      ),
                     ),
                   ),
                 ),
@@ -112,6 +119,8 @@ class QuranPageView {
     Color highlightColor = const Color(0x5580643B),
     void Function(int logicalPage, double nx, double ny)? onTap,
     VoidCallback? onBackgroundTap,
+    ValueChanged<int>? onFocus,
+    List<Rect>? pageRegions,
   }) {
     final leftIndex = spreadIndex * 2;
     final rightIndex = leftIndex + 1;
@@ -124,17 +133,24 @@ class QuranPageView {
         image = ColorFiltered(colorFilter: invertFilter, child: image);
       }
 
-      return _PageContent(
-        image: image,
-        aspectRatio: aspectRatio,
-        highlightRects: highlightFor?.call(index) ?? const [],
-        highlightColor: highlightColor,
-        onTap: onTap == null ? null : (nx, ny) => onTap(index, nx, ny),
+      return Listener(
+        onPointerDown: (_) => onFocus?.call(index),
+        child: _PageContent(
+          image: image,
+          aspectRatio: aspectRatio,
+          highlightRects: highlightFor?.call(index) ?? const [],
+          highlightColor: highlightColor,
+          onTap: onTap == null ? null : (nx, ny) => onTap(index, nx, ny),
+        ),
       );
     }
 
     Widget framedPage(int index) {
-      return AspectRatio(aspectRatio: aspectRatio, child: buildPage(index));
+      return AspectRatio(
+        key: ValueKey('quran-page-$index'),
+        aspectRatio: aspectRatio,
+        child: buildPage(index),
+      );
     }
 
     return GestureDetector(
@@ -146,6 +162,31 @@ class QuranPageView {
             minPageScaleLandscape,
             maxPageScaleLandscape,
           );
+          if (pageRegions != null) {
+            return Stack(
+              children: [
+                for (var physical = 0; physical < 2; physical++)
+                  if ((physical == 0 ? rightIndex : leftIndex) >= 1 &&
+                      (physical == 0 ? rightIndex : leftIndex) < totalPages)
+                    Positioned.fromRect(
+                      rect: pageRegions[physical],
+                      child: ClipRect(
+                        child: SingleChildScrollView(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              width: pageRegions[physical].width * clamped,
+                              child: framedPage(
+                                physical == 0 ? rightIndex : leftIndex,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+              ],
+            );
+          }
           // Landscape toolbar zoom changes only the spread width. At minimum
           // both full pages fit vertically; at maximum they nearly fill the
           // screen width. The spread always starts at the top and is centred.
@@ -154,13 +195,13 @@ class QuranPageView {
           Widget? leftPage;
           Widget? rightPage;
 
-          if (rightIndex < totalPages) {
+          if (rightIndex >= 1 && rightIndex < totalPages) {
             leftPage = SizedBox(
               width: pageWidth,
               child: framedPage(rightIndex),
             );
           }
-          if (leftIndex < totalPages) {
+          if (leftIndex >= 1 && leftIndex < totalPages) {
             rightPage = SizedBox(
               width: pageWidth,
               child: framedPage(leftIndex),
@@ -175,10 +216,9 @@ class QuranPageView {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (leftPage != null) leftPage,
-                if (leftPage != null && rightPage != null)
-                  const SizedBox(width: 1),
-                if (rightPage != null) rightPage,
+                leftPage ?? SizedBox(width: pageWidth),
+                const SizedBox(width: 1),
+                rightPage ?? SizedBox(width: pageWidth),
               ],
             ),
           );

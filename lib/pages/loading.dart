@@ -40,9 +40,12 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
       if (!mounted) return;
 
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const MyPDFViewer()));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: '/reader'),
+          builder: (_) => const MyPDFViewer(),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         setState(() => _downloadFailed = true);
