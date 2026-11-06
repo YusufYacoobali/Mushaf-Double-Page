@@ -10,7 +10,7 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'logic/quran_audio_handler.dart';
 import 'package:mushaf_two_page/components/audio_modal.dart';
 import 'package:mushaf_two_page/components/bookmark_modal.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
@@ -53,14 +53,7 @@ void main() async {
 
 Future<void> _initBackgroundAudio() async {
   try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.quran.quran_double_page.audio',
-      androidNotificationChannelName: 'Quran audio',
-      androidNotificationChannelDescription: 'Quran recitation playback',
-      androidNotificationOngoing: true,
-      artDownscaleWidth: 512,
-      artDownscaleHeight: 512,
-    );
+    await QuranAudioHandler.initialize();
   } on MissingPluginException {
     // Plugin not yet registered — requires a fresh build after adding audio deps.
   }
@@ -426,7 +419,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       }
       final audio = QuranAudioController.instance;
       final target = _audioPageFollower.targetPage(
-        playing: audio.playing && !audio.preparing,
+        playing: audio.audible,
+        visible: ModalRoute.of(context)?.isCurrent ?? true,
         session: audio.playbackSessionId,
         cycle: audio.currentRepeat,
         surah: audio.currentSurah,
@@ -500,6 +494,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   /// Playback highlighting is independent of the contextual tap selection.
   List<Rect> _highlightFor(int logicalPage) {
     final audio = QuranAudioController.instance;
+    if (audio.hasActivePlayback && audio.currentAyah == null) return const [];
     if (_ayahHighlightingEnabled &&
         !audio.preparing &&
         audio.hasActivePlayback &&
@@ -998,11 +993,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       title: differentSelection
           ? '$actionSurah:$actionAyah · Selected'
           : ayah == null
-          ? plan.surahInfo.name
+          ? controller.currentItem?.label ?? plan.surahInfo.name
           : '$surah:$ayah · ${quranSurahs[surah - 1].name}',
       reference: ayah == null ? '$surah' : '$surah:$ayah',
       subtitle:
-          '${differentSelection ? 'Playing $surah:$ayah · ' : ''}${plan.reciter.name}${repeat == null ? '' : ' · $repeat/${plan.repeatLabel}'}',
+          '${controller.statusLabel} · ${differentSelection ? 'Playing $surah:$ayah · ' : ''}${plan.reciter.name}${repeat == null ? '' : ' · $repeat/${plan.repeatLabel}'}',
       playing: controller.playing,
       onPrevious: controller.seekPrevious,
       onPlayPause: controller.togglePlayPause,

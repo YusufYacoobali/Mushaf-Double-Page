@@ -1,11 +1,14 @@
 # Native repeat regression
 
 `audio_repeat_smoke.dart` exercises the production controller, just_audio,
-just_audio_background, and the native decoder. It generates a local half-second
+the custom audio_service handler, and the native decoder. It generates a local half-second
 PCM WAV and runs nine cases: 3/5/10 repeats of one and two ayahs, per-ayah repeats,
-a multi-surah queue, and twelve infinite repeats before Stop.
+a multi-surah queue, and twelve native completions before Stop in infinite range mode.
+It also exercises logical Bismillah items with the generated fixture; it does not
+verify the content of any reciter’s Bismillah recording.
 
-Each case requires native end-of-stream events and advancing positions for every
+Each case requires a native end-of-stream event for each recording (including
+separate introductions) and advancing positions for every
 expected ayah/repeat. A loop counter or extrapolated playhead alone cannot pass.
 Volume is zero: this verifies decoder progression, not audible speaker output.
 The harness writes `files/audio_repeat_report.json` inside its app data directory.

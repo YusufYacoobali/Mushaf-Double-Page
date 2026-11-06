@@ -80,4 +80,30 @@ void main() {
       isNull,
     );
   });
+  for (final mushaf in ['indopak_tajweed', 'madani']) {
+    test(
+      'covered reader consumes changes without a catch-up jump: $mushaf',
+      () {
+        final follower = AudioPageFollower();
+        int? follow(int ayah, {bool visible = true, bool playing = true}) =>
+            follower.targetPage(
+              playing: playing,
+              visible: visible,
+              session: 1,
+              cycle: 1,
+              surah: 2,
+              ayah: ayah,
+              currentPage: 100,
+              portrait: true,
+              mushaf: mushaf,
+            );
+        follow(1);
+        expect(follow(2, visible: false), isNull);
+        expect(follow(2), isNull);
+        expect(follow(2, playing: false), isNull);
+        expect(follow(2), isNull);
+        expect(follow(3), isNotNull);
+      },
+    );
+  }
 }

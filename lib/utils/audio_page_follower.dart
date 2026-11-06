@@ -7,6 +7,7 @@ class AudioPageFollower {
 
   int? targetPage({
     required bool playing,
+    bool visible = true,
     required int session,
     required int? cycle,
     required int? surah,
@@ -16,11 +17,14 @@ class AudioPageFollower {
     required String mushaf,
   }) {
     if (!playing || surah == null || ayah == null) {
-      _lastVerse = null;
       return null;
     }
     final identity = '$session:$cycle:$surah:$ayah:$portrait:$mushaf';
     if (identity == _lastVerse) return null;
+    if (!visible) {
+      _lastVerse = identity;
+      return null;
+    }
     final target = PageAyahIndex.pageOfAyah(surah, ayah, mushaf: mushaf);
     if (target == null) return null;
     _lastVerse = identity;

@@ -1,57 +1,60 @@
 import 'dart:async';
-import 'dart:io';
-
+import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
-import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import '../models/quran_audio.dart';
 import '../progress/journey_store.dart';
 import '../progress/journey_tracking.dart';
 import '../progress/reading_progress_store.dart';
 import '../utils/audio_artwork.dart';
+import 'audio_repository.dart';
 
 enum QuranAudioErrorKind { none, connectionRequired, playback }
 
-class _StaleAudioRequest implements Exception {
-  const _StaleAudioRequest();
-}
-
 class AudioDownloadState {
-  final bool active;
-  final int completed;
-  final int total;
-  final String message;
-
   const AudioDownloadState({
     required this.active,
     required this.completed,
     required this.total,
     required this.message,
+    this.fraction,
   });
-
   const AudioDownloadState.idle()
     : active = false,
       completed = 0,
       total = 0,
-      message = '';
-
-  double? get progress {
-    if (total == 0) return null;
-    return completed / total;
-  }
+      message = '',
+      fraction = null;
+  final bool active;
+  final int completed, total;
+  final String message;
+  final double? fraction;
+  double? get progress => fraction ?? (total == 0 ? null : completed / total);
 }
 
+/// The sole authority for playback intent, cursor, repeats and recovery. The
+/// audio_service handler and UI issue exactly the same commands to this object.
 class QuranAudioController extends ChangeNotifier {
   QuranAudioController._({
     AudioPlayer? player,
+    AudioRecordingRepository? repository,
     bool trackJourney = true,
+    this.retryDelay = const Duration(seconds: 1),
+    this.loadTimeout = const Duration(seconds: 20),
     Future<List<AudioSource>> Function(AudioPlaybackPlan)? prepareSources,
-  }) : _player = player ?? AudioPlayer(maxSkipsOnError: 0),
-       _sourcePreparer = prepareSources {
+  }) : _player =
+           player ??
+           AudioPlayer(
+             maxSkipsOnError: 0,
+             handleInterruptions: false,
+             handleAudioSessionActivation: true,
+           ),
+       _repository = repository ?? AudioRepository(),
+       _legacyPreparer = prepareSources {
     if (trackJourney) {
-      _listeningTracker = ListeningTracker(
+      _tracker = ListeningTracker(
         onListen: (verse) {
           unawaited(JourneyStore.recordListen(verse));
           unawaited(ReadingProgressStore.recordReadingActivity());
@@ -59,486 +62,669 @@ class QuranAudioController extends ChangeNotifier {
         onSeconds: (seconds) =>
             unawaited(JourneyStore.recordTime(listening: seconds)),
       );
-      _player.positionStream.listen((_) => _trackListening());
-    }
-    _player.currentIndexStream.listen((index) {
-      if (!_preparing &&
-          !_reloadingRepeat &&
-          _sessionActive &&
-          index != null &&
-          index >= 0 &&
-          index < _playbackVerses.length) {
-        _currentPlaybackIndex = index;
-      }
-      notifyListeners();
-    });
-    _player.playerStateStream.listen((state) {
-      _trackListening();
-      if (!_preparing && !_reloadingRepeat && _sessionActive) {
-        if (state.processingState == ProcessingState.completed) {
-          _handleCompletedPlayback();
-        } else {
-          // Also honour pause/play from the lock screen and audio interruptions.
-          _playWhenReady = state.playing;
-        }
-      }
-      notifyListeners();
-    });
-    _player.errorStream.listen((error) {
-      debugPrint('[AUDIO] Playback source error: $error');
-      _sessionActive = false;
-      _errorKind = QuranAudioErrorKind.playback;
-      _error = 'Audio playback failed. Please try again.';
-      notifyListeners();
-    });
-  }
-
-  static final QuranAudioController instance = QuranAudioController._();
-
-  @visibleForTesting
-  factory QuranAudioController.forTesting({
-    required AudioPlayer player,
-    required Future<List<AudioSource>> Function(AudioPlaybackPlan)
-    prepareSources,
-  }) => QuranAudioController._(
-    player: player,
-    prepareSources: prepareSources,
-    trackJourney: false,
-  );
-
-  ListeningTracker? _listeningTracker;
-  void _trackListening() {
-    final tracker = _listeningTracker;
-    if (tracker == null) return;
-    final surah = currentSurah;
-    final ayah = currentAyah;
-    if (surah == null || ayah == null || _preparing || _reloadingRepeat) return;
-    tracker.sample(
-      occurrence: '$_playRequestId:$_rangeCycle:$_currentPlaybackIndex',
-      verse: '$surah:$ayah',
-      position: _player.position,
-      duration: _player.duration,
-      playing:
-          _player.playing && _player.processingState == ProcessingState.ready,
-    );
-  }
-
-  final AudioPlayer _player;
-  final Future<List<AudioSource>> Function(AudioPlaybackPlan)? _sourcePreparer;
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 20),
-      receiveTimeout: const Duration(minutes: 3),
-    ),
-  );
-
-  AudioPlaybackPlan? _plan;
-  AudioDownloadState _downloadState = const AudioDownloadState.idle();
-  String? _error;
-  QuranAudioErrorKind _errorKind = QuranAudioErrorKind.none;
-  bool _preparing = false;
-  bool _sessionActive = false;
-  List<AudioVerse> _playbackVerses = const [];
-  List<AudioSource> _cycleSources = const [];
-  int _currentPlaybackIndex = 0;
-  bool _reloadingRepeat = false;
-  bool _playWhenReady = false;
-  int _rangeCycle = 1;
-  int _playRequestId = 0;
-  CancelToken? _downloadCancelToken;
-  Uri? _artworkUri;
-  Directory? _audioDirectory;
-
-  AudioPlayer get player => _player;
-  AudioPlaybackPlan? get plan => _plan;
-  AudioDownloadState get downloadState => _downloadState;
-  String? get error => _error;
-  QuranAudioErrorKind get errorKind => _errorKind;
-  bool get preparing => _preparing;
-  bool get playing =>
-      _sessionActive && (_reloadingRepeat ? _playWhenReady : _player.playing);
-
-  /// Remains active while paused, buffering or loading another repeat.
-  bool get hasActivePlayback => _sessionActive;
-  int get playbackSessionId => _playRequestId;
-  ProcessingState get processingState => _player.processingState;
-  bool get hasPlan => _plan != null;
-
-  int? get currentIndex => _player.currentIndex;
-  int get totalItems => _player.sequence.length;
-
-  MediaItem? get currentMediaItem {
-    final tag = _player.sequenceState.currentSource?.tag;
-    return tag is MediaItem ? tag : null;
-  }
-
-  AudioVerse? get currentVerse => _sessionActive && _playbackVerses.isNotEmpty
-      ? _playbackVerses[_currentPlaybackIndex]
-      : null;
-  int? get currentSurah => currentVerse?.surah;
-  int? get currentAyah => currentVerse?.ayah;
-  int? get currentRepeat {
-    if (_plan?.repeatMode == AudioRepeatMode.range) return _rangeCycle;
-    return currentVerse?.cycle;
-  }
-
-  Future<void> playPlan(AudioPlaybackPlan plan) async {
-    _listeningTracker?.reset();
-    final requestId = ++_playRequestId;
-    _downloadCancelToken?.cancel('Replaced by another audio request');
-    final cancelToken = CancelToken();
-    _downloadCancelToken = cancelToken;
-
-    _preparing = true;
-    _sessionActive = false;
-    _playbackVerses = _playbackVersesForPlayer(plan);
-    _currentPlaybackIndex = 0;
-    _error = null;
-    _errorKind = QuranAudioErrorKind.none;
-    _downloadState = const AudioDownloadState.idle();
-    _plan = plan;
-    _rangeCycle = 1;
-    _reloadingRepeat = false;
-    _playWhenReady = true;
-    notifyListeners();
-
-    try {
-      await _player.stop();
-      _throwIfStale(requestId);
-
-      final localSources =
-          await (_sourcePreparer?.call(plan) ??
-              _prepareSources(plan, requestId, cancelToken));
-      _throwIfStale(requestId);
-      _cycleSources = List.unmodifiable(localSources);
-
-      await _player.setAudioSources(
-        List.of(_cycleSources),
-        initialIndex: 0,
-        initialPosition: Duration.zero,
+      _subscriptions.add(
+        _player.positionStream.listen((_) => _trackListening()),
       );
-      _throwIfStale(requestId);
-
-      // Repeat through a freshly loaded queue, never reuse an ended native queue.
-      await _player.setLoopMode(LoopMode.off);
-      _throwIfStale(requestId);
-
-      _startPlayback(requestId);
-    } on DioException catch (e) {
-      if (!_isCurrentRequest(requestId) || CancelToken.isCancel(e)) return;
-      _sessionActive = false;
-      _errorKind = QuranAudioErrorKind.connectionRequired;
-      _error =
-          'Connection needed to download this audio the first time. Once downloaded, it will play offline.';
-    } on _StaleAudioRequest {
-      return;
-    } catch (e) {
-      if (!_isCurrentRequest(requestId)) return;
-      _errorKind = QuranAudioErrorKind.playback;
-      _sessionActive = false;
-      _error = 'Could not prepare audio. Please try again.';
-    } finally {
-      if (_isCurrentRequest(requestId)) {
-        _preparing = false;
-        _downloadState = const AudioDownloadState.idle();
-        if (_downloadCancelToken == cancelToken) {
-          _downloadCancelToken = null;
-        }
-        notifyListeners();
-      }
     }
-  }
-
-  // AudioPlayer.play completes when playback ends, not when it starts.
-  // Never await it while holding the preparation or repeat guard.
-  void _startPlayback(int requestId) {
-    if (!_isCurrentRequest(requestId)) return;
-    _sessionActive = true;
-    unawaited(
-      _player.play().catchError((Object error) {
-        if (!_isCurrentRequest(requestId)) return;
-        _sessionActive = false;
-        _errorKind = QuranAudioErrorKind.playback;
-        _error = 'Audio playback failed. Please try again.';
-        notifyListeners();
+    _subscriptions.add(_player.playerStateStream.listen(_nativeState));
+    _subscriptions.add(
+      _player.errorStream.listen((error) {
+        if (_active && !_loading && phase != QuranPlaybackPhase.failed) {
+          unawaited(_recoverDecoder());
+        }
       }),
     );
   }
 
-  void clearError() {
+  static final instance = QuranAudioController._();
+  @visibleForTesting
+  factory QuranAudioController.forTesting({
+    required AudioPlayer player,
+    Future<List<AudioSource>> Function(AudioPlaybackPlan)? prepareSources,
+    AudioRecordingRepository? repository,
+    Duration retryDelay = Duration.zero,
+    Duration loadTimeout = const Duration(seconds: 20),
+  }) => QuranAudioController._(
+    player: player,
+    repository: repository,
+    prepareSources: prepareSources,
+    trackJourney: false,
+    retryDelay: retryDelay,
+    loadTimeout: loadTimeout,
+  );
+
+  final AudioPlayer _player;
+  final AudioRecordingRepository _repository;
+  final Future<List<AudioSource>> Function(AudioPlaybackPlan)? _legacyPreparer;
+  final Duration retryDelay, loadTimeout;
+  final _subscriptions = <StreamSubscription<dynamic>>[];
+  final _sources = <String, AudioSource>{};
+  ListeningTracker? _tracker;
+  AudioPlaybackPlan? _plan;
+  QuranPlaybackCursor? _cursor;
+  QuranPlaybackPhase _phase = QuranPlaybackPhase.idle;
+  QuranPlaybackPhase get phase => _phase;
+  AudioFailure? failure;
+  String? _error;
+  AudioDownloadState _download = const AudioDownloadState.idle();
+  AudioDownloadState _offlineDownload = const AudioDownloadState.idle();
+  bool _active = false, _intent = false, _loading = false, _ready = false;
+  int _session = 0, _operation = 0;
+  int recoveryAttempt = 0;
+  CancelToken _token = CancelToken();
+  CancelToken? _offlineToken;
+  Future<void> _nativeTail = Future.value();
+  Duration _savedPosition = Duration.zero;
+  Uri? _artwork;
+  MediaItem? _media;
+  // Recovery and seeks retain occurrence identity, preventing duplicate stats.
+  int _occurrence = 0;
+  int _decoderRecoveries = 0;
+  bool _begun = false;
+  bool _disposed = false;
+  Timer? _stallTimer;
+
+  AudioPlayer get player => _player;
+  AudioPlaybackPlan? get plan => _plan;
+  AudioDownloadState get downloadState =>
+      _download.active ? _download : _offlineDownload;
+  bool get offlineDownloading => _offlineDownload.active;
+  String? get error => _error;
+  QuranAudioErrorKind get errorKind => failure == null
+      ? QuranAudioErrorKind.none
+      : failure!.kind == AudioFailureKind.connectivity
+      ? QuranAudioErrorKind.connectionRequired
+      : QuranAudioErrorKind.playback;
+  bool get preparing => phase == QuranPlaybackPhase.preparing;
+  bool get playing => _active && _intent && phase != QuranPlaybackPhase.failed;
+  bool get audible => phase == QuranPlaybackPhase.playing && _ready;
+  bool get hasActivePlayback => _active;
+  bool get hasPlan => _plan != null;
+  int get playbackSessionId => _session;
+  ProcessingState get processingState => _player.processingState;
+  int? get currentIndex => _cursor?.index;
+  int get totalItems => _cursor?.verses.length ?? 0;
+  MediaItem? get currentMediaItem => _media;
+  QuranAudioItem? get currentItem => _active ? _cursor?.item : null;
+  bool get isIntroduction => currentItem?.isIntroduction ?? false;
+  AudioVerse? get currentVerse {
+    final item = currentItem;
+    if (!_begun || item == null || item.isIntroduction) return null;
+    return AudioVerse(
+      surah: item.surah,
+      ayah: item.ayah!,
+      cycle: currentRepeat ?? 1,
+    );
+  }
+
+  int? get currentSurah => currentItem?.surah;
+  int? get currentAyah => currentVerse?.ayah;
+  int? get currentRepeat => _active ? _cursor?.repetition : null;
+  String get statusLabel => switch (phase) {
+    QuranPlaybackPhase.preparing =>
+      _download.active ? 'Downloading' : 'Preparing',
+    QuranPlaybackPhase.buffering =>
+      _download.active ? 'Downloading' : 'Buffering',
+    QuranPlaybackPhase.recovering => 'Recovering · attempt $recoveryAttempt/3',
+    QuranPlaybackPhase.failed => 'Needs attention',
+    QuranPlaybackPhase.paused => 'Paused',
+    QuranPlaybackPhase.completed => 'Completed',
+    QuranPlaybackPhase.playing => 'Playing',
+    QuranPlaybackPhase.idle => 'Stopped',
+  };
+
+  void _publish() {
+    if (!_disposed) notifyListeners();
+  }
+
+  bool _valid(int session, int operation) =>
+      _active &&
+      session == _session &&
+      operation == _operation &&
+      !_token.isCancelled;
+
+  Future<void> _native(Future<void> Function() action) {
+    final next = _nativeTail.then((_) => action());
+    _nativeTail = next.catchError((Object _) {});
+    return next;
+  }
+
+  void _nativeState(PlayerState state) {
+    if (!_active ||
+        _loading ||
+        !_ready ||
+        phase == QuranPlaybackPhase.failed ||
+        state.processingState != _player.processingState ||
+        state.playing != _player.playing) {
+      return;
+    }
+    _trackListening();
+    if (state.processingState == ProcessingState.completed) {
+      // Synchronous guard rejects duplicate EOF events while the next item loads.
+      _loading = true;
+      final session = _session, operation = _operation;
+      scheduleMicrotask(() {
+        if (_valid(session, operation)) unawaited(_completed());
+      });
+    } else if (state.processingState == ProcessingState.buffering ||
+        state.processingState == ProcessingState.loading) {
+      _phase = _intent
+          ? QuranPlaybackPhase.buffering
+          : QuranPlaybackPhase.paused;
+      if (_intent && !(_stallTimer?.isActive ?? false)) {
+        final session = _session, operation = _operation;
+        _stallTimer = Timer(const Duration(seconds: 30), () {
+          if (_valid(session, operation) && _intent) {
+            unawaited(_recoverDecoder());
+          }
+        });
+      }
+      _publish();
+    } else if (state.processingState == ProcessingState.ready) {
+      _stallTimer?.cancel();
+      if (!state.playing) _intent = false;
+      _phase = _intent && state.playing
+          ? QuranPlaybackPhase.playing
+          : QuranPlaybackPhase.paused;
+      _publish();
+    } else if (state.processingState == ProcessingState.idle && _intent) {
+      unawaited(_recoverDecoder());
+    }
+  }
+
+  void _trackListening() {
+    final item = currentItem;
+    if (item == null || !_begun) return;
+    _tracker?.sample(
+      occurrence: '$_session:$_occurrence',
+      verse: item.ayah == null ? '' : '${item.surah}:${item.ayah}',
+      countVerse: !item.isIntroduction,
+      position: _player.position,
+      duration: _player.duration,
+      playing: audible && _player.playing,
+    );
+  }
+
+  Future<void> playPlan(AudioPlaybackPlan plan) async {
+    _token.cancel('Replaced playback');
+    _token = CancelToken();
+    _session++;
+    _operation++;
+    _tracker?.reset();
+    _plan = plan;
+    _cursor = QuranPlaybackCursor(plan);
+    _cursor!.introduction = _cursor!.needsIntroduction;
+    _sources.clear();
+    _active = true;
+    _intent = true;
+    _ready = false;
+    _loading = true;
+    _occurrence = 0;
+    _decoderRecoveries = 0;
+    _begun = false;
+    _stallTimer?.cancel();
     _error = null;
-    _errorKind = QuranAudioErrorKind.none;
-    notifyListeners();
+    failure = null;
+    _media = null;
+    _savedPosition = Duration.zero;
+    _phase = QuranPlaybackPhase.preparing;
+    _publish();
+    // stop cancels a pending native source load before the new serialized load.
+    final session = _session;
+    await _player.stop();
+    if (!_active || session != _session || _token.isCancelled) return;
+    await _prepareCurrent();
   }
 
-  void _handleCompletedPlayback() {
-    final plan = _plan;
-    if (plan == null || _preparing || !_sessionActive || _reloadingRepeat) {
-      return;
-    }
-    final hasAnotherCycle =
-        plan.infiniteRepeat ||
-        (plan.repeatMode == AudioRepeatMode.range &&
-            _rangeCycle < plan.visibleRepeatCount);
-    if (hasAnotherCycle) {
-      // Set the guard synchronously: pause() can emit another completed event.
-      _reloadingRepeat = true;
-      unawaited(_loadNextRepeat(_playRequestId));
-    } else {
-      _sessionActive = false;
-      _playWhenReady = false;
-      // just_audio retains playing=true at EOF. Reset it explicitly so a later
-      // play request reaches both the background handler and the native player.
-      unawaited(_player.pause());
-    }
-  }
-
-  Future<void> _loadNextRepeat(int requestId) async {
-    try {
-      // Seeking the already-ended AVQueuePlayer can reuse exhausted items.
-      // Pause first, then load() rebuilds its native items from the source
-      // definitions. Reuse those definitions: just_audio retains registered Dart
-      // sources until disposal, so allocating more on every loop would grow it.
-      await _player.pause().timeout(const Duration(seconds: 10));
-      _throwIfStale(requestId);
-      final nextCycle = _rangeCycle + 1;
-      await _player
-          .setAudioSources(
-            List.of(_cycleSources),
-            initialIndex: 0,
-            initialPosition: Duration.zero,
-          )
-          .timeout(const Duration(seconds: 20));
-      _throwIfStale(requestId);
-      if (_player.processingState == ProcessingState.completed ||
-          _player.processingState == ProcessingState.idle) {
-        throw StateError('The repeated audio did not become ready');
+  Future<void> _prepareCurrent({bool decoderFailure = false}) async {
+    final session = _session, operation = ++_operation;
+    final token = _token, plan = _plan!, item = _cursor!.item;
+    var position = _savedPosition;
+    _loading = true;
+    _stallTimer?.cancel();
+    _ready = false;
+    _media = MediaItem(
+      id: '$session:${item.key}',
+      title: item.label,
+      artist: plan.reciter.name,
+      artUri: _artwork,
+    );
+    failure = null;
+    _error = null;
+    _phase = decoderFailure
+        ? QuranPlaybackPhase.recovering
+        : _occurrence > 0
+        ? QuranPlaybackPhase.buffering
+        : QuranPlaybackPhase.preparing;
+    _publish();
+    for (
+      var attempt = 0;
+      attempt <= 3 && _valid(session, operation);
+      attempt++
+    ) {
+      try {
+        if (attempt > 0) {
+          recoveryAttempt = attempt;
+          _phase = QuranPlaybackPhase.recovering;
+          _publish();
+          await Future.any([
+            Future<void>.delayed(retryDelay * (1 << (attempt - 1))),
+            token.whenCancel.then<void>((_) {}),
+          ]);
+          if (!_valid(session, operation)) return;
+        }
+        if (decoderFailure) {
+          await _repository.invalidate(plan.reciter, item);
+          if (!_valid(session, operation)) return;
+          _sources.remove(item.key);
+          decoderFailure = false;
+        }
+        AudioSource source;
+        if (_legacyPreparer != null) {
+          final sources = await _legacyPreparer(plan);
+          if (sources.isEmpty) {
+            throw StateError('Test source preparer returned no recording');
+          }
+          source = sources[_cursor!.index.clamp(0, sources.length - 1)];
+        } else {
+          final path = await _repository.recording(
+            plan.reciter,
+            item,
+            token,
+            onProgress: (value) {
+              if (!_valid(session, operation)) return;
+              _download = AudioDownloadState(
+                active: true,
+                completed: 0,
+                total: 1,
+                message: 'Downloading ${item.label}',
+                fraction: value,
+              );
+              _publish();
+            },
+          );
+          if (!_valid(session, operation)) return;
+          source = _sources.putIfAbsent(item.key, () => AudioSource.file(path));
+        }
+        if (!_valid(session, operation)) return;
+        var nativeFailure = false;
+        await _native(() async {
+          if (!_valid(session, operation)) return;
+          try {
+            // Preserve the v4 iOS workaround: pause, then reload source definitions
+            // instead of seeking an exhausted AVQueuePlayer. Reuse definitions.
+            await _player.pause().timeout(loadTimeout);
+            if (!_valid(session, operation)) return;
+            await _player
+                .setAudioSources(
+                  [source],
+                  initialIndex: 0,
+                  initialPosition: position,
+                )
+                .timeout(loadTimeout);
+            if (!_valid(session, operation)) return;
+            await _player.setLoopMode(LoopMode.off);
+            if (_player.processingState == ProcessingState.idle ||
+                _player.processingState == ProcessingState.completed ||
+                _player.duration == Duration.zero) {
+              throw StateError('Recording did not become usable');
+            }
+          } catch (_) {
+            nativeFailure = true;
+            // Interrupt native work on timeout before releasing the command lane.
+            await _player.stop();
+            rethrow;
+          }
+        }).catchError((Object e) {
+          if (nativeFailure) {
+            throw const AudioFailure(
+              AudioFailureKind.decoder,
+              'The audio decoder could not play this recording.',
+            );
+          }
+          throw e;
+        });
+        if (!_valid(session, operation)) return;
+        _download = const AudioDownloadState.idle();
+        _loading = false;
+        _ready = true;
+        _savedPosition = Duration.zero;
+        recoveryAttempt = 0;
+        _media = MediaItem(
+          id: '$_session:${item.key}',
+          title: item.label,
+          album: 'Quran recitation',
+          artist: plan.reciter.name,
+          artUri: _artwork,
+          duration: _player.duration,
+          extras: {
+            'surah': item.surah,
+            if (item.ayah != null) 'ayah': item.ayah!,
+            'introduction': item.isIntroduction,
+            'repeat': currentRepeat ?? 1,
+          },
+        );
+        _phase = _intent
+            ? QuranPlaybackPhase.playing
+            : QuranPlaybackPhase.paused;
+        _publish();
+        if (_intent) _startNative(session, operation);
+        _prefetch(session);
+        return;
+      } catch (e) {
+        if (!_valid(session, operation) ||
+            (e is DioException && CancelToken.isCancel(e))) {
+          return;
+        }
+        final problem = e is AudioFailure
+            ? e
+            : const AudioFailure(
+                AudioFailureKind.decoder,
+                'Could not load the recording.',
+              );
+        if (problem.kind == AudioFailureKind.decoder &&
+            position > Duration.zero) {
+          position = Duration.zero;
+        }
+        decoderFailure =
+            problem.kind == AudioFailureKind.decoder ||
+            problem.kind == AudioFailureKind.corrupt;
+        if (!problem.recoverable || attempt == 3) {
+          failure = problem;
+          _error = '${item.label}: ${problem.message}';
+          _phase = QuranPlaybackPhase.failed;
+          _loading = false;
+          _download = const AudioDownloadState.idle();
+          _publish();
+          return;
+        }
       }
-      _currentPlaybackIndex = 0;
-      _rangeCycle = nextCycle;
-      _reloadingRepeat = false;
-      if (_playWhenReady) _startPlayback(requestId);
-    } on _StaleAudioRequest {
-      return;
-    } catch (error) {
-      if (!_isCurrentRequest(requestId)) return;
-      debugPrint('[AUDIO] Repeat load failed: $error');
-      _sessionActive = false;
-      _playWhenReady = false;
-      _errorKind = QuranAudioErrorKind.playback;
-      _error = 'Could not repeat audio. Please try again.';
-      await _player.stop();
-    } finally {
-      if (_isCurrentRequest(requestId)) {
-        _reloadingRepeat = false;
-        notifyListeners();
-      }
     }
   }
 
-  Future<void> togglePlayPause() async {
-    if (_preparing) return;
-    if (_reloadingRepeat) {
-      // A pause during the reload must not be undone by its eventual completion.
-      _playWhenReady = !_playWhenReady;
-      notifyListeners();
-      return;
-    }
-    if (playing) {
-      _playWhenReady = false;
+  void _startNative(int session, int operation) {
+    if (!_valid(session, operation) || !_intent || !_ready) return;
+    _begun = true;
+    // play() resolves at EOF, so never await it inside the command lane.
+    unawaited(
+      _player.play().catchError((Object _) {
+        if (_valid(session, operation) && !_loading) {
+          unawaited(_recoverDecoder());
+        }
+      }),
+    );
+  }
+
+  Future<void> _recoverDecoder() async {
+    if (!_active || _loading) return;
+    if (_decoderRecoveries++ >= 3) {
+      failure = const AudioFailure(
+        AudioFailureKind.decoder,
+        'The decoder repeatedly failed. Retry this recording, skip it, or stop.',
+      );
+      _error = '${currentItem?.label}: ${failure!.message}';
+      _phase = QuranPlaybackPhase.failed;
+      _ready = false;
+      _stallTimer?.cancel();
+      _publish();
       await _player.pause();
       return;
     }
-    if (!_sessionActive) {
-      final plan = _plan;
-      if (plan != null) await playPlan(plan);
+    _loading = true;
+    _trackListening();
+    _savedPosition = _player.position;
+    await _prepareCurrent(decoderFailure: true);
+  }
+
+  Future<void> _completed() async {
+    if (!_active) return;
+    _tracker?.flush();
+    if (!_cursor!.advance()) {
+      _active = false;
+      _intent = false;
+      _loading = false;
+      _ready = false;
+      _phase = QuranPlaybackPhase.completed;
+      await _player.pause();
+      _publish();
       return;
     }
-    _playWhenReady = true;
-    _startPlayback(_playRequestId);
-    notifyListeners();
+    _occurrence++;
+    _begun = false;
+    _decoderRecoveries = 0;
+    _savedPosition = Duration.zero;
+    await _prepareCurrent();
+  }
+
+  void _prefetch(int session) {
+    if (_legacyPreparer != null) return;
+    final cursor = _cursor!, plan = _plan!, token = _token;
+    // At most three future DISTINCT ayahs, plus introductions on their boundary.
+    final items = <QuranAudioItem>[];
+    var i = cursor.index + (cursor.introduction ? 0 : 1);
+    for (var n = 0; n < 3 && n < cursor.verses.length; n++, i++) {
+      if (i >= cursor.verses.length) {
+        if (plan.repeatMode != AudioRepeatMode.range ||
+            (!plan.infiniteRepeat &&
+                cursor.rangeCycle >= plan.visibleRepeatCount)) {
+          break;
+        }
+        i = 0;
+      }
+      final verse = cursor.verses[i];
+      if (verse.ayah == 1 &&
+          verse.surah != 1 &&
+          verse.surah != 9 &&
+          !(cursor.introduction && i == cursor.index)) {
+        items.add(QuranAudioItem(surah: verse.surah));
+      }
+      items.add(QuranAudioItem(surah: verse.surah, ayah: verse.ayah));
+    }
+    for (final item in items) {
+      if (session != _session || token.isCancelled) return;
+      unawaited(
+        _repository
+            .recording(plan.reciter, item, token, urgent: false)
+            .then<void>((_) {}, onError: (Object _) {}),
+      );
+    }
+  }
+
+  Future<void> play() async {
+    if (!_active) {
+      if (_plan != null) await playPlan(_plan!);
+      return;
+    }
+    _intent = true;
+    if (phase == QuranPlaybackPhase.failed) {
+      await retry();
+      return;
+    }
+    if (_ready && !_loading) {
+      _phase = QuranPlaybackPhase.playing;
+      _startNative(_session, _operation);
+    }
+    _publish();
+  }
+
+  Future<void> pause() async {
+    _intent = false;
+    _stallTimer?.cancel();
+    if (_ready) _phase = QuranPlaybackPhase.paused;
+    _trackListening();
+    _publish();
+    await _player.pause();
+  }
+
+  Future<void> togglePlayPause() => playing ? pause() : play();
+  Future<void> retry() async {
+    if (!_active || phase != QuranPlaybackPhase.failed) return;
+    _decoderRecoveries = 0;
+    await _prepareCurrent(
+      decoderFailure: failure?.kind == AudioFailureKind.decoder,
+    );
+  }
+
+  void clearError() {
+    // Keep unresolved failures accessible even if older callers dismiss a dialog.
+    if (phase == QuranPlaybackPhase.failed) return;
+    _error = null;
+    failure = null;
+    _publish();
   }
 
   Future<void> stop() async {
-    _sessionActive = false;
-    _playWhenReady = false;
-    _listeningTracker?.reset();
-    ++_playRequestId;
-    _downloadCancelToken?.cancel('Playback stopped');
-    _downloadCancelToken = null;
-    _preparing = false;
-    _reloadingRepeat = false;
+    _session++;
+    _operation++;
+    _stallTimer?.cancel();
+    _token.cancel('Playback stopped');
+    _active = _intent = _ready = _loading = false;
+    _tracker?.reset();
+    _error = null;
+    failure = null;
+    _media = null;
+    _phase = QuranPlaybackPhase.idle;
+    _download = const AudioDownloadState.idle();
+    _publish();
     await _player.stop();
-    _downloadState = const AudioDownloadState.idle();
-    notifyListeners();
   }
 
   Future<void> seekNext() async {
-    if (_preparing || _reloadingRepeat || !_sessionActive) return;
-    if (_player.hasNext) {
-      await _player.seekToNext();
+    if (!_active) return;
+    final session = _session, operation = ++_operation;
+    _loading = true;
+    await _player.stop();
+    if (!_valid(session, operation)) return;
+    if (!_cursor!.advance(manual: true)) {
+      await stop();
+      return;
     }
+    _occurrence++;
+    _begun = false;
+    _decoderRecoveries = 0;
+    _savedPosition = Duration.zero;
+    await _prepareCurrent();
   }
 
   Future<void> seekPrevious() async {
-    if (_preparing || _reloadingRepeat || !_sessionActive) return;
-    if (_player.hasPrevious) {
-      await _player.seekToPrevious();
-    } else {
-      await _player.seek(Duration.zero);
+    if (!_active) return;
+    final session = _session, operation = ++_operation;
+    _loading = true;
+    await _player.stop();
+    if (!_valid(session, operation)) return;
+    _cursor!.previous();
+    _occurrence++;
+    _begun = false;
+    _decoderRecoveries = 0;
+    _savedPosition = Duration.zero;
+    await _prepareCurrent();
+  }
+
+  Future<void> seek(Duration position) async {
+    if (!_active || !_ready || _loading) return;
+    await _player.seek(position);
+    _trackListening();
+    _publish();
+  }
+
+  Future<void> downloadSelection(AudioPlaybackPlan selection) async {
+    _offlineToken?.cancel('New offline selection');
+    final token = _offlineToken = CancelToken();
+    final items = <String, QuranAudioItem>{};
+    for (final verse in selection.uniqueVerses()) {
+      if (verse.ayah == 1 && verse.surah != 1 && verse.surah != 9) {
+        final intro = QuranAudioItem(surah: verse.surah);
+        items[intro.key] = intro;
+      }
+      final item = QuranAudioItem(surah: verse.surah, ayah: verse.ayah);
+      items[item.key] = item;
     }
-  }
-
-  bool _isCurrentRequest(int requestId) => requestId == _playRequestId;
-
-  void _throwIfStale(int requestId) {
-    if (!_isCurrentRequest(requestId)) throw const _StaleAudioRequest();
-  }
-
-  Future<List<AudioSource>> _prepareSources(
-    AudioPlaybackPlan plan,
-    int requestId,
-    CancelToken cancelToken,
-  ) async {
-    await _ensureCached(plan, requestId, cancelToken);
-    _throwIfStale(requestId);
-    return _createSources(plan, requestId);
-  }
-
-  Future<List<AudioSource>> _createSources(
-    AudioPlaybackPlan plan,
-    int requestId,
-  ) async {
-    final artworkUri = await _audioArtworkUri();
-    _throwIfStale(requestId);
-    return [
-      for (final verse in _playbackVersesForPlayer(plan))
-        AudioSource.file(
-          await _pathFor(plan.reciter, verse.surah, verse.ayah),
-          tag: MediaItem(
-            id: '$requestId-${plan.reciter.id}-${verse.surah}-${verse.ayah}-${verse.cycle}',
-            album: plan.sourceMode == AudioSourceMode.playlist
-                ? 'Your surah queue'
-                : plan.surahInfo.name,
-            artist: plan.reciter.name,
-            artUri: artworkUri,
-            title:
-                '${quranSurahs[verse.surah - 1].name} ${verse.surah}:${verse.ayah}'
-                '${plan.repeatMode == AudioRepeatMode.ayah ? ' (${verse.cycle}/${plan.repeatLabel})' : ''}',
-            extras: {
-              'surah': verse.surah,
-              'ayah': verse.ayah,
-              'cycle': verse.cycle,
-              'repeatCount': plan.repeatCount ?? -1,
-            },
-          ),
-        ),
-    ];
-  }
-
-  List<AudioVerse> _playbackVersesForPlayer(AudioPlaybackPlan plan) {
-    if (plan.repeatMode == AudioRepeatMode.range) {
-      return plan.uniqueVerses();
-    }
-
-    return plan.playbackVerses();
-  }
-
-  Future<Uri?> _audioArtworkUri() async {
-    final cached = _artworkUri;
-    if (cached != null) return cached;
-
+    var done = 0;
+    var unverifiedIntroductions = 0;
+    String? currentLabel;
     try {
-      final dir = await getApplicationSupportDirectory();
-      _artworkUri = await prepareAudioArtwork(dir);
-      return _artworkUri;
+      for (final item in items.values) {
+        currentLabel = item.label;
+        if (token.isCancelled) throw token.cancelError!;
+        _offlineDownload = AudioDownloadState(
+          active: true,
+          completed: done,
+          total: items.length,
+          message: 'Downloading ${item.label}',
+        );
+        _publish();
+        try {
+          await _repository.recording(
+            selection.reciter,
+            item,
+            token,
+            urgent: false,
+          );
+        } on AudioFailure catch (e) {
+          if (!item.isIntroduction || e.kind != AudioFailureKind.unavailable) {
+            rethrow;
+          }
+          // Offline downloads can retain every numbered ayah. Playback still
+          // requires the user's explicit choice at each unavailable introduction.
+          unverifiedIntroductions++;
+        }
+        done++;
+      }
+      if (_offlineToken == token) {
+        _offlineDownload = AudioDownloadState(
+          active: false,
+          completed: done,
+          total: items.length,
+          message: unverifiedIntroductions == 0
+              ? 'Selection available offline'
+              : 'Ayahs available offline. Separate Bismillah is unverified for '
+                    '$unverifiedIntroductions surah(s); playback will ask before continuing.',
+        );
+      }
     } catch (e) {
-      debugPrint('[AUDIO] Could not prepare lock screen artwork: $e');
-      return null;
-    }
-  }
-
-  Future<void> _ensureCached(
-    AudioPlaybackPlan plan,
-    int requestId,
-    CancelToken cancelToken,
-  ) async {
-    final missing = <AudioVerse>[];
-    for (final verse in plan.uniqueVerses()) {
-      _throwIfStale(requestId);
-      final file = File(await _pathFor(plan.reciter, verse.surah, verse.ayah));
-      if (!await file.exists() || await file.length() == 0) {
-        missing.add(verse);
+      if (!token.isCancelled && _offlineToken == token) {
+        _offlineDownload = AudioDownloadState(
+          active: false,
+          completed: done,
+          total: items.length,
+          message: 'Download stopped at $currentLabel: $e',
+        );
       }
     }
-
-    if (missing.isEmpty) return;
-
-    for (var i = 0; i < missing.length; i++) {
-      _throwIfStale(requestId);
-      final verse = missing[i];
-      _downloadState = AudioDownloadState(
-        active: true,
-        completed: i,
-        total: missing.length,
-        message:
-            'Downloading ${plan.reciter.name} '
-            '${verse.surah}:${verse.ayah}',
-      );
-      notifyListeners();
-
-      await _downloadVerse(plan.reciter, verse.surah, verse.ayah, cancelToken);
-      _throwIfStale(requestId);
-    }
-
-    _downloadState = const AudioDownloadState.idle();
-    notifyListeners();
+    _publish();
   }
 
-  Future<void> _downloadVerse(
-    Reciter reciter,
-    int surah,
-    int ayah,
-    CancelToken cancelToken,
-  ) async {
-    final path = await _pathFor(reciter, surah, ayah);
-    final file = File(path);
-    await file.parent.create(recursive: true);
+  void cancelDownload() {
+    _offlineToken?.cancel('Cancelled offline download');
+    _offlineDownload = const AudioDownloadState.idle();
+    _publish();
+  }
 
-    final tempPath = '$path.${identityHashCode(cancelToken)}.part';
-    final tempFile = File(tempPath);
-    if (await tempFile.exists()) {
-      await tempFile.delete();
-    }
-
+  Future<void> prepareArtwork() async {
     try {
-      await _dio.download(
-        _urlFor(reciter, surah, ayah),
-        tempPath,
-        cancelToken: cancelToken,
+      _artwork = await prepareAudioArtwork(
+        await getApplicationSupportDirectory(),
       );
-      if (await file.exists()) {
-        await file.delete();
-      }
-      await tempFile.rename(path);
     } catch (_) {
-      if (await tempFile.exists()) {
-        await tempFile.delete();
-      }
-      rethrow;
+      /* Playback remains available without artwork. */
     }
   }
 
-  static String audioId(int surah, int ayah) {
-    return '${surah.toString().padLeft(3, '0')}${ayah.toString().padLeft(3, '0')}';
-  }
+  static String audioId(int surah, int ayah) =>
+      AudioRepository.audioId(surah, ayah);
 
-  static String _urlFor(Reciter reciter, int surah, int ayah) {
-    return 'https://everyayah.com/data/${reciter.folder}/${audioId(surah, ayah)}.mp3';
-  }
-
-  Future<String> _pathFor(Reciter reciter, int surah, int ayah) async {
-    final dir = _audioDirectory ??= await getApplicationDocumentsDirectory();
-    return '${dir.path}/audio/${reciter.id}/${audioId(surah, ayah)}.mp3';
+  @override
+  void dispose() {
+    _disposed = true;
+    _active = false;
+    _stallTimer?.cancel();
+    _token.cancel();
+    _offlineToken?.cancel();
+    for (final subscription in _subscriptions) {
+      unawaited(subscription.cancel());
+    }
+    _tracker?.reset();
+    unawaited(_player.dispose());
+    super.dispose();
   }
 }

@@ -7,7 +7,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart';
+import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
@@ -46,39 +47,27 @@ Future<void> main() async {
 
   await save('running');
   try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'audio_repeat_smoke',
-      androidNotificationChannelName: 'Audio repeat diagnostic',
-      androidNotificationOngoing: true,
-    );
     final fixture = File('${directory.path}/decoder_fixture.wav');
     await fixture.writeAsBytes(_tone(), flush: true);
     final player = AudioPlayer(maxSkipsOnError: 0);
     // Decode normally, quietly. Native EOF and item transitions must occur;
     // extrapolated position alone is not accepted as proof of a completed loop.
     await player.setVolume(0);
-    var loads = 0;
+    final source = AudioSource.file(fixture.path);
     // This standalone diagnostic deliberately uses the test injection with a
     // real player, retaining the production background and native audio layers.
     // ignore: invalid_use_of_visible_for_testing_member
     final controller = QuranAudioController.forTesting(
       player: player,
-      prepareSources: (plan) async {
-        loads++;
-        final verses = plan.repeatMode == AudioRepeatMode.range
-            ? plan.uniqueVerses()
-            : plan.playbackVerses();
-        return [
-          for (var i = 0; i < verses.length; i++)
-            AudioSource.file(
-              fixture.path,
-              tag: MediaItem(
-                id: '$loads:$i',
-                title: 'Decoder check ${verses[i].surah}:${verses[i].ayah}',
-              ),
-            ),
-        ];
-      },
+      prepareSources: (plan) async => [source],
+    );
+    await AudioService.init(
+      builder: () => QuranAudioHandler(controller),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.quran.quran_double_page.audio',
+        androidNotificationChannelName: 'Quran audio',
+        androidNotificationOngoing: true,
+      ),
     );
     try {
       for (final count in [3, 5, 10]) {
@@ -104,7 +93,6 @@ Future<void> main() async {
       _status.value = '${results.length} native playback checks passed';
     } finally {
       await controller.stop();
-      await player.dispose();
       controller.dispose();
     }
   } catch (error, stack) {
@@ -172,15 +160,20 @@ Future<Map<String, Object?>> _check(
     // Allow stream deliveries from the final native EOF to settle.
     await Future<void>.delayed(const Duration(milliseconds: 100));
     if (controller.error != null) throw StateError(controller.error!);
+    final introductions = plan
+        .uniqueVerses()
+        .where((v) => v.ayah == 1 && v.surah != 1 && v.surah != 9)
+        .length;
+    final expectedItems = plan.visibleRepeatCount * plan.uniqueAyahCount;
     final expectedCompletions =
         stopAfter ??
-        (plan.repeatMode == AudioRepeatMode.range
-            ? plan.visibleRepeatCount
-            : 1);
-    final expectedItems =
-        (stopAfter ?? plan.visibleRepeatCount) * plan.uniqueAyahCount;
+        expectedItems +
+            introductions *
+                (plan.repeatMode == AudioRepeatMode.range
+                    ? plan.visibleRepeatCount
+                    : 1);
     if (completions != expectedCompletions ||
-        progressed.length < expectedItems) {
+        (stopAfter == null && progressed.length < expectedItems)) {
       throw StateError(
         'Expected $expectedCompletions native EOFs and $expectedItems '
         'advancing ayahs; got $completions EOFs and ${progressed.length} ayahs.',

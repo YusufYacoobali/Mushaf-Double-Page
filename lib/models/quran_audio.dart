@@ -125,6 +125,91 @@ class AudioPlaybackPlan {
   }
 }
 
+/// A recording identity is separate from the numbered verse it introduces.
+class QuranAudioItem {
+  const QuranAudioItem({required this.surah, this.ayah});
+  final int surah;
+  final int? ayah;
+  bool get isIntroduction => ayah == null;
+  String get key => '$surah:${ayah ?? "bismillah"}';
+  String get label =>
+      '${quranSurahs[surah - 1].name} · '
+      '${isIntroduction ? "Bismillah" : "$surah:$ayah"}';
+}
+
+enum QuranPlaybackPhase {
+  idle,
+  preparing,
+  playing,
+  paused,
+  buffering,
+  recovering,
+  completed,
+  failed,
+}
+
+/// One bounded logical cursor, independent of the native player's queue/index.
+/// Repeats only change counters; they never expand the recording list.
+class QuranPlaybackCursor {
+  QuranPlaybackCursor(this.plan) : verses = plan.uniqueVerses();
+  final AudioPlaybackPlan plan;
+  final List<AudioVerse> verses;
+  int index = 0;
+  int verseRepeat = 1;
+  int rangeCycle = 1;
+  bool introduction = false;
+  QuranAudioItem get item => QuranAudioItem(
+    surah: verses[index].surah,
+    ayah: introduction ? null : verses[index].ayah,
+  );
+  int get repetition =>
+      plan.repeatMode == AudioRepeatMode.range ? rangeCycle : verseRepeat;
+  bool get needsIntroduction =>
+      verses[index].ayah == 1 &&
+      verses[index].surah != 1 &&
+      verses[index].surah != 9;
+
+  /// Returns false only after the last requested occurrence completes.
+  bool advance({bool manual = false}) {
+    if (introduction) {
+      introduction = false;
+      return true;
+    }
+    if (!manual &&
+        plan.repeatMode == AudioRepeatMode.ayah &&
+        (plan.infiniteRepeat || verseRepeat < plan.visibleRepeatCount)) {
+      verseRepeat++;
+      return true;
+    }
+    if (index + 1 < verses.length) {
+      index++;
+      verseRepeat = 1;
+      introduction = needsIntroduction;
+      return true;
+    }
+    if (plan.repeatMode == AudioRepeatMode.range &&
+        (plan.infiniteRepeat || rangeCycle < plan.visibleRepeatCount)) {
+      rangeCycle++;
+      index = 0;
+      verseRepeat = 1;
+      introduction = needsIntroduction;
+      return true;
+    }
+    return false;
+  }
+
+  void previous() {
+    if (introduction) {
+      introduction = false;
+    } else if (index > 0) {
+      index--;
+    }
+    verseRepeat = 1;
+    // Previous selects a numbered ayah. It does not replay an introduction.
+    introduction = false;
+  }
+}
+
 const List<Reciter> quranReciters = [
   Reciter(
     id: 'alafasy',

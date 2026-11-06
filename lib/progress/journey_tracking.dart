@@ -170,12 +170,17 @@ class ListeningTracker {
     required Duration position,
     required Duration? duration,
     required bool playing,
+    bool countVerse = true,
   }) {
     final ms = position.inMilliseconds;
-    if (_occurrence != occurrence || ms < _lastMs - 250) {
+    if (_occurrence != occurrence) {
       _occurrence = occurrence;
       _heardMs = 0;
       _counted = false;
+      _wasPlaying = false;
+    } else if (ms < _lastMs - 250) {
+      // Retry/seek within one occurrence cannot count the same listen twice.
+      _heardMs = 0;
       _wasPlaying = false;
     }
     final delta = ms - _lastMs;
@@ -186,7 +191,8 @@ class ListeningTracker {
     }
     _lastMs = ms;
     _wasPlaying = playing;
-    if (!_counted &&
+    if (countVerse &&
+        !_counted &&
         duration != null &&
         duration.inMilliseconds > 0 &&
         _heardMs >= duration.inMilliseconds * .9) {

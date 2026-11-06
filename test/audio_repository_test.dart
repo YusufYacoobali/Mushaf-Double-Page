@@ -1,0 +1,297 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mushaf_two_page/logic/audio_repository.dart';
+import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
+import 'package:mushaf_two_page/models/quran_audio.dart';
+import 'package:mushaf_two_page/utils/bismillah_sources.dart';
+import 'audio_playback_test.dart' show FakePlayer, plan;
+
+Future<void> waitFor(bool Function() condition) async {
+  final watch = Stopwatch()..start();
+  while (!condition()) {
+    if (watch.elapsed > const Duration(seconds: 5)) {
+      throw TimeoutException('Repository operation did not settle');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+  }
+}
+
+class TestTransport implements HttpClientAdapter {
+  TestTransport(this.bytes);
+  final Uint8List bytes;
+  int active = 0, maxActive = 0, calls = 0;
+  int status = 200;
+  bool html = false;
+  final started = <String>[];
+  final gates = <String, Completer<void>>{};
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    calls++;
+    active++;
+    if (active > maxActive) maxActive = active;
+    final name = options.uri.pathSegments.last;
+    started.add(name);
+    try {
+      final gate = gates[name];
+      if (gate != null) {
+        await Future.any([
+          gate.future,
+          if (cancelFuture != null)
+            cancelFuture.then(
+              (_) => throw DioException.requestCancelled(
+                requestOptions: options,
+                reason: 'cancelled',
+              ),
+            ),
+        ]);
+      }
+      return ResponseBody.fromBytes(
+        html ? '<html>error</html>'.codeUnits : bytes,
+        status,
+        headers: {
+          'content-type': [html ? 'text/html' : 'audio/mpeg'],
+        },
+      );
+    } finally {
+      active--;
+    }
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+void main() {
+  late Directory dir;
+  late TestTransport transport;
+  late AudioRepository repo;
+  final reciter = quranReciters.first;
+  const item = QuranAudioItem(surah: 112, ayah: 2);
+  setUp(() async {
+    dir = await Directory.systemTemp.createTemp('quran_audio_repository');
+    transport = TestTransport(
+      await File('test/fixtures/recording.mp3').readAsBytes(),
+    );
+    repo = AudioRepository(
+      directory: () async => dir,
+      dio: Dio()..httpClientAdapter = transport,
+    );
+  });
+  tearDown(() async {
+    await dir.delete(recursive: true);
+  });
+  test(
+    'validates MPEG frames; rejects HTML, ID3-only and truncated audio',
+    () async {
+      expect(AudioRepository.validMp3Bytes(transport.bytes), isTrue);
+      expect(
+        AudioRepository.validMp3Bytes(
+          Uint8List.fromList('<html>error</html>'.codeUnits),
+        ),
+        isFalse,
+      );
+      expect(
+        AudioRepository.validMp3Bytes(
+          Uint8List.fromList([73, 68, 51, ...List.filled(200, 0)]),
+        ),
+        isFalse,
+      );
+      expect(
+        AudioRepository.validMp3Bytes(
+          transport.bytes.sublist(0, transport.bytes.length - 40),
+        ),
+        isFalse,
+      );
+    },
+  );
+  test(
+    'corrupt legacy file is replaced atomically; cached audio works offline',
+    () async {
+      final file = await repo.fileFor(reciter, item);
+      await file.parent.create(recursive: true);
+      await file.writeAsString('not audio');
+      final path = await repo.recording(reciter, item, CancelToken());
+      expect(path, endsWith('audio/alafasy/112002.mp3'));
+      expect(await AudioRepository.validMp3(File(path)), isTrue);
+      transport.status = 404;
+      expect(await repo.recording(reciter, item, CancelToken()), path);
+      expect(transport.calls, 1);
+      expect(
+        await dir
+            .list(recursive: true)
+            .where((f) => f.path.endsWith('.part'))
+            .length,
+        0,
+      );
+    },
+  );
+  test(
+    'HTML and permanent missing recording are classified and never published',
+    () async {
+      transport.html = true;
+      await expectLater(
+        repo.recording(reciter, item, CancelToken()),
+        throwsA(
+          isA<AudioFailure>().having(
+            (e) => e.kind,
+            'kind',
+            AudioFailureKind.corrupt,
+          ),
+        ),
+      );
+      expect(await (await repo.fileFor(reciter, item)).exists(), isFalse);
+      transport.html = false;
+      transport.status = 404;
+      await expectLater(
+        repo.recording(reciter, item, CancelToken()),
+        throwsA(
+          isA<AudioFailure>().having(
+            (e) => e.kind,
+            'kind',
+            AudioFailureKind.missing,
+          ),
+        ),
+      );
+    },
+  );
+  test(
+    'two downloads maximum; urgent boundary precedes queued prefetch',
+    () async {
+      final token = CancelToken();
+      for (final a in [2, 3]) {
+        transport.gates['11200$a.mp3'] = Completer<void>();
+      }
+      Future<String> get(int ayah, {bool urgent = false}) => repo.recording(
+        reciter,
+        QuranAudioItem(surah: 112, ayah: ayah),
+        token,
+        urgent: urgent,
+      );
+      final first = get(2), second = get(3), future = get(4);
+      await waitFor(() => transport.started.length == 2);
+      final needed = get(1, urgent: true);
+      transport.gates['112002.mp3']!.complete();
+      await first;
+      await needed;
+      expect(
+        transport.started.take(2),
+        unorderedEquals(['112002.mp3', '112003.mp3']),
+      );
+      expect(transport.started[2], '112001.mp3');
+      transport.gates['112003.mp3']!.complete();
+      await second;
+      await future;
+      expect(transport.maxActive, 2);
+    },
+  );
+  test(
+    'cancelled delayed request cleans partial files and does not become cache',
+    () async {
+      transport.gates['112002.mp3'] = Completer<void>();
+      final token = CancelToken();
+      final download = repo.recording(reciter, item, token);
+      final expectation = expectLater(download, throwsA(isA<DioException>()));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      token.cancel('Stop');
+      await expectation;
+      expect(await (await repo.fileFor(reciter, item)).exists(), isFalse);
+      expect(
+        await dir
+            .list(recursive: true)
+            .where((f) => f.path.endsWith('.part'))
+            .length,
+        0,
+      );
+    },
+  );
+  test('prefetch and urgent access deduplicate the same recording', () async {
+    final token = CancelToken();
+    final a = repo.recording(reciter, item, token, urgent: false);
+    final b = repo.recording(reciter, item, token);
+    expect(await a, await b);
+    expect(transport.calls, 1);
+  });
+  test(
+    'introduction is cached separately without numbered verse identity',
+    () async {
+      const intro = QuranAudioItem(surah: 112);
+      final path = await repo.recording(reciter, intro, CancelToken());
+      expect(path, endsWith('112000.mp3'));
+      transport.status = 404;
+      expect(await repo.recording(reciter, intro, CancelToken()), path);
+      expect(transport.calls, 1);
+      expect(intro.ayah, isNull);
+    },
+  );
+  test(
+    'a complete cached selection including introduction plays with transport offline',
+    () async {
+      for (final item in [
+        const QuranAudioItem(surah: 112),
+        const QuranAudioItem(surah: 112, ayah: 1),
+        const QuranAudioItem(surah: 112, ayah: 2),
+      ]) {
+        await repo.recording(reciter, item, CancelToken());
+      }
+      transport.status = 404;
+      transport.calls = 0;
+      final player = FakePlayer();
+      final controller = QuranAudioController.forTesting(
+        player: player,
+        repository: repo,
+      );
+      await controller.playPlan(plan(from: 1, to: 2));
+      expect(controller.isIntroduction, isTrue);
+      player.complete();
+      await waitFor(() => controller.currentAyah == 1);
+      expect(controller.currentAyah, 1);
+      player.complete();
+      await waitFor(() => controller.currentAyah == 2);
+      expect(controller.currentAyah, 2);
+      player.complete();
+      await waitFor(() => controller.phase == QuranPlaybackPhase.completed);
+      expect(controller.phase, QuranPlaybackPhase.completed);
+      expect(transport.calls, 0);
+      await controller.stop();
+      controller.dispose();
+    },
+  );
+  test(
+    'each supported reciter has an audited source policy and same-voice URL',
+    () {
+      final all = {
+        ...BismillahSources.separateSurahIntroductions,
+        ...BismillahSources.unverified,
+        ...BismillahSources.standalone.keys,
+      };
+      expect(all, quranReciters.map((r) => r.id).toSet());
+      expect(
+        BismillahSources.filename(
+          quranReciters.firstWhere((r) => r.id == 'abdullah_basfar'),
+          112,
+        ),
+        '112000.mp3',
+      );
+      for (final r in quranReciters) {
+        if (BismillahSources.unverified.contains(r.id)) {
+          expect(
+            () => BismillahSources.filename(r, 2),
+            throwsA(isA<AudioFailure>()),
+          );
+        } else {
+          expect(
+            BismillahSources.filename(r, 2),
+            r.id == 'saad_ghamdi' ? 'bismillah.mp3' : '002000.mp3',
+          );
+        }
+      }
+    },
+  );
+}
