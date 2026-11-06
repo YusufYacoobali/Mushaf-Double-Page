@@ -32,6 +32,14 @@ A queue over six entries or more than seven registered sources including the
 root playlist fails the diagnostic. Finite cases require all expected native
 occurrences and observable position advancement for each numbered occurrence.
 
+## Source boundary analysis
+
+Run `python3 tool/audio_gap_diagnostic.py --manifest tool/audio_gap_samples.json --output /tmp/audio-gap-analysis.json`
+from the repository root to decode the hash-bound four-reciter sample corpus.
+The report separates recording edge quiet and encoder metadata from unmeasured
+native output delay. See [the investigation](../docs/v5-gapless-validation.md) for
+results, safety decisions and the before/after capture procedure.
+
 ## Timing is not audible gap measurement
 
 Each transition records its native event time, prior duration and

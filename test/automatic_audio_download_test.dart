@@ -43,8 +43,11 @@ void main() {
     await flush();
     await dir.delete(recursive: true);
   });
-  Future<void> saved() =>
-      waitFor(() => c.downloadState.message == 'Selection available offline');
+  Future<void> saved() => waitFor(
+    () => c.downloadState.message == 'Selection available offline',
+    // The largest queue validates/publishes 665 real files on the test disk.
+    timeout: const Duration(seconds: 15),
+  );
   Future<List<FileSystemEntity>> parts() =>
       dir.list(recursive: true).where((f) => f.path.endsWith('.part')).toList();
 

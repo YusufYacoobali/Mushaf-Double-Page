@@ -10,10 +10,13 @@ import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/bismillah_sources.dart';
 import 'audio_playback_test.dart' show FakePlayer, plan, fixtureIntroduction;
 
-Future<void> waitFor(bool Function() condition) async {
+Future<void> waitFor(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 5),
+}) async {
   final watch = Stopwatch()..start();
   while (!condition()) {
-    if (watch.elapsed > const Duration(seconds: 5)) {
+    if (watch.elapsed > timeout) {
       throw TimeoutException('Repository operation did not settle');
     }
     await Future<void>.delayed(const Duration(milliseconds: 2));
@@ -230,6 +233,7 @@ void main() {
       transport.gates['112002.mp3'] = Completer<void>();
       final token = CancelToken();
       final background = repo.recording(reciter, item, token, urgent: false);
+      await waitFor(() => transport.started.contains('112002.mp3'));
       final later = repo.recording(
         reciter,
         const QuranAudioItem(surah: 112, ayah: 3),

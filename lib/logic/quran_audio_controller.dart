@@ -444,9 +444,11 @@ class QuranAudioController extends ChangeNotifier {
     }
   }
 
-  void _cancelWork() {
-    _token.cancel('Playback window replaced');
-    _token = CancelToken();
+  void _cancelWork({bool cancelRecordings = true}) {
+    if (cancelRecordings) {
+      _token.cancel('Playback selection replaced');
+      _token = CancelToken();
+    }
     _session++;
     _revision++;
     _fillRevision = null;
@@ -1080,7 +1082,10 @@ class QuranAudioController extends ChangeNotifier {
     } else {
       cursor.previous();
     }
-    _cancelWork();
+    // Navigation changes occurrences, not the selected offline recordings.
+    // Keep bounded in-flight acquisitions so the new window can rejoin them
+    // instead of aborting and downloading an already-received file again.
+    _cancelWork(cancelRecordings: false);
     final generation = _session, revision = _revision;
     _queue.clear();
     _pending.clear();

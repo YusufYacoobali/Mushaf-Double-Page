@@ -69,6 +69,9 @@ class AudioRepository implements AudioRecordingRepository {
   final Future<Directory> Function() _directory;
   final _pending = <_DownloadJob>[];
   final _jobs = <String, _DownloadJob>{};
+  // A long-lived repeat session must not retain a whenCancel.then closure for
+  // every completed cache read. Only active requests keep stream listeners.
+  final _cancellations = Expando<Stream<DioException>>();
   int _running = 0, _backgroundRunning = 0, _order = 0;
 
   static String audioId(int surah, int ayah) =>
@@ -120,19 +123,26 @@ class AudioRepository implements AudioRecordingRepository {
   }) async {
     if (token.isCancelled) throw token.cancelError!;
     final key = '${reciter.id}:${filename(reciter, item)}';
+    var created = false;
     final job = _jobs.putIfAbsent(key, () {
+      created = true;
       final job = _DownloadJob(key, reciter, item, _order++);
-      _pending.add(job);
       return job;
     });
+    // Join synchronously, before local I/O, so cancelling another consumer
+    // cannot cancel shared acquisition while this caller checks the cache.
     final waiter = _DownloadWaiter(urgent, onProgress);
     job.waiters.add(waiter);
-    scheduleMicrotask(_pump);
+    if (created) unawaited(_lookup(job));
+    if (!created) scheduleMicrotask(_pump);
+    final cancelled = Completer<String>();
+    final watch =
+        (_cancellations[token] ??= token.whenCancel
+                .asStream()
+                .asBroadcastStream())
+            .listen(cancelled.completeError);
     try {
-      final path = await Future.any([
-        job.result.future,
-        token.whenCancel.then<String>((error) => throw error),
-      ]);
+      final path = await Future.any([job.result.future, cancelled.future]);
       if (token.isCancelled) throw token.cancelError!;
       // A numbered 1:1 request can share an introduction's physical file. Check
       // each consumer's descriptor even if the first job had no audited hash.
@@ -144,6 +154,7 @@ class AudioRepository implements AudioRecordingRepository {
       }
       return path;
     } finally {
+      await watch.cancel();
       job.waiters.remove(waiter);
       if (job.waiters.isEmpty && !job.result.isCompleted) {
         job.token.cancel('No remaining recording consumers');
@@ -153,6 +164,39 @@ class AudioRepository implements AudioRecordingRepository {
         }
       }
     }
+  }
+
+  Future<void> _lookup(_DownloadJob job) async {
+    try {
+      // Local cache validation never occupies or waits for a network worker.
+      final cached = await _cachedRecording(job.reciter, job.item);
+      if (job.token.isCancelled) throw job.token.cancelError!;
+      if (cached != null) {
+        job.result.complete(cached);
+        if (_jobs[job.key] == job) _jobs.remove(job.key);
+      } else {
+        _pending.add(job);
+        scheduleMicrotask(_pump);
+      }
+    } catch (error, stack) {
+      job.result.completeError(error, stack);
+      if (_jobs[job.key] == job) _jobs.remove(job.key);
+    }
+  }
+
+  Future<String?> _cachedRecording(Reciter reciter, QuranAudioItem item) async {
+    final file = await fileFor(reciter, item);
+    try {
+      if (await file.exists() &&
+          await validMp3(file) &&
+          await _matchesAudit(file, sourceFor(reciter, item))) {
+        return file.path;
+      }
+    } on FileSystemException {
+      // Recovery may have invalidated the file while validation was running.
+      // Rejoin scheduled acquisition, which checks again before downloading.
+    }
+    return null;
   }
 
   void _pump() {

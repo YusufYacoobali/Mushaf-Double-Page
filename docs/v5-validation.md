@@ -7,6 +7,10 @@ The audio follow-up starts from `de190cf` on the existing `v5` branch. Later
 responsive changes are linked above, and the Tasbeeh simplification is described
 below. Nothing is merged into `main`.
 
+The later cache scheduling and recording-boundary investigation is documented in
+[v5 gapless validation](v5-gapless-validation.md), including actual PCM measurements
+and the limits of native-output testing in this environment.
+
 ## Continuous playback queue
 
 `QuranAudioController` remains the single playback controller. It starts when the
@@ -193,7 +197,7 @@ cream-and-charcoal specification was used instead.
 ## Validation and remaining device checks
 
 Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze --no-pub` reports
-no issues; `flutter test --no-pub --reporter expanded` passes all **330 tests**.
+no issues; `flutter test --no-pub --reporter expanded` passes all **357 tests**.
 `git diff --check` is clean. The audit builder reproduces 22 canonical sources
 from 163 clip records; its Python syntax check also passes.
 

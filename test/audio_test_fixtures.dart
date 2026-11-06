@@ -36,12 +36,15 @@ class FakePlayer implements AudioPlayer {
       pauses = 0,
       stops = 0,
       appends = 0,
-      removals = 0;
+      appendAttempts = 0,
+      removals = 0,
+      seeks = 0;
   int generation = 0, failLoads = 0, failPlays = 0, maxQueue = 0;
   bool active = false;
   ProcessingState state = ProcessingState.idle;
   Completer<void>? loadGate, appendGate;
   Duration at = Duration.zero;
+  Duration? durationOverride;
   int index = 0;
   @override
   LoopMode loopMode = LoopMode.off;
@@ -72,7 +75,7 @@ class FakePlayer implements AudioPlayer {
   @override
   Duration get bufferedPosition => at;
   @override
-  Duration? get duration => const Duration(seconds: 10);
+  Duration? get duration => durationOverride ?? const Duration(seconds: 10);
   @override
   bool get playing => active;
   @override
@@ -120,6 +123,7 @@ class FakePlayer implements AudioPlayer {
 
   @override
   Future<void> seek(Duration? position, {int? index}) async {
+    seeks++;
     at = position ?? Duration.zero;
     if (index != null) {
       this.index = index;
@@ -156,6 +160,7 @@ class FakePlayer implements AudioPlayer {
 
   @override
   Future<void> addAudioSource(AudioSource source) async {
+    appendAttempts++;
     final load = generation;
     await appendGate?.future;
     if (load != generation) throw StateError('Append interrupted');

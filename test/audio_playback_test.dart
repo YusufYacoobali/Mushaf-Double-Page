@@ -329,14 +329,16 @@ void main() {
     },
   );
   test(
-    'Next invalidates a slow prefetch; its late append cannot change the new cursor',
+    'Next reuses slow recording acquisition while invalidating the old occurrence',
     () async {
       final gate = repo.gates['112:3'] = Completer<void>();
       await c.playPlan(plan());
       await flush();
       repo.gates.clear();
-      await c.seekNext();
+      final navigation = c.seekNext();
+      await flush();
       gate.complete();
+      await navigation;
       await flush();
       expect(c.currentAyah, 3);
       expect(
