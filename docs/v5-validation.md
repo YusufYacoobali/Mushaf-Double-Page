@@ -3,9 +3,9 @@
 The later responsive-layout, review-prompt and daily-reminder changes are covered
 in [v5 responsive validation](v5-responsive-validation.md).
 
-This follow-up starts from `de190cf` on the existing `v5` branch. It changes audio
-and Bismillah handling only. Tasbeeh implementation, settings and its captured
-preview are unchanged. Nothing is merged into `main`.
+The audio follow-up starts from `de190cf` on the existing `v5` branch. Later
+responsive changes are linked above, and the Tasbeeh simplification is described
+below. Nothing is merged into `main`.
 
 ## Continuous playback queue
 
@@ -171,12 +171,18 @@ and vector seven-segment digits with interactive overlaid buttons. The main
 ivory button is blank. Themes, reduced motion, semantics and scrolling layouts are
 supported. Undo/Reset touch targets remain usable when the device scales down.
 
+Taps anywhere on the screen, including the LCD, shell and surrounding space,
+increment once. Undo, Reset, Back and dhikr controls keep their own actions;
+scrolls, cancelled gestures and modal interactions do not add counts. The LCD and
+main button also expose an accessible count action. The gear opens custom dhikr
+management; vibration, sound, targets and completion feedback have been removed.
+
 Built-in Arabic/transliteration/meaning choices, custom dhikr add/delete, separate
-counts, per-dhikr targets, vibration/sound preferences and target feedback persist
-in `tasbeeh_state_v1`. Counts use BigInt strings and never roll over at 99999.
+counts and the selected dhikr persist in `tasbeeh_state_v1`. Legacy snapshots are
+cleaned of removed options without resetting saved counts or custom dhikr.
+Counts use BigInt strings and never roll over at 99999.
 Restoration gates counting; a shared store survives navigation while serialized
-coalesced writes retain the latest rapid changes. Targets give feedback at each
-multiple and never reset the count.
+coalesced writes retain the latest rapid changes.
 
 [Captured preview at 00024](tasbeeh-00024.png). The earlier approved mockup was not
 attached to this task, so an exact visual comparison was unavailable. The written
@@ -185,7 +191,7 @@ cream-and-charcoal specification was used instead.
 ## Validation and remaining device checks
 
 Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze --no-pub` reports
-no issues; `flutter test --no-pub --reporter expanded` passes all **208 tests**.
+no issues; `flutter test --no-pub --reporter expanded` passes all **265 tests**.
 `git diff --check` is clean. The audit builder regenerates 163 clip records and
 32 enabled destination policies; its Python syntax check also passes.
 
@@ -197,6 +203,10 @@ prefetch, EOF during an in-flight append, healthy-current/future-source failure
 isolation, recovery position, stale callbacks, Stop/Pause/navigation/replacement,
 background controls, metadata and highlight behavior. Existing statistics,
 page-following and Tasbeeh regressions remain included.
+
+Tasbeeh regressions cover screen-wide/rapid/cancelled taps, accessibility actions,
+silent counting, legacy migration, serialized saves, restoration, large counts,
+Reset confirmation, Back/Settings controls and adaptive phone/tablet layouts.
 
 Bismillah tests distinguish synthetic behavior fixtures from actual audit
 evidence. They cover separate/embedded/unverified mixtures, per-surah policy,

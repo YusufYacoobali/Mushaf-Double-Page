@@ -1,7 +1,6 @@
 import 'package:mushaf_two_page/components/adaptive_surface.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../components/tasbeeh_counter.dart';
 import '../utils/app_motion.dart';
 import '../utils/app_palette.dart';
@@ -35,27 +34,7 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  void _count() {
-    if (!_store.ready) return;
-    final reached = _store.increment();
-    if (_store.vibration) {
-      unawaited(
-        reached && _store.targetFeedback
-            ? HapticFeedback.mediumImpact()
-            : HapticFeedback.selectionClick(),
-      );
-    }
-    if (_store.sound) unawaited(SystemSound.play(SystemSoundType.click));
-    if (reached && _store.targetFeedback) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Target of ${_store.target} reached'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
+  void _count() => _store.increment();
 
   Future<void> _reset() async {
     final confirmed = await showDialog<bool>(
@@ -81,7 +60,7 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
     if (confirmed == true) _store.reset();
   }
 
-  Future<String?> _textInput(String title, {bool number = false}) async {
+  Future<String?> _textInput(String title) async {
     final input = TextEditingController();
     final result = await showDialog<String>(
       context: context,
@@ -91,14 +70,8 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
         content: TextField(
           controller: input,
           autofocus: true,
-          maxLength: number ? 30 : 80,
-          keyboardType: number ? TextInputType.number : TextInputType.text,
-          inputFormatters: number
-              ? [FilteringTextInputFormatter.digitsOnly]
-              : null,
-          decoration: InputDecoration(
-            labelText: number ? 'Positive target' : 'Dhikr name',
-          ),
+          maxLength: 80,
+          decoration: InputDecoration(labelText: 'Dhikr name'),
         ),
         actions: [
           TextButton(
@@ -107,10 +80,7 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
           ),
           TextButton(
             onPressed: () {
-              if (input.text.trim().isEmpty ||
-                  (number &&
-                      (BigInt.tryParse(input.text) ?? BigInt.zero) <=
-                          BigInt.zero)) {
+              if (input.text.trim().isEmpty) {
                 return;
               }
               Navigator.pop(ctx, input.text.trim());
@@ -184,7 +154,7 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _settings() async {
+  Future<void> _manageDhikr() async {
     final palette = AppPalette.of(context);
     await showModalBottomSheet<void>(
       context: context,
@@ -203,62 +173,6 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const ListTile(title: Text('Tasbeeh settings')),
-                SwitchListTile(
-                  title: const Text('Vibration'),
-                  value: _store.vibration,
-                  onChanged: (v) => _store.preferences(vibration: v),
-                ),
-                SwitchListTile(
-                  title: const Text('Sound'),
-                  value: _store.sound,
-                  onChanged: (v) => _store.preferences(sound: v),
-                ),
-                SwitchListTile(
-                  title: const Text('Target completion feedback'),
-                  value: _store.targetFeedback,
-                  onChanged: (v) => _store.preferences(targetFeedback: v),
-                ),
-                ListTile(
-                  title: const Text('Target'),
-                  subtitle: Text('For ${_store.selected.label}'),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final target in [null, 33, 100])
-                        ChoiceChip(
-                          label: Text(target == null ? 'None' : '$target'),
-                          selected:
-                              _store.target ==
-                              (target == null ? null : BigInt.from(target)),
-                          onSelected: (_) => _store.setTarget(
-                            target == null ? null : BigInt.from(target),
-                          ),
-                        ),
-                      ActionChip(
-                        label: Text(
-                          _store.target != null &&
-                                  _store.target != BigInt.from(33) &&
-                                  _store.target != BigInt.from(100)
-                              ? 'Custom: ${_store.target}'
-                              : 'Custom',
-                        ),
-                        onPressed: () async {
-                          final target = await _textInput(
-                            'Custom target',
-                            number: true,
-                          );
-                          if (target != null) {
-                            _store.setTarget(BigInt.parse(target));
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
                 const ListTile(title: Text('Custom dhikr')),
                 for (final dhikr in _store.dhikrs.where((d) => d.custom))
                   ListTile(
@@ -308,8 +222,12 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      AdaptiveSurface(child: Builder(builder: _buildScaffold));
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    excludeFromSemantics: true,
+    onTap: _count,
+    child: AdaptiveSurface(child: Builder(builder: _buildScaffold)),
+  );
 
   Widget _buildScaffold(BuildContext context) {
     final p = AppPalette.of(context);
@@ -322,8 +240,8 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
           centerTitle: true,
           actions: [
             IconButton(
-              tooltip: 'Tasbeeh settings',
-              onPressed: _store.ready ? _settings : null,
+              tooltip: 'Manage dhikr',
+              onPressed: _store.ready ? _manageDhikr : null,
               icon: const Icon(Icons.settings_outlined),
             ),
           ],
@@ -375,24 +293,13 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Tap to count',
+                              'Tap anywhere to count',
                               style: TextStyle(
                                 color: p.muted,
                                 fontSize: 13,
                                 letterSpacing: .5,
                               ),
                             ),
-                            if (_store.target != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: Text(
-                                  'Target ${_store.target}',
-                                  style: TextStyle(
-                                    color: p.muted,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
                             if (_store.saveError != null)
                               TextButton(
                                 onPressed: () async {

@@ -31,31 +31,36 @@ class TasbeehCounter extends StatelessWidget {
             top: 181 * scale - (height - 56 * scale) / 2,
             width: width,
             height: height,
-            child: Column(
-              children: [
-                Expanded(
-                  child: IconButton(
-                    tooltip: label,
-                    onPressed: tap,
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xffe9e1d0),
-                      foregroundColor: const Color(0xff3d3831),
-                      padding: EdgeInsets.zero,
-                      side: const BorderSide(color: Color(0xffac9873)),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onTap: tap,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: IconButton(
+                      tooltip: label,
+                      onPressed: tap,
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xffe9e1d0),
+                        foregroundColor: const Color(0xff3d3831),
+                        padding: EdgeInsets.zero,
+                        side: const BorderSide(color: Color(0xffac9873)),
+                      ),
+                      icon: Icon(icon, size: 21 * scale),
                     ),
-                    icon: Icon(icon, size: 21 * scale),
                   ),
-                ),
-                SizedBox(height: 3 * scale),
-                Text(
-                  label,
-                  textScaler: TextScaler.noScaling,
-                  style: TextStyle(
-                    fontSize: 10 * scale,
-                    color: const Color(0xffd0c4af),
+                  SizedBox(height: 3 * scale),
+                  Text(
+                    label,
+                    textScaler: TextScaler.noScaling,
+                    style: TextStyle(
+                      fontSize: 10 * scale,
+                      color: const Color(0xffd0c4af),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         }
@@ -71,6 +76,8 @@ class TasbeehCounter extends StatelessWidget {
               child: Semantics(
                 label: 'Tasbeeh count',
                 value: value,
+                button: true,
+                onTap: onCount,
                 child: ExcludeSemantics(
                   child: CustomPaint(painter: SevenSegmentDisplay(value)),
                 ),
@@ -88,6 +95,7 @@ class TasbeehCounter extends StatelessWidget {
                 child: Semantics(
                   label: 'Count dhikr',
                   button: true,
+                  onTap: onCount,
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -120,6 +128,7 @@ class TasbeehCounter extends StatelessWidget {
                       child: InkWell(
                         customBorder: const CircleBorder(),
                         onTap: onCount,
+                        enableFeedback: false,
                         excludeFromSemantics: true,
                         child: const SizedBox.expand(),
                       ),

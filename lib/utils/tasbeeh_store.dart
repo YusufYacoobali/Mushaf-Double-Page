@@ -60,9 +60,7 @@ class TasbeehStore extends ChangeNotifier {
   String? saveError;
   String _selected = 'subhanallah';
   final _counts = <String, BigInt>{};
-  final _targets = <String, BigInt>{};
   final _custom = <Dhikr>[];
-  bool vibration = true, sound = false, targetFeedback = true;
 
   List<Dhikr> get dhikrs => List.unmodifiable([...builtInDhikr, ..._custom]);
   Dhikr get selected => dhikrs.firstWhere(
@@ -70,31 +68,22 @@ class TasbeehStore extends ChangeNotifier {
     orElse: () => builtInDhikr.first,
   );
   BigInt get count => _counts[_selected] ?? BigInt.zero;
-  BigInt? get target => _targets[_selected];
   String get display => count.toString().padLeft(5, '0');
 
   Future<void> restore() => _restoring ??= _restore();
   Future<void> _restore() async {
     _prefs = await SharedPreferences.getInstance();
     final raw = _prefs!.getString(storageKey);
+    var migrate = false;
     if (raw != null) {
       try {
         final json = jsonDecode(raw) as Map<String, dynamic>;
         if (json['version'] == 1) {
           _selected = json['selected'] as String? ?? _selected;
-          vibration = json['vibration'] as bool? ?? true;
-          sound = json['sound'] as bool? ?? false;
-          targetFeedback = json['targetFeedback'] as bool? ?? true;
           for (final entry in (json['counts'] as Map? ?? {}).entries) {
             final value = BigInt.tryParse('${entry.value}');
             if (value != null && value >= BigInt.zero) {
               _counts['${entry.key}'] = value;
-            }
-          }
-          for (final entry in (json['targets'] as Map? ?? {}).entries) {
-            final value = BigInt.tryParse('${entry.value}');
-            if (value != null && value > BigInt.zero) {
-              _targets['${entry.key}'] = value;
             }
           }
           for (final entry in (json['custom'] as List? ?? [])) {
@@ -109,22 +98,32 @@ class TasbeehStore extends ChangeNotifier {
             }
           }
           _selected = selected.id;
+          // Remove obsolete options without resetting existing dhikr or counts.
+          migrate = const [
+            'targets',
+            'vibration',
+            'sound',
+            'targetFeedback',
+          ].any(json.containsKey);
         }
       } catch (_) {
         saveError = 'Saved Tasbeeh data could not be read.';
       }
     }
     ready = true;
-    if (!_disposed) notifyListeners();
+    if (!_disposed) {
+      if (migrate) {
+        _changed();
+      } else {
+        notifyListeners();
+      }
+    }
   }
 
-  /// Returns true at each target multiple; reaching it never resets the count.
-  bool increment() {
-    if (!ready) return false;
+  void increment() {
+    if (!ready) return;
     _counts[_selected] = count + BigInt.one;
-    final reached = target != null && count % target! == BigInt.zero;
     _changed();
-    return reached;
   }
 
   void undo() {
@@ -145,24 +144,6 @@ class TasbeehStore extends ChangeNotifier {
     _changed();
   }
 
-  void setTarget(BigInt? value) {
-    if (!ready || (value != null && value <= BigInt.zero)) return;
-    if (value == null) {
-      _targets.remove(_selected);
-    } else {
-      _targets[_selected] = value;
-    }
-    _changed();
-  }
-
-  void preferences({bool? vibration, bool? sound, bool? targetFeedback}) {
-    if (!ready) return;
-    this.vibration = vibration ?? this.vibration;
-    this.sound = sound ?? this.sound;
-    this.targetFeedback = targetFeedback ?? this.targetFeedback;
-    _changed();
-  }
-
   void addCustom(String label) {
     if (!ready || label.trim().isEmpty) return;
     var id = 'custom_${DateTime.now().microsecondsSinceEpoch}';
@@ -178,7 +159,6 @@ class TasbeehStore extends ChangeNotifier {
     if (!ready || !_custom.any((d) => d.id == id)) return;
     _custom.removeWhere((d) => d.id == id);
     _counts.remove(id);
-    _targets.remove(id);
     if (_selected == id) _selected = builtInDhikr.first.id;
     _changed();
   }
@@ -188,10 +168,6 @@ class TasbeehStore extends ChangeNotifier {
       'version': 1,
       'selected': _selected,
       'counts': _counts.map((k, v) => MapEntry(k, '$v')),
-      'targets': _targets.map((k, v) => MapEntry(k, '$v')),
-      'vibration': vibration,
-      'sound': sound,
-      'targetFeedback': targetFeedback,
       'custom': _custom.map((d) => {'id': d.id, 'label': d.label}).toList(),
     });
     notifyListeners();
@@ -218,10 +194,6 @@ class TasbeehStore extends ChangeNotifier {
         'version': 1,
         'selected': _selected,
         'counts': _counts.map((k, v) => MapEntry(k, '$v')),
-        'targets': _targets.map((k, v) => MapEntry(k, '$v')),
-        'vibration': vibration,
-        'sound': sound,
-        'targetFeedback': targetFeedback,
         'custom': _custom.map((d) => {'id': d.id, 'label': d.label}).toList(),
       });
     } finally {

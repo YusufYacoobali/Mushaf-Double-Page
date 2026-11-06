@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/pages/settings.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
 import 'package:mushaf_two_page/pages/tasbeeh.dart';
+import 'package:mushaf_two_page/components/tasbeeh_counter.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/tasbeeh_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,8 +42,6 @@ void main() {
       store.undo();
       store.select('alhamdulillah');
       store.increment();
-      store.preferences(sound: true, vibration: false);
-      store.setTarget(BigInt.from(33));
       store.addCustom('My dhikr');
       store.increment();
       await store.flush();
@@ -52,9 +51,6 @@ void main() {
       expect(reopened.count, BigInt.one);
       reopened.select('alhamdulillah');
       expect(reopened.count, BigInt.one);
-      expect(reopened.target, BigInt.from(33));
-      expect(reopened.sound, isTrue);
-      expect(reopened.vibration, isFalse);
       reopened.select('subhanallah');
       expect(reopened.count, BigInt.from(999));
       reopened.reset();
@@ -96,7 +92,7 @@ void main() {
     },
   );
   test(
-    'target multiple gives feedback but never resets; arbitrary large counts persist',
+    'arbitrary large counts keep increasing and persist without rollover',
     () async {
       SharedPreferences.setMockInitialValues({
         TasbeehStore.storageKey: jsonEncode({
@@ -107,10 +103,9 @@ void main() {
       });
       final store = TasbeehStore();
       await store.restore();
-      store.setTarget(BigInt.from(100));
-      expect(store.increment(), isTrue);
+      store.increment();
       expect(store.display, '100000');
-      expect(store.increment(), isFalse);
+      store.increment();
       expect(store.count, BigInt.from(100001));
       await store.flush();
       final reopened = TasbeehStore();
@@ -162,6 +157,166 @@ void main() {
       store.dispose();
     },
   );
+  testWidgets(
+    'screen, display and shell taps count once; controls, sheets and drags do not count',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = TasbeehStore();
+      await store.restore();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppPalette.emerald.toThemeData(),
+          home: TasbeehPage(store: store),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsLabel('Tasbeeh count'));
+      expect(store.count, BigInt.one);
+      final counter = tester.getRect(find.byType(TasbeehCounter));
+      await tester.tapAt(
+        Offset(
+          counter.left + counter.width * .1,
+          counter.top + counter.height * .6,
+        ),
+      );
+      expect(store.count, BigInt.from(2));
+      await tester.tap(find.text('Tap anywhere to count'));
+      expect(store.count, BigInt.from(3));
+      await tester.tapAt(const Offset(5, 750));
+      expect(store.count, BigInt.from(4));
+      await tester.tap(find.text('Tasbeeh'));
+      expect(store.count, BigInt.from(5));
+      // Label taps belong to the control rather than the surrounding count area.
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(store.count, BigInt.from(4));
+      await tester.tap(find.text('Reset'));
+      await tester.pumpAndSettle();
+      expect(store.count, BigInt.from(4));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(store.count, BigInt.from(4));
+      await tester.tap(find.byTooltip('Manage dhikr'));
+      await tester.pumpAndSettle();
+      expect(store.count, BigInt.from(4));
+      expect(find.text('Add custom dhikr'), findsOneWidget);
+      // Dismissing a modal's barrier must not count through to the screen.
+      await tester.tapAt(const Offset(5, 100));
+      await tester.pumpAndSettle();
+      expect(store.count, BigInt.from(4));
+      await tester.tap(find.text('SubhanAllah'));
+      await tester.pumpAndSettle();
+      expect(store.count, BigInt.from(4));
+      await tester.tap(find.text('Alhamdulillah'));
+      await tester.pumpAndSettle();
+      expect(store.selected.id, 'alhamdulillah');
+      expect(store.count, BigInt.zero);
+      await tester.tapAt(const Offset(5, 750));
+      expect(store.count, BigInt.one);
+      await tester.dragFrom(const Offset(5, 300), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      expect(store.count, BigInt.one);
+      tester.view.physicalSize = const Size(1024, 1366);
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(5, 800));
+      expect(store.count, BigInt.from(2));
+      store.select('subhanallah');
+      expect(store.count, BigInt.from(4));
+      await tester.pumpWidget(const SizedBox());
+      await store.flush();
+      store.dispose();
+    },
+  );
+  testWidgets(
+    'legacy options are removed without losing counts; counting is silent and has no completion feedback',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        TasbeehStore.storageKey: jsonEncode({
+          'version': 1,
+          'selected': 'custom_saved',
+          'counts': {'custom_saved': '32', 'subhanallah': '100000'},
+          'targets': {'custom_saved': '33'},
+          'vibration': true,
+          'sound': true,
+          'targetFeedback': true,
+          'custom': [
+            {'id': 'custom_saved', 'label': 'Saved dhikr'},
+          ],
+        }),
+      });
+      final store = TasbeehStore();
+      await store.restore();
+      await store.flush();
+      expect(store.count, BigInt.from(32));
+      expect(store.selected.label, 'Saved dhikr');
+      final snapshot =
+          jsonDecode(
+                (await SharedPreferences.getInstance()).getString(
+                  TasbeehStore.storageKey,
+                )!,
+              )
+              as Map;
+      expect(
+        snapshot.keys,
+        unorderedEquals(['version', 'selected', 'counts', 'custom']),
+      );
+      final feedback = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate' ||
+              call.method == 'SystemSound.play') {
+            feedback.add(call.method);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final semantics = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppPalette.emerald.toThemeData(),
+            home: TasbeehPage(store: store),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.bySemanticsLabel('Count dhikr'));
+        await tester.pumpAndSettle();
+        expect(store.count, BigInt.from(33));
+        expect(find.byType(SnackBar), findsNothing);
+        await tester.tap(find.bySemanticsLabel('Tasbeeh count'));
+        await tester.pumpAndSettle();
+        expect(store.count, BigInt.from(34));
+        final node = tester.getSemantics(find.bySemanticsLabel('Count dhikr'));
+        node.owner!.performAction(node.id, ui.SemanticsAction.tap);
+        await tester.pumpAndSettle();
+        expect(store.count, BigInt.from(35));
+        expect(feedback, isEmpty);
+        expect(find.textContaining('Target'), findsNothing);
+        expect(find.byType(SnackBar), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+        await store.flush();
+        final reopened = TasbeehStore();
+        await reopened.restore();
+        expect(reopened.count, BigInt.from(35));
+        reopened.select('subhanallah');
+        expect(reopened.count, BigInt.from(100000));
+        store.dispose();
+        reopened.dispose();
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
   for (final size in [
     const Size(320, 568),
     const Size(390, 844),
@@ -194,9 +349,13 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
-          await tester.tap(find.byTooltip('Tasbeeh settings'));
+          await tester.tap(find.byTooltip('Manage dhikr'));
           await tester.pumpAndSettle();
-          expect(find.text('Vibration'), findsOneWidget);
+          expect(find.text('Add custom dhikr'), findsOneWidget);
+          expect(find.byType(SwitchListTile), findsNothing);
+          expect(find.text('Vibration'), findsNothing);
+          expect(find.text('Sound'), findsNothing);
+          expect(find.textContaining('Target'), findsNothing);
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
           await store.flush();
@@ -232,8 +391,10 @@ void main() {
       await tester.tap(find.text('Tasbeeh'));
       await tester.pumpAndSettle();
       expect(find.byType(TasbeehPage), findsOneWidget);
+      final countBeforeBack = TasbeehStore.instance.count;
       await tester.pageBack();
       await tester.pumpAndSettle();
+      expect(TasbeehStore.instance.count, countBeforeBack);
       expect(find.byType(Settings), findsOneWidget);
       await tester.tap(find.byIcon(Icons.arrow_back_ios_new));
       await tester.pumpAndSettle();
