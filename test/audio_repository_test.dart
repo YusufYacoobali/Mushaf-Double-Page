@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/logic/audio_repository.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/bismillah_sources.dart';
-import 'audio_playback_test.dart' show FakePlayer, plan;
+import 'audio_playback_test.dart' show FakePlayer, plan, fixtureIntroduction;
 
 Future<void> waitFor(bool Function() condition) async {
   final watch = Stopwatch()..start();
@@ -221,7 +222,10 @@ void main() {
   test(
     'introduction is cached separately without numbered verse identity',
     () async {
-      const intro = QuranAudioItem(surah: 112);
+      final intro = QuranAudioItem(
+        surah: 112,
+        source: fixtureIntroduction(reciter, 112).source,
+      );
       final path = await repo.recording(reciter, intro, CancelToken());
       expect(path, endsWith('112000.mp3'));
       transport.status = 404;
@@ -234,7 +238,10 @@ void main() {
     'a complete cached selection including introduction plays with transport offline',
     () async {
       for (final item in [
-        const QuranAudioItem(surah: 112),
+        QuranAudioItem(
+          surah: 112,
+          source: fixtureIntroduction(reciter, 112).source,
+        ),
         const QuranAudioItem(surah: 112, ayah: 1),
         const QuranAudioItem(surah: 112, ayah: 2),
       ]) {
@@ -246,16 +253,18 @@ void main() {
       final controller = QuranAudioController.forTesting(
         player: player,
         repository: repo,
+        resolveIntroduction: fixtureIntroduction,
       );
       await controller.playPlan(plan(from: 1, to: 2));
       expect(controller.isIntroduction, isTrue);
-      player.complete();
+      await waitFor(() => controller.nativeQueueLength == 3);
+      player.advance();
       await waitFor(() => controller.currentAyah == 1);
       expect(controller.currentAyah, 1);
-      player.complete();
+      player.advance();
       await waitFor(() => controller.currentAyah == 2);
       expect(controller.currentAyah, 2);
-      player.complete();
+      player.advance();
       await waitFor(() => controller.phase == QuranPlaybackPhase.completed);
       expect(controller.phase, QuranPlaybackPhase.completed);
       expect(transport.calls, 0);
@@ -264,34 +273,99 @@ void main() {
     },
   );
   test(
-    'each supported reciter has an audited source policy and same-voice URL',
+    'source resolution is explicit; directory presence is not content verification',
     () {
-      final all = {
-        ...BismillahSources.separateSurahIntroductions,
-        ...BismillahSources.unverified,
-        ...BismillahSources.standalone.keys,
-      };
-      expect(all, quranReciters.map((r) => r.id).toSet());
-      expect(
-        BismillahSources.filename(
-          quranReciters.firstWhere((r) => r.id == 'abdullah_basfar'),
-          112,
-        ),
-        '112000.mp3',
-      );
-      for (final r in quranReciters) {
-        if (BismillahSources.unverified.contains(r.id)) {
-          expect(
-            () => BismillahSources.filename(r, 2),
-            throwsA(isA<AudioFailure>()),
-          );
-        } else {
-          expect(
-            BismillahSources.filename(r, 2),
-            r.id == 'saad_ghamdi' ? 'bismillah.mp3' : '002000.mp3',
-          );
+      for (final reciter in quranReciters) {
+        expect(
+          BismillahSources.resolve(reciter, 1).kind,
+          BismillahPolicyKind.notRequired,
+        );
+        expect(
+          BismillahSources.resolve(reciter, 9).kind,
+          BismillahPolicyKind.notRequired,
+        );
+        for (final surah in [2, 112, 114]) {
+          final policy = BismillahSources.resolve(reciter, surah);
+          expect(policy.evidence, isNotEmpty);
+          if (policy.kind == BismillahPolicyKind.separateVerifiedRecording) {
+            expect(policy.source, isNotNull);
+            expect(policy.source!.verification, isNotEmpty);
+          }
         }
       }
+    },
+  );
+
+  test(
+    'reusable introduction has one physical cache entry across destinations',
+    () async {
+      final source = AudioRecordingSource(
+        id: 'alafasy/001001.mp3',
+        url: 'https://example.test/001001.mp3',
+        cacheFilename: '001001.mp3',
+        sha256: crypto.sha256.convert(transport.bytes).toString(),
+        verification: 'Synthetic fixture',
+      );
+      final a = QuranAudioItem(surah: 2, source: source);
+      final b = QuranAudioItem(surah: 112, source: source);
+      expect(a.key, isNot(b.key));
+      expect(a.recordingId, b.recordingId);
+      expect(
+        await repo.recording(reciter, a, CancelToken()),
+        await repo.recording(reciter, b, CancelToken()),
+      );
+      expect(transport.calls, 1);
+    },
+  );
+
+  test(
+    'offline selection enforces the audited destination hash before reporting availability',
+    () async {
+      final controller = QuranAudioController.forTesting(
+        player: FakePlayer(),
+        repository: repo,
+        resolveIntroduction: (_, _) => BismillahResolution(
+          BismillahPolicyKind.embeddedInOpeningAyah,
+          openingSha256: '0'.padLeft(64, '0'),
+          evidence: 'Synthetic changed destination',
+        ),
+      );
+      await controller.downloadSelection(plan(from: 1, to: 1));
+      expect(controller.downloadState.completed, 0);
+      expect(
+        controller.downloadState.message,
+        contains('differs from the file'),
+      );
+      final file = await repo.fileFor(
+        reciter,
+        const QuranAudioItem(surah: 112, ayah: 1),
+      );
+      expect(await file.exists(), isFalse);
+      controller.dispose();
+    },
+  );
+  test(
+    'valid MPEG bytes with a changed audited hash are rejected before publication',
+    () async {
+      final source = AudioRecordingSource(
+        id: 'audited',
+        url: 'https://example.test/intro.mp3',
+        cacheFilename: 'intro.mp3',
+        sha256: '0'.padLeft(64, '0'),
+        verification: 'Synthetic mismatch',
+      );
+      final item = QuranAudioItem(surah: 112, source: source);
+      await expectLater(
+        repo.recording(reciter, item, CancelToken()),
+        throwsA(
+          isA<AudioFailure>().having(
+            (e) => e.kind,
+            'kind',
+            AudioFailureKind.corrupt,
+          ),
+        ),
+      );
+      expect(await (await repo.fileFor(reciter, item)).exists(), isFalse);
     },
   );
 }

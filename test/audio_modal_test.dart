@@ -6,7 +6,8 @@ import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/audio_preferences.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'audio_playback_test.dart' show FakePlayer, ControlledRepository, plan;
+import 'audio_playback_test.dart'
+    show FakePlayer, ControlledRepository, plan, fixtureIntroduction;
 import 'package:mushaf_two_page/logic/audio_repository.dart';
 
 void main() {
@@ -14,6 +15,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final controller = QuranAudioController.forTesting(
       player: FakePlayer(),
+      resolveIntroduction: fixtureIntroduction,
       prepareSources: (_) async => [
         AudioSource.uri(Uri.parse('https://example.test/fixture.mp3')),
       ],
@@ -72,6 +74,7 @@ void main() {
         final player = FakePlayer();
         final controller = QuranAudioController.forTesting(
           player: player,
+          resolveIntroduction: fixtureIntroduction,
           prepareSources: (_) async => [
             AudioSource.uri(Uri.parse('https://example.test/fixture.mp3')),
           ],
@@ -153,6 +156,7 @@ void main() {
       );
       final controller = QuranAudioController.forTesting(
         player: FakePlayer(),
+        resolveIntroduction: fixtureIntroduction,
         repository: repository,
       );
       await controller.playPlan(plan(from: 1));

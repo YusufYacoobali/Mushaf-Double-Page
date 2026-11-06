@@ -127,14 +127,77 @@ class AudioPlaybackPlan {
 
 /// A recording identity is separate from the numbered verse it introduces.
 class QuranAudioItem {
-  const QuranAudioItem({required this.surah, this.ayah});
+  const QuranAudioItem({required this.surah, this.ayah, this.source});
+  final AudioRecordingSource? source;
   final int surah;
   final int? ayah;
   bool get isIntroduction => ayah == null;
   String get key => '$surah:${ayah ?? "bismillah"}';
+  String get recordingId => source?.id ?? key;
   String get label =>
       '${quranSurahs[surah - 1].name} · '
       '${isIntroduction ? "Bismillah" : "$surah:$ayah"}';
+}
+
+enum BismillahPolicyKind {
+  notRequired,
+  embeddedInOpeningAyah,
+  separateVerifiedRecording,
+  unverified,
+}
+
+/// Physical recording identity can be reused by introductions to many surahs.
+class AudioRecordingSource {
+  const AudioRecordingSource({
+    required this.id,
+    required this.url,
+    required this.cacheFilename,
+    required this.verification,
+    this.sha256,
+    this.alternatives = const [],
+  });
+  final String id, url, cacheFilename, verification;
+  final String? sha256;
+  final List<AudioRecordingSource> alternatives;
+}
+
+class BismillahResolution {
+  const BismillahResolution(
+    this.kind, {
+    this.source,
+    required this.evidence,
+    this.openingSha256,
+  });
+  final BismillahPolicyKind kind;
+  final AudioRecordingSource? source;
+  final String evidence;
+  final String? openingSha256;
+}
+
+typedef BismillahResolver =
+    BismillahResolution Function(Reciter reciter, int surah);
+
+class OpeningConsent {
+  const OpeningConsent({required this.continueOriginal, this.remember = false});
+  const OpeningConsent.cancel() : continueOriginal = false, remember = false;
+  final bool continueOriginal, remember;
+}
+
+/// Scheduled occurrence identity never depends on a mutable native queue index.
+class QuranAudioOccurrence {
+  const QuranAudioOccurrence({
+    required this.occurrenceId,
+    required this.item,
+    required this.cursor,
+    required this.sessionGeneration,
+  });
+  final String occurrenceId;
+  final QuranAudioItem item;
+  final QuranPlaybackCursor cursor;
+  final int sessionGeneration;
+  String get recordingId => item.recordingId;
+  int get verseRepetition => cursor.verseRepeat;
+  int get rangeCycle => cursor.rangeCycle;
 }
 
 enum QuranPlaybackPhase {
@@ -151,7 +214,18 @@ enum QuranPlaybackPhase {
 /// One bounded logical cursor, independent of the native player's queue/index.
 /// Repeats only change counters; they never expand the recording list.
 class QuranPlaybackCursor {
-  QuranPlaybackCursor(this.plan) : verses = plan.uniqueVerses();
+  QuranPlaybackCursor(this.plan, {this.introductionForSurah})
+    : verses = plan.uniqueVerses();
+  QuranPlaybackCursor._copy(QuranPlaybackCursor other)
+    : plan = other.plan,
+      verses = other.verses,
+      introductionForSurah = other.introductionForSurah,
+      index = other.index,
+      verseRepeat = other.verseRepeat,
+      rangeCycle = other.rangeCycle,
+      introduction = other.introduction;
+  final bool Function(int surah)? introductionForSurah;
+  QuranPlaybackCursor copy() => QuranPlaybackCursor._copy(this);
   final AudioPlaybackPlan plan;
   final List<AudioVerse> verses;
   int index = 0;
@@ -167,7 +241,8 @@ class QuranPlaybackCursor {
   bool get needsIntroduction =>
       verses[index].ayah == 1 &&
       verses[index].surah != 1 &&
-      verses[index].surah != 9;
+      verses[index].surah != 9 &&
+      (introductionForSurah?.call(verses[index].surah) ?? true);
 
   /// Returns false only after the last requested occurrence completes.
   bool advance({bool manual = false}) {

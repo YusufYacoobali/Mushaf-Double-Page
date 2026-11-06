@@ -1,92 +1,164 @@
 # v5 implementation and validation
 
-The implementation starts from main/v4, commit `6d9c429eaa7c939a878a78e9d422732c544179f9`.
+This follow-up starts from `de190cf` on the existing `v5` branch. It changes audio
+and Bismillah handling only. Tasbeeh implementation, settings and its captured
+preview are unchanged. Nothing is merged into `main`.
 
-## Audio architecture
+## Continuous playback queue
 
-`QuranAudioController` is the single playback state machine. A bounded logical
-cursor holds numbered ayahs, introduction identity, verse repetitions and range
-cycles. The native queue contains one recording. `QuranAudioHandler` bridges all
-notification, headset, lock-screen and app commands to that same controller.
-`just_audio_background` has been removed; `just_audio` remains the engine.
+`QuranAudioController` remains the single playback controller. It starts when the
+first required recording is ready, then incrementally appends prepared sources in
+logical order. The target is the current occurrence plus three future occurrences,
+with at most one consumed occurrence retained. The hard native limit is six,
+including introductions. Download concurrency remains two, and a newly needed
+prefetch job is promoted instead of starting a duplicate request.
 
-Preparation starts with one recording. The repository prefetches the next three
-distinct ayahs and their boundary introductions with at most two concurrent jobs.
-Urgent jobs are promoted ahead of queued prefetch jobs. Future download failures
-are isolated from current playback. Original numbered cache paths are preserved.
-MP3 validation checks ID3 and MPEG frame structure, rejecting HTML, truncated
-frames and ID3-only files. Downloads use temporary files and atomic rename.
+Normal transitions use just_audio's actual sequence/source events. They do not
+pause, stop or replace the playlist. Prefix removal preserves the current source
+and position. Each scheduled occurrence has a stable session/occurrence ID, a
+separate physical recording ID, surah/ayah or introduction, verse repetition and
+range cycle. Future planning uses cursor copies. Repeated recordings can share a
+cache file while retaining distinct playback occurrences. Logical Next/Previous
+operate on ayahs; Next from an introduction reaches ayah 1.
 
-Recovery preserves the logical item, repetition and playhead. A preparation gets
-an initial attempt plus three retries with 1/2/4-second backoff; persistent missing
-or unverified sources fail immediately. Decoder failures invalidate only the
-current recording. Failed resume positions fall back to restarting that recording.
-A separate cap prevents repeated errors after apparently successful native loads
-from creating an infinite retry loop. Downloads have connection, receive and
-45-second total deadlines; native loads have a 20-second deadline. A 30-second
-buffering stall enters recovery. Stop and replacement cancel session requests;
-late callbacks cannot start playback. Pause retains the user's intent across
-preparation and recovery. EOF reloads reuse source definitions, preserving the v4
-iOS AVQueuePlayer workaround.
+Finite and infinite verse/range repetitions use the same planner. A new range
+cycle starting at ayah 1 includes an applicable introduction; copies of an
+individual ayah do not. Sequence events drive highlighting and metadata. Queue
+trimming cannot create another listen. Introductions count listening time but
+never create numbered-ayah listens.
 
-The modal exposes Retry / Skip ayah (or Continue without Bismillah) / Stop.
-The dock remains present during preparation, recovery and failure. Errors persist
-after dismissing the modal. Offline downloads are available separately and report
-any unverified introductions instead of claiming they were saved.
+Completion means the logical plan is finished. If the native queue genuinely runs
+out while its next occurrence is preparing, the controller retains that exact
+occurrence and shows Buffering/Recovering. Controlled pause/reload is reserved for
+that exhaustion, recovery, initial installation or explicit navigation. Pause
+intent survives replenishment. Stop, Next and replacement invalidate pending
+session work, downloads, appends and stale callbacks.
 
-Introductions do not highlight a numbered ayah or create an ayah listen. Their
-listening time still counts. A retry or seek cannot duplicate an already counted
-logical occurrence. Covered readers consume follow changes without navigating;
-returning does not catch up. Buffering does not reset follow identity.
+A future decoder error is resolved through its reported source index and the
+actual native sequence tag. Its suffix is deferred without invalidating or
+interrupting a healthy current recording. Repair occurs at its boundary without
+consuming a repeat. If the native engine itself becomes idle, the current source
+can be reloaded at its saved position without deleting a healthy cache entry.
+Preparation has an initial attempt plus up to three exponential-backoff retries;
+persistent missing files fail immediately. A separate decoder-restart cap prevents
+an endless native failure loop. Retry / Skip ayah or introduction / Stop remain
+explicit choices; numbered ayahs are never silently skipped.
 
-Android's existing foreground media service, wake-lock permissions and
-AudioServiceActivity remain configured. iOS retains UIBackgroundModes=audio.
-Interruption begin and headphone disconnect pause the controller. Interruption end
-does not automatically resume. These are code/configuration checks, not device
-certification.
+MP3 validation, atomic temporary-file publication, connection/receive/total
+request deadlines, native load deadlines and buffering-stall recovery remain.
+Hash-bound opening policies also validate cached/downloaded introduction and
+first-ayah bytes, including offline selection downloads. Original numbered cache
+paths remain compatible.
 
-## Bismillah source audit — 6 November 2026
+### Why just_audio is vendored
 
-The following EveryAyah directory listings were inspected. This verifies source
-**availability and naming in the listings**, not an auditory review of every
-recording. Individual remote files may disappear; those failures use normal
-recovery and require an explicit user choice before skipping.
+The published 0.10.5 Dart registration map and Android MediaSource cache retain
+removed sources. A six-item visible playlist alone therefore does not bound
+memory during infinite playback. `packages/just_audio` contains the MIT-licensed
+0.10.5 package with a small local patch: release unreachable Dart registrations,
+preserve the current identity during root prefix removal, and prune Android's
+source cache after root removal. See [the patch notes](../packages/just_audio/LOCAL_CHANGES.md).
+The regression uses the real Dart player with a controlled native platform,
+performing 1,000 incremental removals/appends. Android Java and Darwin native
+execution have not been verified on a device here.
 
-| Reciter | Collection / evidence | Strategy |
-| --- | --- | --- |
-| Mishary Alafasy | [Alafasy_128kbps](https://everyayah.com/data/Alafasy_128kbps/) | Separate SSS000.mp3 |
-| Abdurrahman As-Sudais | [Abdurrahmaan_As-Sudais_192kbps](https://everyayah.com/data/Abdurrahmaan_As-Sudais_192kbps/) | Separate SSS000.mp3 |
-| Abdul Basit Murattal | [Abdul_Basit_Murattal_192kbps](https://everyayah.com/data/Abdul_Basit_Murattal_192kbps/) | Separate SSS000.mp3 |
-| Abdul Basit Mujawwad | [Abdul_Basit_Mujawwad_128kbps](https://everyayah.com/data/Abdul_Basit_Mujawwad_128kbps/) | Separate SSS000.mp3 |
-| Al-Husary | [Husary_128kbps](https://everyayah.com/data/Husary_128kbps/) | Unverified: no listed 002000/112000; do not infer embedded audio |
-| Abu Bakr Ash-Shaatree | [Abu_Bakr_Ash-Shaatree_128kbps](https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/) | Separate SSS000.mp3 |
-| Ahmed Al-Ajamy | [ahmed_ibn_ali_al_ajamy_128kbps](https://everyayah.com/data/ahmed_ibn_ali_al_ajamy_128kbps/) | Separate SSS000.mp3 |
-| Maher Al Muaiqly | [MaherAlMuaiqly128kbps](https://everyayah.com/data/MaherAlMuaiqly128kbps/) | Separate SSS000.mp3 |
-| Al-Minshawy Murattal | [Minshawy_Murattal_128kbps](https://everyayah.com/data/Minshawy_Murattal_128kbps/) | Separate SSS000.mp3 |
-| Al-Minshawy Mujawwad | [Minshawy_Mujawwad_192kbps](https://everyayah.com/data/Minshawy_Mujawwad_192kbps/) | Separate SSS000.mp3 |
-| Hani Rifai | [Hani_Rifai_192kbps](https://everyayah.com/data/Hani_Rifai_192kbps/) | Unverified: no listed 002000/112000; do not infer embedded audio |
-| Ali Al-Hudhaify | [Hudhaify_128kbps](https://everyayah.com/data/Hudhaify_128kbps/) | Separate SSS000.mp3 |
-| Muhammad Ayyoub | [Muhammad_Ayyoub_128kbps](https://everyayah.com/data/Muhammad_Ayyoub_128kbps/) | Separate SSS000.mp3 |
-| Nasser Al Qatami | [Nasser_Alqatami_128kbps](https://everyayah.com/data/Nasser_Alqatami_128kbps/) | Separate SSS000.mp3 |
-| Yasser Ad-Dussary | [Yasser_Ad-Dussary_128kbps](https://everyayah.com/data/Yasser_Ad-Dussary_128kbps/) | Separate SSS000.mp3 |
-| Saud Ash-Shuraym | [Saood_ash-Shuraym_128kbps](https://everyayah.com/data/Saood_ash-Shuraym_128kbps/) | Separate SSS000.mp3 |
-| Abdullah Basfar | [Abdullah_Basfar_192kbps](https://everyayah.com/data/Abdullah_Basfar_192kbps/) | Mixed collection: 112000/113000/114000 enabled; other surahs remain unverified |
-| Saad Al-Ghamdi | [Ghamadi_40kbps](https://everyayah.com/data/Ghamadi_40kbps/) | Named standalone bismillah.mp3; 002000 is absent |
-| Fares Abbad | [Fares_Abbad_64kbps](https://everyayah.com/data/Fares_Abbad_64kbps/) | Separate SSS000.mp3 |
-| Abdullah Al-Juhany | [Abdullaah_3awwaad_Al-Juhaynee_128kbps](https://everyayah.com/data/Abdullaah_3awwaad_Al-Juhaynee_128kbps/) | Separate SSS000.mp3 |
-| Ali Jaber | [Ali_Jaber_64kbps](https://everyayah.com/data/Ali_Jaber_64kbps/) | Separate SSS000.mp3 |
-| Salah Bukhatir | [Salaah_AbdulRahman_Bukhatir_128kbps](https://everyayah.com/data/Salaah_AbdulRahman_Bukhatir_128kbps/) | Separate SSS000.mp3 |
+## Bismillah content audit — 6 November 2026
 
-The app does not guess 000000.mp3, reuse another reciter, or assume a missing file
-means the opening ayah includes Bismillah. Unverified cases present an explanation
-with Retry, Continue without Bismillah and Stop. **Al-Husary, Hani Rifai and the
-remaining Basfar openings need an auditory audit before their policies can be
-expanded.** The enabled SSS000 introductions and adjacent opening ayahs also need
-listening checks to rule out upstream segmentation/content errors.
+The previous directory-name assumptions have been replaced with per-surah
+policies: `notRequired`, `embeddedInOpeningAyah`, `separateVerifiedRecording`, or
+`unverified`. Each enabled destination and separate source is bound to the SHA-256
+of the content examined. Descriptors carry the source URL, physical/cache identity,
+evidence and independently checked same-collection alternatives where available.
 
-Al-Fatihah and At-Tawbah never get a separate introduction. Starting after ayah 1
-omits it. A completed introduction is not replayed on an ayah retry or verse repeat;
-a range cycle starting at ayah 1 includes it again.
+**Actual audio review performed:** 163 MP3 clips spanning all 22 configured
+reciters were decoded with ffmpeg and transcribed in Arabic using sherpa-onnx
+multilingual Whisper tiny and small int8, with base-model corroboration for a
+subset. Samples cover available `001000/001001`, `002000/002001`,
+`112000/112001`, `114000/114001`, plus the named `bismillah.mp3` recordings found
+for Al-Husary, Hani Rifai and Al-Ghamdi. This is automatic content review, **not
+human listening or independent voice/style identification**. ASR can omit or
+hallucinate words, particularly in recitation and muqattaat.
+
+Direct EveryAyah requests were blocked by the environment's network policy. Actual
+bytes were obtained from the public [maqra mirror](https://github.com/Abdalla-Eldoumani/maqra)
+at revision `cf6f004bfb5fa24017db479d39676a4a908f518a`. Its manifests identify the
+EveryAyah collection, reciter/style, file SHA-256 and upstream-MD5 verification
+state. Downloaded bytes were checked against those hashes. The app still requests
+the original EveryAyah URL and rejects changed bytes for enabled policies.
+
+[The committed evidence](bismillah-content-audit.json) contains clip URLs,
+durations, actual model transcripts, hashes, manifest matches, provenance and the
+complete enabled policy data. Model release URLs are recorded there. The
+[policy builder](../tool/build_bismillah_audit.py) requires a clean normalized
+small-model Bismillah phrase, rejects recognized isti‘adhah in corroborating
+output, and requires the destination opening transcript to match its ayah alone
+before adding anything. Missing or ambiguous evidence does not enable a policy.
+
+Findings that changed the old assumptions:
+
+- Al-Husary and Hani Rifai have named Bismillah recordings. Their named clips
+  transcribe as exactly the intended phrase in both tiny and small models;
+  separately examined `001001.mp3` files provide alternatives.
+- Abdullah Basfar's sampled `001001.mp3` transcribes as Bismillah alone and can be
+  reused for the three examined destinations below. Its other destinations are
+  not inferred from that result.
+- Abdul Basit Murattal's sampled `SSS000` clips include isti‘adhah as well as
+  Bismillah; they are not enabled as clean introductions. A clean same-collection
+  `001001.mp3` is used only with checked destinations.
+- Ash-Shaatree's sampled `SSS000` files transcribe as isti‘adhah without Bismillah.
+  Plausible filenames are therefore insufficient. That collection remains
+  unresolved in the production policy.
+
+### Enabled coverage and unresolved openings
+
+**32 destination openings across 18 reciters** currently meet the automated audit
+criteria. All are separate-introduction policies; embedded behavior is implemented
+and tested with explicit synthetic fixtures, but no actual sampled destination
+provided conclusive embedded evidence. The table lists all enabled surahs.
+Every other surah from 2–114 except 9 remains `unverified` for that reciter,
+including unreviewed destinations and ambiguous sampled clips. This is partial
+coverage, not a completed corpus-wide listening audit: **2,432 of 2,464 applicable
+reciter/surah openings still need verification**.
+
+| Reciter | Enabled surahs |
+| --- | --- |
+| Mishary Alafasy | 112, 114 |
+| Abdurrahman As-Sudais | 112, 114 |
+| Abdul Basit Murattal | 112, 114 |
+| Abdul Basit Mujawwad | 114 |
+| Al-Husary | 112, 114 |
+| Abu Bakr Ash-Shaatree | None |
+| Ahmed Al-Ajamy | 112, 114 |
+| Maher Al Muaiqly | 112 |
+| Al-Minshawy Murattal | 112, 114 |
+| Al-Minshawy Mujawwad | None |
+| Hani Rifai | 112, 114 |
+| Ali Al-Hudhaify | 112, 114 |
+| Muhammad Ayyoub | 112, 114 |
+| Nasser Al Qatami | 114 |
+| Yasser Ad-Dussary | 112, 114 |
+| Saud Ash-Shuraym | 2, 114 |
+| Abdullah Basfar | 2, 112, 114 |
+| Saad Al-Ghamdi | 112 |
+| Fares Abbad | 2, 114 |
+| Abdullah Al-Juhany | None |
+| Ali Jaber | None |
+| Salah Bukhatir | 112 |
+
+Before a selection starts, unresolved openings produce one Continue/Cancel choice,
+with optional Remember for this reciter. The dialog explicitly says original
+recordings do not guarantee Bismillah. Consent applies to the selection and its
+repeats; verified policies elsewhere remain enabled. Unverified introductions
+never enter network retry loops. Offline download reports unresolved coverage
+instead of claiming all introductions are available.
+
+Verified introduction failures try configured verified alternatives, then bounded
+recovery. Continue without the additional introduction suppresses that physical
+introduction for the session and still plays ayah 1. No different reciter is
+substituted. Al-Fatihah and At-Tawbah never get an added introduction. Starting
+after ayah 1 adds none, and resuming/retrying a numbered ayah never replays its
+finished separate introduction. Recordings are not crossfaded, overlapped or
+silence-trimmed.
 
 ## Tasbeeh
 
@@ -109,21 +181,32 @@ cream-and-charcoal specification was used instead.
 
 ## Validation and remaining device checks
 
-Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze` reports no
-issues; `flutter test` passes all **195 tests**. `git diff --check` is clean.
+Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze --no-pub` reports
+no issues; `flutter test --no-pub --reporter expanded` passes all **208 tests**.
+`git diff --check` is clean. The audit builder regenerates 163 clip records and
+32 enabled destination policies; its Python syntax check also passes.
 
-Automated tests cover the real repository with controlled Dio transport and real
-filesystem/MP3 fixtures, plus delayed native-source loads, stream errors and sticky
-EOF. They cover recovery limits, stale sessions, interruption/pause intent,
-background command routing, range/verse repeats, surah boundaries, introduction
-identity/offline cache, modal recovery controls, statistics and page following.
-Tasbeeh tests cover rapid/cancelled taps, serialized saves, restoration, targets,
-large counts, Reset confirmation, Settings navigation and small/large phones,
-landscape and tablet layouts in both themes at increased text scale.
+The regression suite simulates native automatic sequence transitions. It covers
+one initial queue setup for adjacent cached ayahs, prefix identity/position,
+2,500 transitions with bounded queues, actual Dart player source registration
+retention over 1,000 transitions, finite/infinite repetitions, delayed/failed
+prefetch, EOF during an in-flight append, healthy-current/future-source failure
+isolation, recovery position, stale callbacks, Stop/Pause/navigation/replacement,
+background controls, metadata and highlight behavior. Existing statistics,
+page-following and Tasbeeh regressions remain included.
 
-`flutter devices --machine` found only Linux. No Android/iOS emulator or physical
-phone is attached. Native lock-screen, Bluetooth, calls, background service
-survival, AVQueuePlayer repeats and audible reciter content **have not been
-validated on hardware**. Use the updated `tool/audio_repeat_smoke.dart` harness
-and `tool/audio_repeat_smoke.md`, then test real recitations on both platforms.
-The smoke harness uses a generated tone and does not certify Bismillah content.
+Bismillah tests distinguish synthetic behavior fixtures from actual audit
+evidence. They cover separate/embedded/unverified mixtures, per-surah policy,
+playlist/repeat consent, persistence per reciter, verified alternatives, offline
+cache reuse, mismatched opening hashes and introduction identity. An integrity
+test checks that all production descriptors match the committed same-collection
+clip evidence; it does not certify ASR accuracy.
+
+Only Linux is available in `flutter devices --machine`. No Android/iOS emulator or
+physical phone is attached. Android/iOS builds, audible transition gaps, intrinsic
+recitation silence, locked-screen playback, Bluetooth/calls, service survival and
+AVQueuePlayer behavior have **not** been measured on hardware. The expanded
+[native smoke diagnostic](../tool/audio_repeat_smoke.md) can run generated cached
+segments or real short recitations, introductions and repeats. It reports native
+index-event timing separately from any actual audio-output measurement. A passing
+Dart test or an index-event timestamp cannot establish gapless audible playback.

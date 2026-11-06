@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path_provider/path_provider.dart';
 import '../models/quran_audio.dart';
 import '../utils/bismillah_sources.dart';
@@ -71,9 +72,30 @@ class AudioRepository implements AudioRecordingRepository {
   static String audioId(int surah, int ayah) =>
       '${surah.toString().padLeft(3, '0')}${ayah.toString().padLeft(3, '0')}';
 
-  String filename(Reciter reciter, QuranAudioItem item) => item.isIntroduction
-      ? BismillahSources.filename(reciter, item.surah)
-      : '${audioId(item.surah, item.ayah!)}.mp3';
+  AudioRecordingSource sourceFor(Reciter reciter, QuranAudioItem item) {
+    if (item.source != null) return item.source!;
+    if (item.isIntroduction) {
+      final resolution = BismillahSources.resolve(reciter, item.surah);
+      if (resolution.kind != BismillahPolicyKind.separateVerifiedRecording ||
+          resolution.source == null) {
+        throw const AudioFailure(
+          AudioFailureKind.unavailable,
+          'This introduction has no verified source. Resolve opening consent before playback.',
+        );
+      }
+      return resolution.source!;
+    }
+    final name = '${audioId(item.surah, item.ayah!)}.mp3';
+    return AudioRecordingSource(
+      id: '${reciter.id}/$name',
+      url: 'https://everyayah.com/data/${reciter.folder}/$name',
+      cacheFilename: name,
+      verification: 'Numbered EveryAyah recording',
+    );
+  }
+
+  String filename(Reciter reciter, QuranAudioItem item) =>
+      sourceFor(reciter, item).cacheFilename;
 
   Future<File> fileFor(Reciter reciter, QuranAudioItem item) async {
     final dir = await _directory();
@@ -138,7 +160,10 @@ class AudioRepository implements AudioRecordingRepository {
     final file = await fileFor(job.reciter, job.item);
     if (job.token.isCancelled) throw job.token.cancelError!;
     if (await file.exists()) {
-      if (await validMp3(file)) return file.path;
+      if (await validMp3(file) &&
+          await _matchesAudit(file, sourceFor(job.reciter, job.item))) {
+        return file.path;
+      }
       await file.delete();
     }
     await file.parent.create(recursive: true);
@@ -152,7 +177,7 @@ class AudioRepository implements AudioRecordingRepository {
       );
       final response = await _dio
           .download(
-            'https://everyayah.com/data/${job.reciter.folder}/${filename(job.reciter, job.item)}',
+            sourceFor(job.reciter, job.item).url,
             temp.path,
             cancelToken: requestToken,
             onReceiveProgress: (received, total) {
@@ -181,6 +206,12 @@ class AudioRepository implements AudioRecordingRepository {
           'The downloaded recording is incomplete or is not valid MP3 audio.',
         );
       }
+      if (!await _matchesAudit(temp, sourceFor(job.reciter, job.item))) {
+        throw const AudioFailure(
+          AudioFailureKind.corrupt,
+          'The recording differs from the file used for opening verification.',
+        );
+      }
       if (job.token.isCancelled) throw job.token.cancelError!;
       // rename is atomic on the same filesystem; .part files are never playable.
       await temp.rename(file.path);
@@ -200,6 +231,12 @@ class AudioRepository implements AudioRecordingRepository {
     } finally {
       if (await temp.exists()) await temp.delete();
     }
+  }
+
+  Future<bool> _matchesAudit(File file, AudioRecordingSource source) async {
+    if (source.sha256 == null) return true;
+    return (await crypto.sha256.bind(file.openRead()).first).toString() ==
+        source.sha256;
   }
 
   /// Check MPEG Layer III frame structure, including ID3 tags and truncated

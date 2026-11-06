@@ -12,13 +12,19 @@ import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
+import 'package:mushaf_two_page/components/audio_modal.dart';
+import 'package:mushaf_two_page/utils/bismillah_sources.dart';
 
+const _realAudio = bool.fromEnvironment('AUDIO_SMOKE_REAL');
+const _audible = bool.fromEnvironment('AUDIO_SMOKE_AUDIBLE');
+final _navigator = GlobalKey<NavigatorState>();
 final _status = ValueNotifier<String>('Preparing native playback checks…');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
     MaterialApp(
+      navigatorKey: _navigator,
       home: Scaffold(
         body: Center(
           child: ValueListenableBuilder(
@@ -52,15 +58,23 @@ Future<void> main() async {
     final player = AudioPlayer(maxSkipsOnError: 0);
     // Decode normally, quietly. Native EOF and item transitions must occur;
     // extrapolated position alone is not accepted as proof of a completed loop.
-    await player.setVolume(0);
+    await player.setVolume(_realAudio || _audible ? 1 : 0);
     final source = AudioSource.file(fixture.path);
     // This standalone diagnostic deliberately uses the test injection with a
     // real player, retaining the production background and native audio layers.
     // ignore: invalid_use_of_visible_for_testing_member
     final controller = QuranAudioController.forTesting(
       player: player,
-      prepareSources: (plan) async => [source],
+      prepareSources: _realAudio ? null : (plan) async => [source],
+      resolveIntroduction: _realAudio
+          ? BismillahSources.resolve
+          : _fixturePolicy,
     );
+    controller.requestOpeningConsent = (reciter, surahs) async {
+      final context = _navigator.currentContext;
+      if (context == null) return const OpeningConsent.cancel();
+      return AudioModal.confirmUnverifiedOpenings(context, reciter, surahs);
+    };
     await AudioService.init(
       builder: () => QuranAudioHandler(controller),
       config: const AudioServiceConfig(
@@ -70,8 +84,8 @@ Future<void> main() async {
       ),
     );
     try {
-      for (final count in [3, 5, 10]) {
-        for (final ayahs in [1, 2]) {
+      for (final count in (_realAudio ? [1, 2] : [3, 5, 10])) {
+        for (final ayahs in (_realAudio ? [2, 4] : [1, 2])) {
           results.add(await _check(controller, player, _plan(count, ayahs)));
           await save('running');
         }
@@ -117,6 +131,23 @@ AudioPlaybackPlan _plan(
   surahQueue: queue ? [112, 114] : const [],
 );
 
+BismillahResolution _fixturePolicy(Reciter reciter, int surah) =>
+    surah == 1 || surah == 9
+    ? const BismillahResolution(
+        BismillahPolicyKind.notRequired,
+        evidence: 'Product rule',
+      )
+    : BismillahResolution(
+        BismillahPolicyKind.separateVerifiedRecording,
+        evidence: 'Generated diagnostic tone',
+        source: AudioRecordingSource(
+          id: 'tone',
+          url: 'file:///diagnostic-tone.wav',
+          cacheFilename: 'diagnostic-tone.wav',
+          verification: 'Generated tone; no reciter-content claim',
+        ),
+      );
+
 Future<Map<String, Object?>> _check(
   QuranAudioController controller,
   AudioPlayer player,
@@ -125,71 +156,120 @@ Future<Map<String, Object?>> _check(
 }) async {
   _status.value =
       'Checking ${plan.rangeLabel}, ${plan.repeatLabel}, ${plan.repeatMode.name}';
-  var completions = 0;
-  final progressed = <String>{};
-  final completionSub = player.processingStateStream.listen((state) {
-    if (state == ProcessingState.completed) completions++;
-  });
-  final timer = Timer.periodic(const Duration(milliseconds: 30), (_) {
-    if (controller.playing &&
-        player.processingState == ProcessingState.ready &&
-        player.position.inMilliseconds >= 100 &&
-        controller.currentAyah != null) {
-      progressed.add(
-        '${controller.currentRepeat}:${controller.currentSurah}:${controller.currentAyah}',
-      );
-    }
-  });
   final watch = Stopwatch()..start();
+  final transitions = <Map<String, Object?>>[];
+  final progressed = <String>{};
+  var nativeEnds = 0, maxQueue = 0, maxSources = 0;
+  String? lastOccurrence;
+  int? previousStart, previousDuration;
+  void capture() {
+    if (!player.playing || player.processingState != ProcessingState.ready) {
+      return;
+    }
+    final tag = player.sequenceState.currentSource?.tag;
+    if (tag is! QuranAudioOccurrence) return;
+    maxQueue = math.max(maxQueue, player.sequence.length);
+    // ignore: invalid_use_of_visible_for_testing_member
+    maxSources = math.max(maxSources, player.retainedAudioSourceCount);
+    if (lastOccurrence == tag.occurrenceId) {
+      previousDuration ??= player.duration?.inMilliseconds;
+      if (!tag.item.isIntroduction && player.position.inMilliseconds >= 100) {
+        progressed.add(tag.occurrenceId);
+      }
+      return;
+    }
+    final now = watch.elapsedMilliseconds;
+    transitions.add({
+      'occurrence': tag.occurrenceId,
+      'recording': tag.recordingId,
+      'item': tag.item.key,
+      'verseRepeat': tag.verseRepetition,
+      'rangeCycle': tag.rangeCycle,
+      'atMs': now,
+      'previousDurationMs': previousDuration,
+      'boundaryEventExcessMs': previousStart == null || previousDuration == null
+          ? null
+          : now - previousStart! - previousDuration!,
+      'positionMs': player.position.inMilliseconds,
+    });
+    lastOccurrence = tag.occurrenceId;
+    previousStart = now;
+    previousDuration = player.duration?.inMilliseconds;
+  }
+
+  final sequenceSub = player.sequenceStateStream.listen((_) => capture());
+  final completionSub = player.processingStateStream.listen((state) {
+    if (state == ProcessingState.completed) nativeEnds++;
+  });
+  final timer = Timer.periodic(
+    const Duration(milliseconds: 20),
+    (_) => capture(),
+  );
   try {
     await controller.playPlan(plan);
+    if (!controller.hasActivePlayback) {
+      throw StateError('Playback was cancelled before starting');
+    }
     while (controller.hasActivePlayback) {
-      if (stopAfter != null && completions >= stopAfter) {
+      capture();
+      if (stopAfter != null && transitions.length >= stopAfter) {
         await controller.stop();
         break;
       }
-      if (watch.elapsed > const Duration(seconds: 60)) {
-        throw StateError(
-          'Playback stalled: cycle=${controller.currentRepeat}, '
-          'nativeEOF=$completions, ayah=${controller.currentAyah}, '
-          'state=${player.processingState}, playing=${player.playing}',
-        );
+      if (controller.error != null) throw StateError(controller.error!);
+      if (watch.elapsed > Duration(minutes: _realAudio ? 10 : 2)) {
+        throw StateError('Native playback stalled');
       }
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
-    // Allow stream deliveries from the final native EOF to settle.
     await Future<void>.delayed(const Duration(milliseconds: 100));
-    if (controller.error != null) throw StateError(controller.error!);
-    final introductions = plan
+    final intros = plan
         .uniqueVerses()
-        .where((v) => v.ayah == 1 && v.surah != 1 && v.surah != 9)
+        .where(
+          (v) =>
+              v.ayah == 1 &&
+              controller.resolveIntroduction(plan.reciter, v.surah).kind ==
+                  BismillahPolicyKind.separateVerifiedRecording,
+        )
         .length;
-    final expectedItems = plan.visibleRepeatCount * plan.uniqueAyahCount;
-    final expectedCompletions =
-        stopAfter ??
-        expectedItems +
-            introductions *
-                (plan.repeatMode == AudioRepeatMode.range
-                    ? plan.visibleRepeatCount
-                    : 1);
-    if (completions != expectedCompletions ||
-        (stopAfter == null && progressed.length < expectedItems)) {
+    final expected =
+        plan.uniqueAyahCount * plan.visibleRepeatCount +
+        intros *
+            (plan.repeatMode == AudioRepeatMode.range
+                ? plan.visibleRepeatCount
+                : 1);
+    if (stopAfter == null &&
+        (transitions.length != expected ||
+            progressed.length <
+                plan.uniqueAyahCount * plan.visibleRepeatCount)) {
       throw StateError(
-        'Expected $expectedCompletions native EOFs and $expectedItems '
-        'advancing ayahs; got $completions EOFs and ${progressed.length} ayahs.',
+        'Expected $expected occurrences; observed ${transitions.length}, ${progressed.length} advancing ayahs',
       );
+    }
+    if (maxQueue > 6 || maxSources > 7) {
+      throw StateError('Unbounded native queue/source registrations');
     }
     return {
       'repeatCount': plan.repeatCount,
       'repeatMode': plan.repeatMode.name,
       'sourceMode': plan.sourceMode.name,
-      'ayahsPerCycle': plan.uniqueAyahCount,
-      'nativeCompletions': completions,
+      'realRecitations': _realAudio,
+      'nativeEnds': nativeEnds,
+      'queueLoads': controller.queueReloadCount,
+      'maxQueue': maxQueue,
+      'maxRegisteredSourcesIncludingRoot': maxSources,
       'advancingAyahs': progressed.length,
       'elapsedMs': watch.elapsedMilliseconds,
+      'transitions': transitions,
+      'intrinsicFixtureHeadSilenceMs': _realAudio ? null : 40,
+      'intrinsicFixtureTailSilenceMs': _realAudio ? null : 60,
+      'measurement':
+          'Native index-event intervals, not an audio-output gap measurement. '
+          'Recording duration includes its existing silence; no trimming or crossfade.',
     };
   } finally {
     timer.cancel();
+    await sequenceSub.cancel();
     await completionSub.cancel();
     await controller.stop();
   }
@@ -219,7 +299,9 @@ Uint8List _tone() {
   for (var i = 0; i < samples; i++) {
     data.setInt16(
       44 + i * 2,
-      (math.sin(2 * math.pi * 440 * i / rate) * 8000).round(),
+      i < rate * .04 || i >= samples - rate * .06
+          ? 0
+          : (math.sin(2 * math.pi * 440 * i / rate) * 8000).round(),
       Endian.little,
     );
   }

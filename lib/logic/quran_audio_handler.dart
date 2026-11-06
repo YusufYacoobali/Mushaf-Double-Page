@@ -67,7 +67,7 @@ class QuranAudioHandler extends BaseAudioHandler with SeekHandler {
           _ => AudioProcessingState.ready,
         },
         playing: c.playing,
-        updatePosition: c.player.position,
+        updatePosition: c.playbackPosition,
         bufferedPosition: c.player.bufferedPosition,
         speed: 1,
         errorCode: c.failure == null ? null : 1,
