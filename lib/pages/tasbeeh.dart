@@ -169,51 +169,55 @@ class _TasbeehPageState extends State<TasbeehPage> with WidgetsBindingObserver {
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(ctx).height * .8,
           ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const ListTile(title: Text('Custom dhikr')),
-                for (final dhikr in _store.dhikrs.where((d) => d.custom))
-                  ListTile(
-                    title: Text(dhikr.label),
-                    trailing: IconButton(
-                      tooltip: 'Delete ${dhikr.label}',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () async {
-                        final remove = await showDialog<bool>(
-                          context: context,
-                          builder: (dctx) => AlertDialog(
-                            title: const Text('Delete custom dhikr?'),
-                            content: Text(
-                              'Delete ${dhikr.label} and its saved count?',
+          // The modal's useSafeArea protects only its top and sides.
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const ListTile(title: Text('Custom dhikr')),
+                  for (final dhikr in _store.dhikrs.where((d) => d.custom))
+                    ListTile(
+                      title: Text(dhikr.label),
+                      trailing: IconButton(
+                        tooltip: 'Delete ${dhikr.label}',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          final remove = await showDialog<bool>(
+                            context: context,
+                            builder: (dctx) => AlertDialog(
+                              title: const Text('Delete custom dhikr?'),
+                              content: Text(
+                                'Delete ${dhikr.label} and its saved count?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(dctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(dctx, true),
+                                  child: const Text('Delete'),
+                                ),
+                              ],
                             ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(dctx, false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(dctx, true),
-                                child: const Text('Delete'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (remove == true) _store.removeCustom(dhikr.id);
-                      },
+                          );
+                          if (remove == true) _store.removeCustom(dhikr.id);
+                        },
+                      ),
                     ),
+                  ListTile(
+                    leading: const Icon(Icons.add),
+                    title: const Text('Add custom dhikr'),
+                    onTap: () async {
+                      final label = await _textInput('Custom dhikr');
+                      if (label != null) _store.addCustom(label);
+                    },
                   ),
-                ListTile(
-                  leading: const Icon(Icons.add),
-                  title: const Text('Add custom dhikr'),
-                  onTap: () async {
-                    final label = await _textInput('Custom dhikr');
-                    if (label != null) _store.addCustom(label);
-                  },
-                ),
-                const SizedBox(height: 24),
-              ],
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
         ),

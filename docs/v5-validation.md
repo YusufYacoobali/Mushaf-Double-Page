@@ -176,6 +176,8 @@ increment once. Undo, Reset, Back and dhikr controls keep their own actions;
 scrolls, cancelled gestures and modal interactions do not add counts. The LCD and
 main button also expose an accessible count action. The gear opens custom dhikr
 management; vibration, sound, targets and completion feedback have been removed.
+The management sheet keeps its scrollable actions above the bottom system safe
+area, including Android's navigation bar, so Add custom dhikr stays reachable.
 
 Built-in Arabic/transliteration/meaning choices, custom dhikr add/delete, separate
 counts and the selected dhikr persist in `tasbeeh_state_v1`. Legacy snapshots are
@@ -191,7 +193,7 @@ cream-and-charcoal specification was used instead.
 ## Validation and remaining device checks
 
 Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze --no-pub` reports
-no issues; `flutter test --no-pub --reporter expanded` passes all **273 tests**.
+no issues; `flutter test --no-pub --reporter expanded` passes all **279 tests**.
 `git diff --check` is clean. The audit builder regenerates 163 clip records and
 32 enabled destination policies; its Python syntax check also passes.
 
@@ -207,6 +209,8 @@ page-following and Tasbeeh regressions remain included.
 Tasbeeh regressions cover screen-wide/rapid/cancelled taps, accessibility actions,
 silent counting, legacy migration, serialized saves, restoration, large counts,
 Reset confirmation, Back/Settings controls and adaptive phone/tablet layouts.
+Dhikr sheets also measure rendered action bounds with gesture/navigation-bar
+insets in portrait and landscape, short and long custom lists, and enlarged text.
 
 Bismillah tests distinguish synthetic behavior fixtures from actual audit
 evidence. They cover separate/embedded/unverified mixtures, per-surah policy,
