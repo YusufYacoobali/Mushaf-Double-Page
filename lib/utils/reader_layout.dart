@@ -60,8 +60,8 @@ class ReaderLayout {
         ? [sameRow.first, sameRow.last]
         : [largest];
     for (final region in candidates) {
-      // Reserve a stable controls gutter, including the contextual audio bar.
-      // Revealing controls consequently does not change page mode or location.
+      // Keep spread planning stable as controls appear and disappear. A single
+      // page with a bottom dock uses the full safe region below, with overlays.
       final right = !bottom && region == controls ? 140.0 : 0.0;
       final bottomGutter = bottom ? 142.0 : 0.0;
       pageBounds.add(
@@ -103,7 +103,7 @@ class ReaderLayout {
               math.min(r.width, r.height * pageAspectRatio) >=
                   (landscape ? 180 : 240),
         );
-    final single = pageBounds.reduce(
+    final single = (bottom ? candidates : pageBounds).reduce(
       (a, b) => a.width * a.height >= b.width * b.height ? a : b,
     );
     return ReaderLayout(

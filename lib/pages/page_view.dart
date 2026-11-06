@@ -82,6 +82,7 @@ class QuranPageView {
                 height: constraints.maxHeight,
                 child: Center(
                   child: SizedBox(
+                    key: ValueKey('quran-page-$logicalPage'),
                     width: width,
                     height: width / aspectRatio,
                     child: Listener(

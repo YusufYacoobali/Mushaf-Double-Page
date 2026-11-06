@@ -54,6 +54,24 @@ void main() {
       expect(r.bottom, lessThanOrEqualTo(369));
     }
   });
+  test(
+    'single pages use the full safe height beneath bottom control overlays',
+    () {
+      final compact = ReaderLayout.resolve(size: const Size(320, 568));
+      expect(compact.singlePage, isTrue);
+      expect(compact.bottomDock, isTrue);
+      expect(compact.pageRegions.single, const Rect.fromLTWH(0, 0, 320, 568));
+      final inset = ReaderLayout.resolve(
+        size: const Size(320, 568),
+        padding: const EdgeInsets.only(top: 20, bottom: 24),
+      );
+      expect(inset.pageRegions.single, const Rect.fromLTWH(0, 20, 320, 524));
+      // Wide portrait spreads still reserve their stable contextual-dock gutter.
+      final spread = ReaderLayout.resolve(size: const Size(900, 900));
+      expect(spread.singlePage, isFalse);
+      expect(spread.pageRegions.every((r) => r.bottom == 758), isTrue);
+    },
+  );
   for (final type in [DisplayFeatureType.hinge, DisplayFeatureType.fold]) {
     test(
       'separating $type gives each page a region and keeps all controls clear',

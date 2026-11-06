@@ -18,9 +18,11 @@ separate decisions.
 2. Place controls in one safe region. Use the bottom dock in portrait/square
    windows, or in one sufficiently wide pane of a hinged display. Its region must
    be at least 300 logical pixels wide. Other windows use the side dock.
-3. Reserve stable gutters for expanded controls and the contextual audio bar:
-   142 logical pixels at the bottom or 140 at the right. Revealing/hiding controls
-   does not change the page mode.
+3. Use stable gutters when planning and displaying spreads: 142 logical pixels
+   at the bottom or 140 at the right. Single pages with a bottom dock use their
+   full safe region; controls overlay the page instead of permanently reserving
+   expanded-toolbar space. Revealing/hiding controls does not change the page
+   mode or resize the single page. Single pages with a side dock retain its gutter.
 4. For a seamless display, a spread needs a safe region at least **720 logical
    pixels wide in portrait/square windows**, or **600 in landscape**. Two separate
    side-by-side safe regions can also qualify without that overall-width gate.
@@ -37,6 +39,14 @@ preferences remain separate for single pages and spreads. Spreads retain vertica
 scrolling at larger zoom levels and RTL horizontal page turns. Layout changes
 reset a transient pinch transform to the new geometry while retaining saved zoom
 percentages and their mode-specific limits.
+
+Compact-phone follow-up: at 320 × 568 without safe insets and the saved 80% zoom,
+the single page is approximately 310 px wide for Indo-Pak and 317 px for Madani,
+instead of being constrained by the former permanent 142 px bottom gutter.
+Regressions require at least 95% of viewport width for both editions, preserve
+the native aspect ratio, and verify identical bounds and focused page with the
+dock collapsed, expanded and collapsed again. Safe insets still apply; spread
+gutters and breakpoints are unchanged.
 
 | Window | Default page mode | Dock |
 | --- | --- | --- |
@@ -129,7 +139,7 @@ in the noncompact card and Journey screen.
 ## Validation
 
 - `flutter analyze --no-pub`: no issues.
-- `flutter test --no-pub --reporter expanded`: **260 tests passed**.
+- `flutter test --no-pub --reporter expanded`: **263 tests passed**.
 - `git diff --check`: clean.
 - Targeted Flutter widget-rendering diagnostic: three navigator sizes plus the
   minimal reminder, using the actual Inter and Material icon fonts. This is
