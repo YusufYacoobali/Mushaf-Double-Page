@@ -380,6 +380,7 @@ class _TranslationModalState extends State<TranslationModal> {
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _SummarySheet(surah: surah, fontSize: _fontSize),
     );
@@ -396,6 +397,7 @@ class _TranslationModalState extends State<TranslationModal> {
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final palette = AppPalette.of(context);
@@ -667,6 +669,7 @@ class _TranslationModalState extends State<TranslationModal> {
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) {
         return Container(
@@ -1112,548 +1115,562 @@ class _TranslationModalState extends State<TranslationModal> {
           ),
         ],
       ),
-      body: _loading
-          ? Center(
-              child: CircularProgressIndicator(
-                color: palette.accent,
-                strokeWidth: 2.5,
-              ),
-            )
-          : Column(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onHorizontalDragEnd: (details) {
-                      final velocity = details.primaryVelocity ?? 0;
-                      if (velocity < -200) {
-                        _goToNextPage();
-                      } else if (velocity > 200) {
-                        _goToPreviousPage();
-                      }
-                    },
-                    child: Scrollbar(
-                      controller: _scrollController,
-                      thumbVisibility: true,
-                      interactive: true,
-                      radius: const Radius.circular(10),
-                      thickness: 6,
-                      child: ListView.builder(
+      body: SafeArea(
+        top: false,
+        child: _loading
+            ? Center(
+                child: CircularProgressIndicator(
+                  color: palette.accent,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : Column(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: (details) {
+                        final velocity = details.primaryVelocity ?? 0;
+                        if (velocity < -200) {
+                          _goToNextPage();
+                        } else if (velocity > 200) {
+                          _goToPreviousPage();
+                        }
+                      },
+                      child: Scrollbar(
                         controller: _scrollController,
-                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
-                        itemCount: _visibleItems.length,
-                        itemBuilder: (context, index) {
-                          final items = _visibleItems;
-                          final item = items[index];
+                        thumbVisibility: true,
+                        interactive: true,
+                        radius: const Radius.circular(10),
+                        thickness: 6,
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
+                          itemCount: _visibleItems.length,
+                          itemBuilder: (context, index) {
+                            final items = _visibleItems;
+                            final item = items[index];
 
-                          if (item is SurahRange) {
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 4,
-                                    height: 34,
-                                    decoration: BoxDecoration(
-                                      color: palette.accent,
-                                      borderRadius: BorderRadius.circular(99),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: TextStyle(
-                                            color: palette.text,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 1),
-                                        Text(
-                                          item.english,
-                                          style: TextStyle(
-                                            color: palette.muted,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  GestureDetector(
-                                    onTap: () => _showSummary(item),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 5,
-                                      ),
+                            if (item is SurahRange) {
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 4,
+                                      height: 34,
                                       decoration: BoxDecoration(
-                                        color: palette.accentSoft,
+                                        color: palette.accent,
                                         borderRadius: BorderRadius.circular(99),
-                                        border: Border.all(
-                                          color: palette.accent.withValues(
-                                            alpha: .2,
-                                          ),
-                                        ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Icon(
-                                            Icons.info_outline_rounded,
-                                            size: 13,
-                                            color: palette.accent,
-                                          ),
-                                          const SizedBox(width: 4),
                                           Text(
-                                            'Summary',
+                                            item.name,
                                             style: TextStyle(
-                                              color: palette.accent,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
+                                              color: palette.text,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            item.english,
+                                            style: TextStyle(
+                                              color: palette.muted,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  GestureDetector(
-                                    onTap: () =>
-                                        _toggle(_collapsedSurahs, item.surah),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(
-                                        color: palette.surface,
-                                        borderRadius: BorderRadius.circular(99),
-                                        border: Border.all(
-                                          color: palette.border,
-                                        ),
-                                      ),
-                                      child: Icon(
-                                        _collapsedSurahs.contains(item.surah)
-                                            ? Icons.keyboard_arrow_down_rounded
-                                            : Icons.keyboard_arrow_up_rounded,
-                                        size: 16,
-                                        color: palette.muted,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-
-                          final surahNum = item['surah'] as int;
-                          final ayahNumber = item['ayah'] as int;
-                          final trans = item['trans'] as Map<String, String>;
-                          final tafseer =
-                              item['tafseer'] as Map<String, String>;
-                          final arabic = item['arabic'] as String;
-                          final prevIsHeader =
-                              index == 0 || items[index - 1] is SurahRange;
-                          final nextIsHeader =
-                              index == items.length - 1 ||
-                              items[index + 1] is SurahRange;
-
-                          final allText = [
-                            ...trans.values,
-                            if (_selectedTafseer.isNotEmpty) ...tafseer.values,
-                          ].join('\n\n');
-                          final isBookmarked = _bookmarkedAyahs.contains(
-                            '$surahNum:$ayahNumber',
-                          );
-                          final isFocused =
-                              surahNum == widget.focusSurah &&
-                              ayahNumber == widget.focusAyah;
-                          final rowBorder = isFocused
-                              ? palette.accent
-                              : palette.border;
-
-                          return Container(
-                            key: isFocused ? _focusedAyahKey : null,
-                            decoration: BoxDecoration(
-                              color: isFocused
-                                  ? palette.accentSoft
-                                  : palette.surface,
-                              borderRadius: _rowRadius(
-                                first: prevIsHeader,
-                                last: nextIsHeader,
-                              ),
-                              border: Border(
-                                left: BorderSide(
-                                  color: rowBorder,
-                                  width: isFocused ? 2 : 1,
-                                ),
-                                right: BorderSide(
-                                  color: rowBorder,
-                                  width: isFocused ? 2 : 1,
-                                ),
-                                top: prevIsHeader
-                                    ? BorderSide(color: rowBorder)
-                                    : BorderSide.none,
-                                bottom: BorderSide(color: rowBorder),
-                              ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(10, 6, 4, 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Top row: ayah badge + menu
-                                  Row(
-                                    children: [
-                                      Container(
+                                    GestureDetector(
+                                      onTap: () => _showSummary(item),
+                                      child: Container(
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
+                                          horizontal: 10,
+                                          vertical: 5,
                                         ),
                                         decoration: BoxDecoration(
                                           color: palette.accentSoft,
                                           borderRadius: BorderRadius.circular(
-                                            999,
+                                            99,
                                           ),
                                           border: Border.all(
                                             color: palette.accent.withValues(
-                                              alpha: .18,
+                                              alpha: .2,
                                             ),
                                           ),
                                         ),
-                                        child: Text(
-                                          ayahNumber.toString(),
-                                          style: TextStyle(
-                                            color: palette.accent,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                            height: 1,
-                                          ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.info_outline_rounded,
+                                              size: 13,
+                                              color: palette.accent,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Summary',
+                                              style: TextStyle(
+                                                color: palette.accent,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const Spacer(),
-                                      GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: () => _toggleAyahBookmark(
-                                          surahNum,
-                                          ayahNumber,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(4),
-                                          child: Icon(
-                                            isBookmarked
-                                                ? Icons.bookmark_rounded
-                                                : Icons.bookmark_border_rounded,
-                                            color: isBookmarked
-                                                ? palette.accent
-                                                : palette.surfaceMuted,
-                                            size: 19,
-                                          ),
-                                        ),
-                                      ),
-                                      PopupMenuButton<String>(
-                                        popUpAnimationStyle: AppMotion.style(
-                                          context,
-                                        ),
-                                        icon: Icon(
-                                          Icons.more_vert_rounded,
-                                          color: palette.surfaceMuted,
-                                          size: 18,
-                                        ),
-                                        padding: EdgeInsets.zero,
-                                        tooltip: 'Actions',
-                                        color: palette.surfaceRaised,
-                                        shape: RoundedRectangleBorder(
+                                    ),
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      onTap: () =>
+                                          _toggle(_collapsedSurahs, item.surah),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(5),
+                                        decoration: BoxDecoration(
+                                          color: palette.surface,
                                           borderRadius: BorderRadius.circular(
-                                            14,
+                                            99,
+                                          ),
+                                          border: Border.all(
+                                            color: palette.border,
                                           ),
                                         ),
-                                        onSelected: (value) {
-                                          if (value == 'copy') {
-                                            _copyText(
-                                              context,
-                                              palette,
-                                              allText,
-                                            );
-                                          } else {
-                                            SharePlus.instance.share(
-                                              ShareParams(text: allText),
-                                            );
-                                          }
-                                        },
-                                        itemBuilder: (context) => [
-                                          PopupMenuItem(
-                                            value: 'copy',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.copy_rounded,
-                                                  color: palette.accent,
-                                                  size: 18,
-                                                ),
-                                                const SizedBox(width: 10),
-                                                const Text('Copy'),
-                                              ],
+                                        child: Icon(
+                                          _collapsedSurahs.contains(item.surah)
+                                              ? Icons
+                                                    .keyboard_arrow_down_rounded
+                                              : Icons.keyboard_arrow_up_rounded,
+                                          size: 16,
+                                          color: palette.muted,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            final surahNum = item['surah'] as int;
+                            final ayahNumber = item['ayah'] as int;
+                            final trans = item['trans'] as Map<String, String>;
+                            final tafseer =
+                                item['tafseer'] as Map<String, String>;
+                            final arabic = item['arabic'] as String;
+                            final prevIsHeader =
+                                index == 0 || items[index - 1] is SurahRange;
+                            final nextIsHeader =
+                                index == items.length - 1 ||
+                                items[index + 1] is SurahRange;
+
+                            final allText = [
+                              ...trans.values,
+                              if (_selectedTafseer.isNotEmpty)
+                                ...tafseer.values,
+                            ].join('\n\n');
+                            final isBookmarked = _bookmarkedAyahs.contains(
+                              '$surahNum:$ayahNumber',
+                            );
+                            final isFocused =
+                                surahNum == widget.focusSurah &&
+                                ayahNumber == widget.focusAyah;
+                            final rowBorder = isFocused
+                                ? palette.accent
+                                : palette.border;
+
+                            return Container(
+                              key: isFocused ? _focusedAyahKey : null,
+                              decoration: BoxDecoration(
+                                color: isFocused
+                                    ? palette.accentSoft
+                                    : palette.surface,
+                                borderRadius: _rowRadius(
+                                  first: prevIsHeader,
+                                  last: nextIsHeader,
+                                ),
+                                border: Border(
+                                  left: BorderSide(
+                                    color: rowBorder,
+                                    width: isFocused ? 2 : 1,
+                                  ),
+                                  right: BorderSide(
+                                    color: rowBorder,
+                                    width: isFocused ? 2 : 1,
+                                  ),
+                                  top: prevIsHeader
+                                      ? BorderSide(color: rowBorder)
+                                      : BorderSide.none,
+                                  bottom: BorderSide(color: rowBorder),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 6, 4, 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Top row: ayah badge + menu
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: palette.accentSoft,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                            border: Border.all(
+                                              color: palette.accent.withValues(
+                                                alpha: .18,
+                                              ),
                                             ),
                                           ),
-                                          PopupMenuItem(
-                                            value: 'share',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.ios_share_rounded,
-                                                  color: palette.accent,
-                                                  size: 18,
+                                          child: Text(
+                                            ayahNumber.toString(),
+                                            style: TextStyle(
+                                              color: palette.accent,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                              height: 1,
+                                            ),
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => _toggleAyahBookmark(
+                                            surahNum,
+                                            ayahNumber,
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(4),
+                                            child: Icon(
+                                              isBookmarked
+                                                  ? Icons.bookmark_rounded
+                                                  : Icons
+                                                        .bookmark_border_rounded,
+                                              color: isBookmarked
+                                                  ? palette.accent
+                                                  : palette.surfaceMuted,
+                                              size: 19,
+                                            ),
+                                          ),
+                                        ),
+                                        PopupMenuButton<String>(
+                                          popUpAnimationStyle: AppMotion.style(
+                                            context,
+                                          ),
+                                          icon: Icon(
+                                            Icons.more_vert_rounded,
+                                            color: palette.surfaceMuted,
+                                            size: 18,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          tooltip: 'Actions',
+                                          color: palette.surfaceRaised,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                          onSelected: (value) {
+                                            if (value == 'copy') {
+                                              _copyText(
+                                                context,
+                                                palette,
+                                                allText,
+                                              );
+                                            } else {
+                                              SharePlus.instance.share(
+                                                ShareParams(text: allText),
+                                              );
+                                            }
+                                          },
+                                          itemBuilder: (context) => [
+                                            PopupMenuItem(
+                                              value: 'copy',
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.copy_rounded,
+                                                    color: palette.accent,
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  const Text('Copy'),
+                                                ],
+                                              ),
+                                            ),
+                                            PopupMenuItem(
+                                              value: 'share',
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.ios_share_rounded,
+                                                    color: palette.accent,
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  const Text('Share'),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+
+                                    // Text content (full width)
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Arabic text
+                                        if (_showArabic &&
+                                            arabic.isNotEmpty) ...[
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: Text(
+                                              arabic,
+                                              textDirection: TextDirection.rtl,
+                                              textAlign: TextAlign.right,
+                                              style: QuranArabicStyle.ayah(
+                                                script: _arabicScript,
+                                                fontSize: _fontSize,
+                                                color: palette.text,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                        ],
+                                        // Translation blocks
+                                        ..._selectedTrans.asMap().entries.map((
+                                          e,
+                                        ) {
+                                          final src = e.value;
+                                          final text = trans[src] ?? '';
+                                          final srcKey =
+                                              '$surahNum:$ayahNumber:$src';
+                                          final srcCollapsed = _collapsedTrans
+                                              .contains(srcKey);
+                                          return Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              if (e.key > 0)
+                                                Divider(
+                                                  height: 16,
+                                                  color: palette.border,
                                                 ),
-                                                const SizedBox(width: 10),
-                                                const Text('Share'),
+                                              GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap: () => _toggle(
+                                                  _collapsedTrans,
+                                                  srcKey,
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Text(
+                                                      src,
+                                                      style: TextStyle(
+                                                        color: palette.accent,
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        letterSpacing: 0.3,
+                                                      ),
+                                                    ),
+                                                    const Spacer(),
+                                                    Icon(
+                                                      srcCollapsed
+                                                          ? Icons
+                                                                .keyboard_arrow_down_rounded
+                                                          : Icons
+                                                                .keyboard_arrow_up_rounded,
+                                                      size: 16,
+                                                      color: palette.accent,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              if (!srcCollapsed &&
+                                                  text.trim().isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                TranslationExposure(
+                                                  verse:
+                                                      '$surahNum:$ayahNumber',
+                                                  seen: _translationsSeen,
+                                                  child: SelectableText(
+                                                    text,
+                                                    style: TextStyle(
+                                                      fontSize:
+                                                          _fontSizeMap[_fontSize]!
+                                                              .trans,
+                                                      height: 1.45,
+                                                      color:
+                                                          palette.surfaceText,
+                                                    ),
+                                                  ),
+                                                ),
                                               ],
+                                            ],
+                                          );
+                                        }),
+
+                                        // Tafseer blocks
+                                        if (_selectedTafseer.isNotEmpty &&
+                                            _selectedTafseer.any(
+                                              (s) =>
+                                                  (tafseer[s] ?? '').isNotEmpty,
+                                            )) ...[
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            padding: const EdgeInsets.fromLTRB(
+                                              8,
+                                              6,
+                                              6,
+                                              6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: palette.scaffold,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border(
+                                                left: BorderSide(
+                                                  color: palette.accent
+                                                      .withValues(alpha: .2),
+                                                  width: 2,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: _selectedTafseer.asMap().entries.map<Widget>((
+                                                e,
+                                              ) {
+                                                final src = e.value;
+                                                final text = tafseer[src] ?? '';
+                                                if (text.isEmpty) {
+                                                  return const SizedBox.shrink();
+                                                }
+                                                final srcKey =
+                                                    '$surahNum:$ayahNumber:$src';
+                                                final srcCollapsed =
+                                                    _collapsedTafseers.contains(
+                                                      srcKey,
+                                                    );
+                                                return Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    if (e.key > 0)
+                                                      Divider(
+                                                        height: 16,
+                                                        color: palette.border,
+                                                      ),
+                                                    GestureDetector(
+                                                      behavior: HitTestBehavior
+                                                          .opaque,
+                                                      onTap: () => _toggle(
+                                                        _collapsedTafseers,
+                                                        srcKey,
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          Text(
+                                                            src,
+                                                            style: TextStyle(
+                                                              color:
+                                                                  palette.muted,
+                                                              fontSize: 11,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                              letterSpacing:
+                                                                  0.3,
+                                                            ),
+                                                          ),
+                                                          const Spacer(),
+                                                          Icon(
+                                                            srcCollapsed
+                                                                ? Icons
+                                                                      .keyboard_arrow_down_rounded
+                                                                : Icons
+                                                                      .keyboard_arrow_up_rounded,
+                                                            size: 16,
+                                                            color:
+                                                                palette.muted,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    if (!srcCollapsed) ...[
+                                                      const SizedBox(height: 4),
+                                                      for (final para
+                                                          in text
+                                                              .split('\n\n')
+                                                              .map(
+                                                                (p) => p.trim(),
+                                                              )
+                                                              .where(
+                                                                (p) => p
+                                                                    .isNotEmpty,
+                                                              ))
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets.only(
+                                                                bottom: 36,
+                                                              ),
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .stretch,
+                                                            children: _tafseerParaWidgets(
+                                                              para,
+                                                              _fontSizeMap[_fontSize]!
+                                                                  .tafseer,
+                                                              palette.text
+                                                                  .withValues(
+                                                                    alpha: .95,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ],
+                                                );
+                                              }).toList(),
                                             ),
                                           ),
                                         ],
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-
-                                  // Text content (full width)
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Arabic text
-                                      if (_showArabic && arabic.isNotEmpty) ...[
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: Text(
-                                            arabic,
-                                            textDirection: TextDirection.rtl,
-                                            textAlign: TextAlign.right,
-                                            style: QuranArabicStyle.ayah(
-                                              script: _arabicScript,
-                                              fontSize: _fontSize,
-                                              color: palette.text,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
                                       ],
-                                      // Translation blocks
-                                      ..._selectedTrans.asMap().entries.map((
-                                        e,
-                                      ) {
-                                        final src = e.value;
-                                        final text = trans[src] ?? '';
-                                        final srcKey =
-                                            '$surahNum:$ayahNumber:$src';
-                                        final srcCollapsed = _collapsedTrans
-                                            .contains(srcKey);
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            if (e.key > 0)
-                                              Divider(
-                                                height: 16,
-                                                color: palette.border,
-                                              ),
-                                            GestureDetector(
-                                              behavior: HitTestBehavior.opaque,
-                                              onTap: () => _toggle(
-                                                _collapsedTrans,
-                                                srcKey,
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Text(
-                                                    src,
-                                                    style: TextStyle(
-                                                      color: palette.accent,
-                                                      fontSize: 11,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      letterSpacing: 0.3,
-                                                    ),
-                                                  ),
-                                                  const Spacer(),
-                                                  Icon(
-                                                    srcCollapsed
-                                                        ? Icons
-                                                              .keyboard_arrow_down_rounded
-                                                        : Icons
-                                                              .keyboard_arrow_up_rounded,
-                                                    size: 16,
-                                                    color: palette.accent,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (!srcCollapsed &&
-                                                text.trim().isNotEmpty) ...[
-                                              const SizedBox(height: 4),
-                                              TranslationExposure(
-                                                verse: '$surahNum:$ayahNumber',
-                                                seen: _translationsSeen,
-                                                child: SelectableText(
-                                                  text,
-                                                  style: TextStyle(
-                                                    fontSize:
-                                                        _fontSizeMap[_fontSize]!
-                                                            .trans,
-                                                    height: 1.45,
-                                                    color: palette.surfaceText,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        );
-                                      }),
-
-                                      // Tafseer blocks
-                                      if (_selectedTafseer.isNotEmpty &&
-                                          _selectedTafseer.any(
-                                            (s) =>
-                                                (tafseer[s] ?? '').isNotEmpty,
-                                          )) ...[
-                                        const SizedBox(height: 6),
-                                        Container(
-                                          padding: const EdgeInsets.fromLTRB(
-                                            8,
-                                            6,
-                                            6,
-                                            6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: palette.scaffold,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            border: Border(
-                                              left: BorderSide(
-                                                color: palette.accent
-                                                    .withValues(alpha: .2),
-                                                width: 2,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: _selectedTafseer.asMap().entries.map<Widget>((
-                                              e,
-                                            ) {
-                                              final src = e.value;
-                                              final text = tafseer[src] ?? '';
-                                              if (text.isEmpty) {
-                                                return const SizedBox.shrink();
-                                              }
-                                              final srcKey =
-                                                  '$surahNum:$ayahNumber:$src';
-                                              final srcCollapsed =
-                                                  _collapsedTafseers.contains(
-                                                    srcKey,
-                                                  );
-                                              return Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  if (e.key > 0)
-                                                    Divider(
-                                                      height: 16,
-                                                      color: palette.border,
-                                                    ),
-                                                  GestureDetector(
-                                                    behavior:
-                                                        HitTestBehavior.opaque,
-                                                    onTap: () => _toggle(
-                                                      _collapsedTafseers,
-                                                      srcKey,
-                                                    ),
-                                                    child: Row(
-                                                      children: [
-                                                        Text(
-                                                          src,
-                                                          style: TextStyle(
-                                                            color:
-                                                                palette.muted,
-                                                            fontSize: 11,
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                            letterSpacing: 0.3,
-                                                          ),
-                                                        ),
-                                                        const Spacer(),
-                                                        Icon(
-                                                          srcCollapsed
-                                                              ? Icons
-                                                                    .keyboard_arrow_down_rounded
-                                                              : Icons
-                                                                    .keyboard_arrow_up_rounded,
-                                                          size: 16,
-                                                          color: palette.muted,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  if (!srcCollapsed) ...[
-                                                    const SizedBox(height: 4),
-                                                    for (final para
-                                                        in text
-                                                            .split('\n\n')
-                                                            .map(
-                                                              (p) => p.trim(),
-                                                            )
-                                                            .where(
-                                                              (p) =>
-                                                                  p.isNotEmpty,
-                                                            ))
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.only(
-                                                              bottom: 36,
-                                                            ),
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .stretch,
-                                                          children:
-                                                              _tafseerParaWidgets(
-                                                                para,
-                                                                _fontSizeMap[_fontSize]!
-                                                                    .tafseer,
-                                                                palette.text
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          .95,
-                                                                    ),
-                                                              ),
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ],
-                                              );
-                                            }).toList(),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
-                ),
-                _buildPageNav(palette),
-              ],
-            ),
+                  _buildPageNav(palette),
+                ],
+              ),
+      ),
     );
   }
 }

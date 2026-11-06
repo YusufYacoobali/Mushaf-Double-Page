@@ -3,12 +3,17 @@ import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/surah_list.dart';
 import 'juz_list.dart';
 import 'app_motion.dart';
+import 'surah_mapper.dart';
+import 'juz_mapper.dart';
 
 class SurahJuzNavigator {
   static void show({
     required BuildContext context,
     required void Function(int pageIndex) onJumpToPage,
     required String mushaf,
+    int currentLogicalPage = 1,
+    int? currentSurah,
+    void Function(int surah, int page)? onJumpToSurah,
   }) {
     showGeneralDialog(
       context: context,
@@ -18,7 +23,13 @@ class SurahJuzNavigator {
       transitionDuration: AppMotion.duration(context),
       pageBuilder: (_, _, _) => Align(
         alignment: Alignment.centerRight,
-        child: _Panel(onJumpToPage: onJumpToPage, mushaf: mushaf),
+        child: _Panel(
+          onJumpToPage: onJumpToPage,
+          mushaf: mushaf,
+          currentLogicalPage: currentLogicalPage,
+          currentSurah: currentSurah,
+          onJumpToSurah: onJumpToSurah,
+        ),
       ),
       transitionBuilder: (context, anim, _, child) {
         if (AppMotion.reduced(context)) return child;
@@ -39,8 +50,17 @@ class SurahJuzNavigator {
 class _Panel extends StatefulWidget {
   final void Function(int pageIndex) onJumpToPage;
   final String mushaf;
+  final int currentLogicalPage;
+  final int? currentSurah;
+  final void Function(int surah, int page)? onJumpToSurah;
 
-  const _Panel({required this.onJumpToPage, required this.mushaf});
+  const _Panel({
+    required this.onJumpToPage,
+    required this.mushaf,
+    required this.currentLogicalPage,
+    this.currentSurah,
+    this.onJumpToSurah,
+  });
 
   @override
   State<_Panel> createState() => _PanelState();
@@ -58,6 +78,16 @@ class _PanelState extends State<_Panel> {
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height;
     final palette = AppPalette.of(context);
+    final surahs = surahsFromLogicalPage(
+      widget.currentLogicalPage,
+      widget.mushaf,
+    ).where((s) => s.surah > 0);
+    final currentSurah =
+        widget.currentSurah ?? (surahs.isEmpty ? null : surahs.first.surah);
+    final juz = getJuzRanges(
+      widget.mushaf,
+    ).where((j) => j.start <= widget.currentLogicalPage);
+    final currentJuz = juz.isEmpty ? null : juz.last.juz;
 
     return Material(
       color: palette.scaffold,
@@ -67,7 +97,6 @@ class _PanelState extends State<_Panel> {
         width: 320,
         height: height,
         child: SafeArea(
-          left: false,
           minimum: const EdgeInsets.only(top: 12, bottom: 12),
           child: Column(
             children: [
@@ -82,12 +111,15 @@ class _PanelState extends State<_Panel> {
                             widget.onJumpToPage,
                             mushaf: widget.mushaf,
                             onJump: widget.onJumpToPage,
+                            currentSurah: currentSurah,
+                            onJumpToSurah: widget.onJumpToSurah,
                           )
                         : JuzList(
                             key: const ValueKey("juz"),
                             widget.onJumpToPage,
                             onJump: widget.onJumpToPage,
                             mushaf: widget.mushaf,
+                            currentJuz: currentJuz,
                           ),
                   ),
                 ),

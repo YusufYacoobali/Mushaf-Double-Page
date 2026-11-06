@@ -252,6 +252,12 @@ const List<Reciter> quranReciters = [
     folder: 'Ali_Jaber_64kbps',
     bitrate: '64kbps',
   ),
+  Reciter(
+    id: 'salah_bukhatir',
+    name: 'Salah Bukhatir',
+    folder: 'Salaah_AbdulRahman_Bukhatir_128kbps',
+    bitrate: '128kbps',
+  ),
 ];
 
 const List<int> quranAyahCounts = [

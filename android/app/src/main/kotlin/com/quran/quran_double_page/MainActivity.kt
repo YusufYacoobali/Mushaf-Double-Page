@@ -1,11 +1,18 @@
 package com.quran.quran_double_page
 
+import android.os.Bundle
+import android.view.WindowManager
 import com.ryanheise.audioservice.AudioServiceActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : AudioServiceActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
     override fun onPostResume() {
         super.onPostResume()
         hideStatusBar()

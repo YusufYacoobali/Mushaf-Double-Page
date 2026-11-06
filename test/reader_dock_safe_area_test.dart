@@ -6,6 +6,121 @@ import 'package:mushaf_two_page/utils/app_palette.dart';
 
 void main() {
   for (final portrait in [true, false]) {
+    for (final insets in [
+      const FakeViewPadding(),
+      const FakeViewPadding(bottom: 24),
+      const FakeViewPadding(bottom: 48),
+      const FakeViewPadding(right: 48),
+    ]) {
+      for (final withContext in [false, true]) {
+        testWidgets(
+          'Android tab clears system bar portrait=$portrait bottom=${insets.bottom} right=${insets.right} context=$withContext',
+          (tester) async {
+            final size = portrait ? const Size(390, 844) : const Size(844, 390);
+            tester.view.devicePixelRatio = 1;
+            tester.view.physicalSize = size;
+            tester.view.padding = insets;
+            tester.view.viewPadding = insets;
+            addTearDown(tester.view.resetDevicePixelRatio);
+            addTearDown(tester.view.resetPhysicalSize);
+            addTearDown(tester.view.resetPadding);
+            addTearDown(tester.view.resetViewPadding);
+            var expanded = false;
+            var actionTaps = 0;
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: AppPalette.emerald.toThemeData().copyWith(
+                  platform: TargetPlatform.android,
+                ),
+                home: StatefulBuilder(
+                  builder: (context, refresh) => Scaffold(
+                    body: Stack(
+                      children: [
+                        ReaderDock(
+                          portrait: portrait,
+                          expanded: expanded,
+                          onToggle: () => refresh(() => expanded = !expanded),
+                          palette: AppPalette.emerald,
+                          zoom: const SizedBox(width: 32, height: 32),
+                          actions: [
+                            IconButton(
+                              tooltip: 'Reader settings',
+                              onPressed: () => actionTaps++,
+                              icon: const Icon(Icons.settings),
+                            ),
+                          ],
+                          contextControls: withContext
+                              ? ReaderAudioControls(
+                                  portrait: portrait,
+                                  palette: AppPalette.emerald,
+                                  title: '2:7 · Al-Baqarah',
+                                  reference: '2:7',
+                                  subtitle: 'Reciter',
+                                  playing: true,
+                                  onPrevious: () {},
+                                  onPlayPause: () {},
+                                  onNext: () {},
+                                  onStop: () {},
+                                  onSettings: () {},
+                                )
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+            void expectClear(Rect rect) {
+              expect(
+                rect.bottom,
+                lessThanOrEqualTo(size.height - insets.bottom),
+              );
+              expect(rect.right, lessThanOrEqualTo(size.width - insets.right));
+            }
+
+            final collapsed = tester.getRect(find.byType(NavigationPullTab));
+            expectClear(collapsed);
+            if (portrait) {
+              expect(
+                size.height - collapsed.bottom,
+                closeTo(insets.bottom > 8 ? insets.bottom : 8, .01),
+              );
+            } else {
+              expect(
+                size.width - collapsed.right,
+                closeTo(insets.right > 4 ? insets.right : 4, .01),
+              );
+            }
+            await tester.tap(find.byTooltip('Open navigation'));
+            await tester.pumpAndSettle();
+            expectClear(tester.getRect(find.byType(NavigationPullTab)));
+            expectClear(
+              tester.getRect(
+                find.byKey(const ValueKey('reader-navigation-panel')),
+              ),
+            );
+            if (withContext) {
+              expectClear(
+                tester.getRect(
+                  find.byKey(const ValueKey('reader-context-panel')),
+                ),
+              );
+            }
+            await tester.tap(find.byTooltip('Reader settings'));
+            expect(actionTaps, 1);
+            await tester.tap(find.byTooltip('Collapse navigation'));
+            await tester.pumpAndSettle();
+            expect(tester.getRect(find.byType(NavigationPullTab)), collapsed);
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+  }
+
+  for (final portrait in [true, false]) {
     for (final withContext in [false, true]) {
       testWidgets(
         'iPhone edge tab and safe controls portrait=$portrait context=$withContext',
