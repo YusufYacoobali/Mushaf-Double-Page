@@ -167,6 +167,15 @@ bounded recovery and then continue internally, with a passive notice and honest
 offline status. No alternate reciter is substituted. Recordings are not
 crossfaded, overlapped or silence-trimmed.
 
+## Selected-ayah translation
+
+The compact translation card opened by the selected ayah's toolbar action applies
+bottom SafeArea handling in addition to the modal's top/side protection. Its 8px
+floating margin stays above the system navigation area. The reader integration
+test opens this actual toolbar action, scrolls through all selected translation
+sources, resizes between compact portrait and landscape with 24/48px navigation
+insets, measures rendered card/text bounds and checks dismissal.
+
 ## Tasbeeh
 
 Settings → Tools → Tasbeeh pushes a separate route, preserving the reader route.
@@ -197,7 +206,7 @@ cream-and-charcoal specification was used instead.
 ## Validation and remaining device checks
 
 Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze --no-pub` reports
-no issues; `flutter test --no-pub --reporter expanded` passes all **357 tests**.
+no issues; `flutter test --no-pub --reporter expanded` passes all **358 tests**.
 `git diff --check` is clean. The audit builder reproduces 22 canonical sources
 from 163 clip records; its Python syntax check also passes.
 

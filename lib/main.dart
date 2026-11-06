@@ -644,89 +644,94 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-        child: Material(
-          color: palette.scaffold,
-          elevation: 12,
-          shadowColor: Colors.black.withValues(alpha: .18),
-          borderRadius: BorderRadius.circular(20),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(ctx).height * .48,
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '$name  •  $surah:$ayah',
+      // Modal useSafeArea excludes the bottom system navigation inset.
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+          child: Material(
+            color: palette.scaffold,
+            elevation: 12,
+            shadowColor: Colors.black.withValues(alpha: .18),
+            borderRadius: BorderRadius.circular(20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * .48,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$name  •  $surah:$ayah',
+                            style: TextStyle(
+                              color: palette.text,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: palette.muted,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (translations.isEmpty)
+                      Text(
+                        'Translation unavailable.',
+                        style: TextStyle(color: palette.muted, fontSize: 14),
+                      )
+                    else
+                      for (
+                        var index = 0;
+                        index < translations.length;
+                        index++
+                      ) ...[
+                        if (index > 0)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Divider(height: 1, color: palette.border),
+                          ),
+                        Text(
+                          translations[index].$1,
                           style: TextStyle(
-                            color: palette.text,
-                            fontSize: 15,
+                            color: palette.accent,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ),
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.muted,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (translations.isEmpty)
-                    Text(
-                      'Translation unavailable.',
-                      style: TextStyle(color: palette.muted, fontSize: 14),
-                    )
-                  else
-                    for (
-                      var index = 0;
-                      index < translations.length;
-                      index++
-                    ) ...[
-                      if (index > 0)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Divider(height: 1, color: palette.border),
-                        ),
-                      Text(
-                        translations[index].$1,
-                        style: TextStyle(
-                          color: palette.accent,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      TranslationExposure(
-                        verse: '$surah:$ayah',
-                        seen: translationsSeen,
-                        child: Text(
-                          translations[index].$2,
-                          textDirection: translations[index].$1.contains('Urdu')
-                              ? TextDirection.rtl
-                              : TextDirection.ltr,
-                          style: TextStyle(
-                            color: palette.text,
-                            fontSize: 15,
-                            height: 1.45,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(height: 5),
+                        TranslationExposure(
+                          verse: '$surah:$ayah',
+                          seen: translationsSeen,
+                          child: Text(
+                            translations[index].$2,
+                            textDirection:
+                                translations[index].$1.contains('Urdu')
+                                ? TextDirection.rtl
+                                : TextDirection.ltr,
+                            style: TextStyle(
+                              color: palette.text,
+                              fontSize: 15,
+                              height: 1.45,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                ],
+                      ],
+                  ],
+                ),
               ),
             ),
           ),
