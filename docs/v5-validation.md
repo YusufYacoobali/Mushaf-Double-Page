@@ -191,7 +191,7 @@ cream-and-charcoal specification was used instead.
 ## Validation and remaining device checks
 
 Final checks with Flutter 3.38.1 / Dart 3.10.0: `flutter analyze --no-pub` reports
-no issues; `flutter test --no-pub --reporter expanded` passes all **265 tests**.
+no issues; `flutter test --no-pub --reporter expanded` passes all **273 tests**.
 `git diff --check` is clean. The audit builder regenerates 163 clip records and
 32 enabled destination policies; its Python syntax check also passes.
 

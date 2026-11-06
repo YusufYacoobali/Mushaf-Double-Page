@@ -177,6 +177,7 @@ void main() {
         tester.view.physicalSize = const Size(900, 900);
         await tester.pumpAndSettle();
         expect(layout!.singlePage, isFalse);
+        expect(layout!.spreadLayout, ReaderSpreadLayout.widePortrait);
         expect(layout!.bottomDock, isTrue);
         expect(paging.focusedPage, 237);
         expect(paging.visiblePages, [236, 237]);
@@ -310,6 +311,14 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(layout.spreadLayout, ReaderSpreadLayout.separateRegions);
+      expect(
+        find.descendant(
+          of: find.byType(AdaptiveQuranPages),
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsNWidgets(2),
+      );
       for (final page in [236, 237]) {
         final rect = tester.getRect(find.byKey(ValueKey('quran-page-$page')));
         expect(rect.overlaps(hinge), isFalse);

@@ -6,10 +6,13 @@ enum ReaderPageMode { single, spread }
 
 enum DockPlacement { bottom, side }
 
+enum ReaderSpreadLayout { centeredLandscape, separateRegions, widePortrait }
+
 /// Window geometry, independent of device names and physical pixel resolution.
 class ReaderLayout {
   const ReaderLayout({
     required this.pageMode,
+    required this.spreadLayout,
     required this.dockPlacement,
     required this.usableContentBounds,
     required this.pageRegions,
@@ -17,10 +20,12 @@ class ReaderLayout {
     required this.safeRegions,
   });
   final ReaderPageMode pageMode;
+  final ReaderSpreadLayout spreadLayout;
   final DockPlacement dockPlacement;
   final Rect usableContentBounds;
 
-  /// Left-to-right physical regions; a spread's first Quran page is on the right.
+  /// Left-to-right regions for separated and wide-portrait spreads. Centered
+  /// landscapes use [usableContentBounds] as one continuous spread surface.
   final List<Rect> pageRegions;
   final Rect controlsRegion;
   final List<Rect> safeRegions;
@@ -59,10 +64,13 @@ class ReaderLayout {
     final candidates = sameRow.length >= 2
         ? [sameRow.first, sameRow.last]
         : [largest];
+    final centeredLandscape = landscape && candidates.length == 1;
     for (final region in candidates) {
       // Keep spread planning stable as controls appear and disappear. A single
       // page with a bottom dock uses the full safe region below, with overlays.
-      final right = !bottom && region == controls ? 140.0 : 0.0;
+      final right = !bottom && region == controls && !centeredLandscape
+          ? 140.0
+          : 0.0;
       final bottomGutter = bottom ? 142.0 : 0.0;
       pageBounds.add(
         Rect.fromLTRB(
@@ -74,6 +82,11 @@ class ReaderLayout {
       );
     }
     final physicalPair = pageBounds.length == 2;
+    final spreadLayout = physicalPair
+        ? ReaderSpreadLayout.separateRegions
+        : centeredLandscape
+        ? ReaderSpreadLayout.centeredLandscape
+        : ReaderSpreadLayout.widePortrait;
     final combined = physicalPair
         ? pageBounds.first.expandToInclude(pageBounds.last)
         : pageBounds.first;
@@ -106,10 +119,22 @@ class ReaderLayout {
     final single = (bottom ? candidates : pageBounds).reduce(
       (a, b) => a.width * a.height >= b.width * b.height ? a : b,
     );
+    // v4 placed the centred landscape Row across the full viewport, with the
+    // toolbar overlaid. Insets still position controls independently. If an
+    // obstruction further partitions that viewport, keep the spread inside its
+    // unobstructed region instead.
+    final originalLandscapeBounds =
+        centeredLandscape &&
+        regions.length == 1 &&
+        largest == safeDisplayRegions(size, padding, const []).single;
+    final spreadBounds = originalLandscapeBounds
+        ? Offset.zero & size
+        : combined;
     return ReaderLayout(
       pageMode: canSpread ? ReaderPageMode.spread : ReaderPageMode.single,
+      spreadLayout: spreadLayout,
       dockPlacement: bottom ? DockPlacement.bottom : DockPlacement.side,
-      usableContentBounds: canSpread ? combined : single,
+      usableContentBounds: canSpread ? spreadBounds : single,
       pageRegions: List.unmodifiable(canSpread ? spreadRegions : [single]),
       controlsRegion: controls,
       safeRegions: List.unmodifiable(regions),

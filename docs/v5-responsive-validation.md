@@ -18,11 +18,12 @@ separate decisions.
 2. Place controls in one safe region. Use the bottom dock in portrait/square
    windows, or in one sufficiently wide pane of a hinged display. Its region must
    be at least 300 logical pixels wide. Other windows use the side dock.
-3. Use stable gutters when planning and displaying spreads: 142 logical pixels
-   at the bottom or 140 at the right. Single pages with a bottom dock use their
-   full safe region; controls overlay the page instead of permanently reserving
-   expanded-toolbar space. Revealing/hiding controls does not change the page
-   mode or resize the single page. Single pages with a side dock retain its gutter.
+3. Seamless landscape spreads use the original v4 full-viewport Row, with the
+   side toolbar overlaid and no permanent 140 px width reduction. Hinge-separated
+   spreads retain independent safe regions, and wide portrait spreads keep their
+   142 px bottom gutter. Other constrained side-dock cases retain their gutter.
+   Single pages with a bottom dock use their full safe region, with controls
+   overlaid. Revealing/hiding controls does not change page mode or page geometry.
 4. For a seamless display, a spread needs a safe region at least **720 logical
    pixels wide in portrait/square windows**, or **600 in landscape**. Two separate
    side-by-side safe regions can also qualify without that overall-width gate.
@@ -47,6 +48,36 @@ Regressions require at least 95% of viewport width for both editions, preserve
 the native aspect ratio, and verify identical bounds and focused page with the
 dock collapsed, expanded and collapsed again. Safe insets still apply; spread
 gutters and breakpoints are unchanged.
+
+## Restored regular-phone landscape geometry
+
+The remote `v4` branch is no longer present. Its last merged commit is
+`9cab9d5ce3d2c3d0e44d51bb4ac336126362f740`, preserved by merge `6d9c429`.
+The page-view file at both commits has the identical Git blob
+`fd19719bf3a230b21907e73f9690fced03be5b2a`.
+
+`AdaptiveQuranPages` now distinguishes centred seamless landscape, physically
+separated regions, and adaptive wide portrait spreads. Seamless landscape reuses
+`QuranPageView.doublePage`'s existing centred Row rather than its independently
+positioned per-region branch. Just as in v4, each page width is
+`(viewport.width - 1) / 2 * clamp(scale, .6, 1.0)`, with a 1 px gap, even page on
+the right, source-correct aspect ratio, top alignment and one shared vertical
+scroll view. The combined spread is horizontally centred in the screen. Toolbar
+insets still apply to controls, independently from the spread; a display feature
+that further obstructs/partitions the viewport retains safe page regions.
+
+At 70% zoom this gives each page width 295.05 px on 844 × 390, and 319.9 px on
+915 × 412. It restores the original width, zoom/vertical-scroll behavior and
+position relative to the overlaid toolbar. The compact portrait fix, wide
+portrait page mode, hinge behavior and existing paging/follow state are retained.
+
+`test/landscape_reader_geometry_test.dart` measures actual frame and Image render
+rectangles for both editions, both phone sizes, zero/asymmetric Android insets,
+and 60/70/100% zoom. It checks the spread centre, adjacent pages, exact v4 sizes,
+aspect ratios, unchanged bounds during toolbar toggles, joint vertical scrolling,
+RTL turns, normalized highlight taps and portrait → landscape → portrait focus
+preservation. Existing hinge tests also assert two independent scroll views and
+safe rendered page rectangles.
 
 | Window | Default page mode | Dock |
 | --- | --- | --- |
@@ -139,7 +170,7 @@ in the noncompact card and Journey screen.
 ## Validation
 
 - `flutter analyze --no-pub`: no issues.
-- `flutter test --no-pub --reporter expanded`: **263 tests passed**.
+- `flutter test --no-pub --reporter expanded`: **273 tests passed**.
 - `git diff --check`: clean.
 - Targeted Flutter widget-rendering diagnostic: three navigator sizes plus the
   minimal reminder, using the actual Inter and Material icon fonts. This is

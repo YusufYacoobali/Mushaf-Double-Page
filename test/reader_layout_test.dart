@@ -88,6 +88,7 @@ void main() {
           ],
         );
         expect(layout.pageMode, ReaderPageMode.spread);
+        expect(layout.spreadLayout, ReaderSpreadLayout.separateRegions);
         expect(layout.bottomDock, isTrue);
         expect(layout.pageRegions[0].right, lessThanOrEqualTo(460));
         expect(layout.pageRegions[1].left, greaterThanOrEqualTo(490));
@@ -127,6 +128,7 @@ void main() {
       );
       expect(seamless.safeRegions.length, 1);
       expect(seamless.pageMode, ReaderPageMode.spread);
+      expect(seamless.spreadLayout, ReaderSpreadLayout.widePortrait);
     },
   );
   test('interior cutouts cannot cover page text or controls', () {

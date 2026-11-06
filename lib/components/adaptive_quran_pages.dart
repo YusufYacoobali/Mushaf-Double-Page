@@ -41,6 +41,35 @@ class AdaptiveQuranPages extends StatelessWidget {
       if (generation == paging.generation && paging.focus(page)) onFocus(page);
     }
 
+    Widget spread(int index) {
+      final centered =
+          layout.spreadLayout == ReaderSpreadLayout.centeredLandscape;
+      final content = QuranPageView.doublePage(
+        spreadIndex: index,
+        totalPages: paging.lastPage + 1,
+        pageScale: spreadScale,
+        imagePath: imagePath,
+        isDarkMode: isDarkMode,
+        aspectRatio: aspectRatio,
+        highlightFor: highlightFor,
+        highlightColor: highlightColor,
+        onTap: onTap,
+        onFocus: focus,
+        onBackgroundTap: onBackgroundTap,
+        pageRegions: centered ? null : layout.pageRegions,
+      );
+      return centered
+          ? Stack(
+              children: [
+                Positioned.fromRect(
+                  rect: layout.usableContentBounds,
+                  child: content,
+                ),
+              ],
+            )
+          : content;
+    }
+
     return PageView.builder(
       key: ValueKey('reader-pager-$generation'),
       controller: paging.controller,
@@ -72,20 +101,7 @@ class AdaptiveQuranPages extends StatelessWidget {
                 ),
               ],
             )
-          : QuranPageView.doublePage(
-              spreadIndex: index,
-              totalPages: paging.lastPage + 1,
-              pageScale: spreadScale,
-              imagePath: imagePath,
-              isDarkMode: isDarkMode,
-              aspectRatio: aspectRatio,
-              highlightFor: highlightFor,
-              highlightColor: highlightColor,
-              onTap: onTap,
-              onFocus: focus,
-              onBackgroundTap: onBackgroundTap,
-              pageRegions: layout.pageRegions,
-            ),
+          : spread(index),
     );
   }
 }
