@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "invalid_parameter",
-    "message": "Unsupported include; the allowed value is `text`.",
-    "field": "include"
-  }
-}

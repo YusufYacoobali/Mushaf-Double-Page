@@ -1,9 +1,0 @@
-HTTP/1.1 200 OK
-date: Sat, 07 Nov 2026 10:59:17 GMT
-HTTP/2 200
-date: Sat, 07 Nov 2026 10:59:18 GMT
-content-type: application/json
-content-length: 658
-cache-control: public, max-age=86400, stale-while-revalidate=604800
-etag: W/"4a9982869bd090f2f455590bf11"
-last-modified: Wed, 28 Oct 2026 14:07:48 GMT
