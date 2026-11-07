@@ -1,0 +1,67 @@
+{
+  "investigatedOn": "2026-11-07",
+  "baseCommit": "85f544fcd410218bcffb92f54e446b8c2f4ff00f",
+  "status": "blocked_by_executor_network_policy",
+  "runtimeProviderImplemented": false,
+  "activeProvider": "EveryAyah",
+  "selection": {
+    "reciterId": "alafasy",
+    "recitationCode": "mishary-alafasy/r1",
+    "surah": 67,
+    "ayahCount": 30,
+    "sourceMode": "surah",
+    "repeatMode": "range"
+  },
+  "recording": {
+    "url": "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/067.mp3",
+    "downloaded": false,
+    "measuredBytes": null,
+    "sha256": null,
+    "durationMs": null,
+    "decoded": false,
+    "contentVerified": false,
+    "webDirectoryAdvertisedBytes": 7293947,
+    "webDirectoryUrl": "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/",
+    "officialSurahPage": "https://www.mp3quran.net/eng/afs/67",
+    "officialPageDownloadLink": "https://cdn.mp3quran.net/download/audio/mishary-alafasy/r1/067.mp3",
+    "downloadLinkEqualityVerified": false
+  },
+  "api": {
+    "metadataUrl": "https://api-staging.mp3quran.net/v4/recitations/mishary-alafasy/r1/surahs/67",
+    "timingsUrl": "https://api-staging.mp3quran.net/v4/recitations/mishary-alafasy/r1/surahs/67/ayah-timings",
+    "bindingAuditUrl": "https://api-staging.mp3quran.net/v4/recitations/mishary-alafasy/r1/surahs/67/ayah-timings?include=audio,summary,segments",
+    "staging": true,
+    "metadataResponseCaptured": false,
+    "timingResponseCaptured": false,
+    "proxyConnectStatus": 403,
+    "upstreamHttpStatus": null,
+    "stableProductionEndpoint": null,
+    "v3TimingsSubstituted": false
+  },
+  "timings": {
+    "complete": null,
+    "numberedIntervalCount": null,
+    "boundAudioSha256": null,
+    "orderingValidated": false,
+    "coverageValidated": false,
+    "bismillahPresent": null,
+    "istiadhahPresent": null,
+    "recordingBoundaryAccuracyValidated": false,
+    "estimatedIntervalsUsed": false
+  },
+  "usagePermission": {
+    "audioRedistributionGrantVerified": false,
+    "thirdPartyOfflineCachingGrantVerified": false,
+    "documentationUrl": "https://docs-staging.mp3quran.net/"
+  },
+  "manualComparison": {
+    "android": "not_performed_no_device",
+    "iphone": "not_performed_no_device"
+  },
+  "requiredNetworkHosts": [
+    "cdn.mp3quran.net",
+    "api-staging.mp3quran.net",
+    "mp3quran.net",
+    "www.mp3quran.net"
+  ]
+}
