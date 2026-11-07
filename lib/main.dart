@@ -1,5 +1,6 @@
 import 'utils/reader_layout.dart';
 import 'utils/reader_paging.dart';
+import 'utils/audio_vertical_follower.dart';
 import 'components/adaptive_quran_pages.dart';
 import 'utils/reader_highlight_preferences.dart';
 import 'utils/audio_page_follower.dart';
@@ -166,6 +167,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   bool _audioWasActive = false;
   bool _audioFollowScheduled = false;
   final _audioPageFollower = AudioPageFollower();
+  late final AudioVerticalFollower _audioVerticalFollower;
+  final _readerDockKey = GlobalKey();
+  bool get _readerVisible =>
+      mounted &&
+      _ready &&
+      (ModalRoute.of(context)?.isCurrent ?? true) &&
+      (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed);
   ReadingProgress? _dailyWelcome;
   bool _recordingProgress = false;
   Timer? _welcomeTimer;
@@ -195,6 +204,21 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _audioVerticalFollower = AudioVerticalFollower(
+      canFollow: () => _readerVisible && QuranAudioController.instance.audible,
+      obstructions: () {
+        if (!_isScrollbarVisible) return const [];
+        final dock = _readerDockKey.currentContext?.findRenderObject();
+        return dock is RenderBox && dock.hasSize && dock.attached
+            ? [
+                MatrixUtils.transformRect(
+                  dock.getTransformTo(null),
+                  Offset.zero & dock.size,
+                ),
+              ]
+            : const [];
+      },
+    );
     // Android owns status-bar visibility in MainActivity, including app resume.
     if (!Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -259,6 +283,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     _welcomeTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     QuranAudioController.instance.removeListener(_audioChanged);
+    _audioVerticalFollower.dispose();
     _hideScrollbarTimer?.cancel();
     _paging?.dispose();
     if (!Platform.isAndroid) {
@@ -269,6 +294,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _audioVerticalFollower.invalidate();
     if (state == AppLifecycleState.resumed && _ready) _recordProgress();
     if (state != AppLifecycleState.resumed && _ready) _persistHighlight();
   }
@@ -291,6 +317,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   }
 
   void _jumpToReadingPage(int page, {int? surah}) {
+    _audioVerticalFollower.invalidate();
     final logical = page.clamp(1, maxFilePage);
     setState(() {
       _logicalPage = logical;
@@ -306,6 +333,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   void _decreaseScale() => _adjustScale(-0.05);
 
   void _adjustScale(double delta) {
+    _audioVerticalFollower.invalidate();
     setState(() {
       if (_singlePage) {
         _pageScalePortrait = (_pageScalePortrait + delta).clamp(
@@ -428,9 +456,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
         return;
       }
       final audio = QuranAudioController.instance;
+      final visible = _readerVisible;
       final target = _audioPageFollower.targetPage(
         playing: audio.audible,
-        visible: ModalRoute.of(context)?.isCurrent ?? true,
+        visible: visible,
         session: audio.playbackSessionId,
         cycle: audio.currentRepeat,
         surah: audio.currentSurah,
@@ -439,12 +468,34 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
         portrait: _singlePage,
         mushaf: _mushaf,
       );
-      if (target == null) return;
+      final vertical = _audioVerticalFollower.beginAyah(
+        playing: audio.audible,
+        visible: visible,
+        session: audio.playbackSessionId,
+        cycle: audio.currentRepeat,
+        surah: audio.currentSurah,
+        ayah: audio.currentAyah,
+        mushaf: _mushaf,
+      );
+      if (target == null) {
+        if (vertical != null) _audioVerticalFollower.reveal(vertical);
+        return;
+      }
       setState(() {
         _logicalPage = target;
         _recordSurahVisit();
       });
-      unawaited(_paging!.goTo(target, animate: !AppMotion.reduced(context)));
+      final navigation = _paging!.goTo(
+        target,
+        animate: !AppMotion.reduced(context),
+      );
+      if (vertical != null) {
+        unawaited(
+          _audioVerticalFollower.revealAfterNavigation(vertical, navigation),
+        );
+      } else {
+        unawaited(navigation);
+      }
       unawaited(StorageManager.saveCurrentPage(target, maxPage: maxFilePage));
       unawaited(_recordProgress());
     });
@@ -944,6 +995,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
         if (!mounted) return;
 
         if (mushaf != _mushaf) {
+          _audioVerticalFollower.invalidate();
           if (_mushaf == 'indopak_tajweed' && mushaf == 'madani') {
             _logicalPage = PageMapper.indoPakToMadani(_logicalPage);
           }
@@ -1085,6 +1137,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             child: Stack(
               children: [
                 AdaptiveQuranPages(
+                  verticalFollower: _audioVerticalFollower,
+                  mushaf: _mushaf,
                   paging: _paging!,
                   layout: layout,
                   singleScale: _pageScalePortrait,
@@ -1155,6 +1209,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                 ReaderDockOverlay(
                   layout: layout,
                   child: ReaderDock(
+                    key: _readerDockKey,
                     contextControls:
                         audioControls ??
                         (_selPage == null
