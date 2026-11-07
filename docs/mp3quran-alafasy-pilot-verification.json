@@ -1,9 +1,11 @@
 {
   "investigatedOn": "2026-11-07",
-  "baseCommit": "85f544fcd410218bcffb92f54e446b8c2f4ff00f",
-  "status": "blocked_by_executor_network_policy",
-  "runtimeProviderImplemented": false,
+  "baseCommit": "a371881",
+  "status": "implemented_but_disabled_pending_content_audit",
+  "runtimeProviderImplemented": true,
   "activeProvider": "EveryAyah",
+  "experimentalFlag": "EXPERIMENTAL_MP3QURAN_AL_MULK",
+  "releaseBlocked": true,
   "selection": {
     "reciterId": "alafasy",
     "recitationCode": "mishary-alafasy/r1",
@@ -14,54 +16,72 @@
   },
   "recording": {
     "url": "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/067.mp3",
-    "downloaded": false,
-    "measuredBytes": null,
-    "sha256": null,
-    "durationMs": null,
-    "decoded": false,
-    "contentVerified": false,
-    "webDirectoryAdvertisedBytes": 7293947,
-    "webDirectoryUrl": "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/",
-    "officialSurahPage": "https://www.mp3quran.net/eng/afs/67",
-    "officialPageDownloadLink": "https://cdn.mp3quran.net/download/audio/mishary-alafasy/r1/067.mp3",
-    "downloadLinkEqualityVerified": false
+    "downloaded": true,
+    "measuredBytes": 7293947,
+    "sha256": "ded3b53cfc22c3544170f222068472174e200f5958b35561d298bb4db7e54f11",
+    "durationMs": 455444.878,
+    "metadataDurationMs": 455000,
+    "decoded": true,
+    "contentVerified": false
   },
   "api": {
     "metadataUrl": "https://api-staging.mp3quran.net/v4/recitations/mishary-alafasy/r1/surahs/67",
     "timingsUrl": "https://api-staging.mp3quran.net/v4/recitations/mishary-alafasy/r1/surahs/67/ayah-timings",
-    "bindingAuditUrl": "https://api-staging.mp3quran.net/v4/recitations/mishary-alafasy/r1/surahs/67/ayah-timings?include=audio,summary,segments",
     "staging": true,
-    "metadataResponseCaptured": false,
-    "timingResponseCaptured": false,
-    "proxyConnectStatus": 403,
-    "upstreamHttpStatus": null,
+    "metadataHttpStatus": 200,
+    "timingsHttpStatus": 200,
+    "catalogueVersion": 668,
+    "runtimeStagingDependency": false,
     "stableProductionEndpoint": null,
-    "v3TimingsSubstituted": false
+    "productionCandidateUrl": "https://www.mp3quran.net/api/v4/recitations/mishary-alafasy/r1/surahs/67",
+    "productionCandidateHttpStatus": 404,
+    "bindingIncludeHttpStatus": 400,
+    "bindingIncludeError": "Unsupported include; the allowed value is `text`.",
+    "v3TimingsSubstituted": false,
+    "v3Read5": "Ahmed Al-Ajamy; unrelated recording"
   },
   "timings": {
-    "complete": null,
-    "numberedIntervalCount": null,
-    "boundAudioSha256": null,
-    "orderingValidated": false,
-    "coverageValidated": false,
-    "bismillahPresent": null,
-    "istiadhahPresent": null,
+    "complete": true,
+    "numberedIntervalCount": 30,
+    "orderingValidated": true,
+    "boundsValidated": true,
+    "bismillahIntervalMs": [
+      7265,
+      13718
+    ],
+    "firstAyahIntervalMs": [
+      13865,
+      24086
+    ],
+    "finalAyahIntervalMs": [
+      437630,
+      454358
+    ],
+    "unlabelledPrologueMs": [
+      0,
+      7265
+    ],
     "recordingBoundaryAccuracyValidated": false,
-    "estimatedIntervalsUsed": false
+    "estimatedIntervalsUsed": false,
+    "runtimeManifestBundled": false
   },
   "usagePermission": {
-    "audioRedistributionGrantVerified": false,
-    "thirdPartyOfflineCachingGrantVerified": false,
-    "documentationUrl": "https://docs-staging.mp3quran.net/"
+    "documentationUrl": "https://www.mp3quran.net/eng/privacy",
+    "observedGrant": "All rights are available to everyone, and we allow any visitor or developer to copy any material or use any link on the websites",
+    "explicitThirdPartyOfflineCachingGrantVerified": false,
+    "productionReviewRequired": true
   },
   "manualComparison": {
     "android": "not_performed_no_device",
     "iphone": "not_performed_no_device"
   },
-  "requiredNetworkHosts": [
-    "cdn.mp3quran.net",
-    "api-staging.mp3quran.net",
-    "mp3quran.net",
-    "www.mp3quran.net"
-  ]
+  "validation": {
+    "flutterAnalyze": "passed_no_issues",
+    "flutterTest": "passed_422_tests",
+    "newPilotTests": 30,
+    "existingTests": 392,
+    "gitDiffCheck": "passed",
+    "evidenceJson": "parsed",
+    "mobileDevicesAttached": false
+  }
 }

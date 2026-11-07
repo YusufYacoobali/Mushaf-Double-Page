@@ -1,0 +1,36 @@
+{
+  "data": {
+    "surah": 67,
+    "duration_ms": 455000,
+    "timings": [
+      "ayah",
+      "word",
+      "letter",
+      "phoneme"
+    ],
+    "files": {
+      "original": {
+        "url": "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/067.mp3",
+        "bytes": 7293947,
+        "sha256": "ded3b53cfc22c3544170f222068472174e200f5958b35561d298bb4db7e54f11",
+        "bitrate_kbps": 128
+      },
+      "mp3_64": {
+        "url": "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/067-64k.mp3",
+        "bytes": 3644171,
+        "sha256": "06324b0a4e4b3d376efac631ff478e5a946afb4661e384c61e8cc5baff9e3032",
+        "bitrate_kbps": 64
+      },
+      "opus_48": {
+        "url": "https://cdn.mp3quran.net/audio/mishary-alafasy/r1/067.opus",
+        "bytes": 3117489,
+        "sha256": "b1852fd5eb3a4fb249c9d7894aeb070a1efbb37dcd0b0cfcbb1fca7b3b0228be",
+        "bitrate_kbps": 55
+      }
+    }
+  },
+  "meta": {
+    "catalogue_version": 668,
+    "locale": "ar"
+  }
+}
