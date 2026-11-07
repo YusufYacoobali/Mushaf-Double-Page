@@ -16,7 +16,7 @@ extension _PcmProofPlayback on QuranAudioController {
 
   void _pcmPositionChanged() {
     if (!_pcmActive || !_active || _installing) return;
-    final row = _pcmProof!.at(_player.position);
+    final row = _pcmProof!.at(_backend.position);
     if (row == null || (identical(row, _pcmRow) && _media != null)) return;
     _tracker?.flush();
     _pcmRow = row;
@@ -56,9 +56,9 @@ extension _PcmProofPlayback on QuranAudioController {
       occurrence: '$_session:pcm:${row.id}:$_pcmNavigation',
       verse: '55:${row.ayah}',
       countVerse: row.ayah != null,
-      position: _pcmRelative(_player.position),
+      position: _pcmRelative(_backend.position),
       duration: _pcmProof!.time(row.endFrame) - _pcmProof!.time(row.startFrame),
-      playing: audible && _player.playing,
+      playing: audible && _backend.playing,
     );
   }
 
@@ -73,15 +73,15 @@ extension _PcmProofPlayback on QuranAudioController {
       if (!_valid(generation, revision)) return;
       await _native(() async {
         if (!_valid(generation, revision)) return;
-        await _player
+        await _backend
             .setAudioSources([
               AudioSource.file(_pcmProof!.path, tag: _current!.occurrence),
             ], initialPosition: Duration.zero)
             .timeout(loadTimeout);
         if (!_valid(generation, revision)) return;
-        await _player.setLoopMode(LoopMode.off);
-        final duration = _player.duration;
-        if (_player.processingState != ProcessingState.ready ||
+        await _backend.setLoopMode(LoopMode.off);
+        final duration = _backend.duration;
+        if (_backend.processingState != ProcessingState.ready ||
             duration == null ||
             (duration - _pcmProof!.time(_pcmProof!.frames)).inMilliseconds
                     .abs() >
@@ -113,7 +113,7 @@ extension _PcmProofPlayback on QuranAudioController {
       _pcmNavigation++;
       _pcmRow = null;
       _tracker?.flush();
-      await _player.seek(absolute).timeout(loadTimeout);
+      await _backend.seek(absolute).timeout(loadTimeout);
       if (!_valid(generation, revision)) return;
       _pcmPositionChanged();
       _trackListening();
@@ -141,7 +141,7 @@ extension _PcmProofPlayback on QuranAudioController {
     if (!_pcmActive || !_valid(generation, revision)) return;
     final row = !_pcmLoaded
         ? _pcmProof!.rows.first
-        : _pcmProof!.at(_player.position) ?? _pcmRow ?? _pcmProof!.rows.first;
+        : _pcmProof!.at(_backend.position) ?? _pcmRow ?? _pcmProof!.rows.first;
     _pcmActive = false;
     _pcmRow = null;
     _tracker?.reset();
@@ -151,7 +151,7 @@ extension _PcmProofPlayback on QuranAudioController {
     final handoff = ++_revision;
     _stall?.cancel();
     await _native(() async {
-      if (_valid(generation, handoff)) await _player.stop();
+      if (_valid(generation, handoff)) await _backend.stop();
     });
     if (!_valid(generation, handoff)) return;
     _begun = _exhausted = false;

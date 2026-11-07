@@ -11,6 +11,7 @@ import '../progress/reading_progress_store.dart';
 import '../utils/audio_artwork.dart';
 import '../utils/bismillah_sources.dart';
 import 'audio_repository.dart';
+import 'audio_playback_backend.dart';
 import '../models/everyayah_pcm_proof.dart';
 
 part 'quran_audio_pcm_proof.dart';
@@ -57,6 +58,8 @@ class _QueueEntry {
 class QuranAudioController extends ChangeNotifier {
   QuranAudioController._({
     AudioPlayer? player,
+    AudioPlaybackBackend? continuousBackend,
+    AudioPlaybackBackend Function()? continuousBackendFactory,
     AudioRecordingRepository? repository,
     bool trackJourney = true,
     ListeningTracker? listeningTracker,
@@ -72,7 +75,14 @@ class QuranAudioController extends ChangeNotifier {
              handleAudioSessionActivation: true,
            ),
        _repository = repository ?? AudioRepository(),
-       _legacyPreparer = prepareSources {
+       _legacyPreparer = prepareSources,
+       _continuousFactory =
+           continuousBackendFactory ??
+           (continuousBackend != null
+               ? (() => continuousBackend)
+               : player == null && ContinuousPcmBackend.supported
+               ? (() => ContinuousPcmBackend())
+               : null) {
     _tracker = listeningTracker;
     if (trackJourney) {
       _tracker = ListeningTracker(
@@ -84,20 +94,46 @@ class QuranAudioController extends ChangeNotifier {
             unawaited(JourneyStore.recordTime(listening: seconds)),
       );
     }
+    _legacyBackend = JustAudioBackend(_player);
+    _bindBackend(_legacyBackend);
+  }
+
+  void _bindBackend(AudioPlaybackBackend backend) {
+    for (final subscription in _subscriptions) {
+      unawaited(subscription.cancel());
+    }
+    _subscriptions.clear();
+    _backend = backend;
     _subscriptions.add(
-      _player.positionStream.listen((_) {
+      backend.positionStream.listen((_) {
+        if (!identical(_backend, backend)) return;
         if (_pcmActive) _pcmPositionChanged();
         _trackListening();
       }),
     );
-    _subscriptions.add(_player.sequenceStateStream.listen(_sequenceChanged));
-    _subscriptions.add(_player.playerStateStream.listen(_nativeState));
-    _subscriptions.add(_player.errorStream.listen(_nativeError));
+    _subscriptions.add(
+      backend.sequenceStateStream.listen((state) {
+        if (identical(_backend, backend)) _sequenceChanged(state);
+      }),
+    );
+    _subscriptions.add(
+      backend.playerStateStream.listen((state) {
+        if (identical(_backend, backend)) _nativeState(state);
+      }),
+    );
+    _subscriptions.add(
+      backend.errorStream.listen((error) {
+        if (identical(_backend, backend)) _nativeError(error);
+      }),
+    );
   }
+
   static final instance = QuranAudioController._();
   @visibleForTesting
   factory QuranAudioController.forTesting({
     required AudioPlayer player,
+    AudioPlaybackBackend? continuousBackend,
+    AudioPlaybackBackend Function()? continuousBackendFactory,
     AudioRecordingRepository? repository,
     Future<List<AudioSource>> Function(AudioPlaybackPlan)? prepareSources,
     BismillahResolver resolveIntroduction = BismillahSources.resolve,
@@ -106,6 +142,8 @@ class QuranAudioController extends ChangeNotifier {
     Duration loadTimeout = const Duration(seconds: 20),
   }) => QuranAudioController._(
     player: player,
+    continuousBackend: continuousBackend,
+    continuousBackendFactory: continuousBackendFactory,
     repository: repository,
     prepareSources: prepareSources,
     trackJourney: false,
@@ -130,6 +168,15 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   final AudioPlayer _player;
+  late final JustAudioBackend _legacyBackend;
+  late AudioPlaybackBackend _backend;
+  final AudioPlaybackBackend Function()? _continuousFactory;
+  bool _continuousHandoff = false;
+  AudioPlaybackBackend? _retiringBackend;
+  String? continuousFallbackReason;
+  bool get usingContinuousPcm => !identical(_backend, _legacyBackend);
+  String get activeBackend =>
+      usingContinuousPcm ? 'continuous-pcm' : 'just_audio';
   final AudioRecordingRepository _repository;
   final BismillahResolver resolveIntroduction;
   final Duration retryDelay, loadTimeout;
@@ -187,15 +234,15 @@ class QuranAudioController extends ChangeNotifier {
   bool get hasActivePlayback => _active;
   bool get hasPlan => _plan != null;
   int get playbackSessionId => _session;
-  ProcessingState get processingState => _player.processingState;
+  ProcessingState get processingState => _backend.processingState;
   Duration get bufferedPlaybackPosition => _pcmActive && _pcmRow != null
-      ? _pcmRelative(_player.bufferedPosition)
-      : _player.bufferedPosition;
+      ? _pcmRelative(_backend.bufferedPosition)
+      : _backend.bufferedPosition;
   Duration get playbackPosition => _pcmActive && _pcmRow != null
-      ? _pcmRelative(_player.position)
+      ? _pcmRelative(_backend.position)
       : _waiting != null && _waiting != _current
       ? Duration.zero
-      : _player.position;
+      : _backend.position;
   int? get currentIndex => _cursor?.index;
   int get totalItems => _cursor?.verses.length ?? 0;
   int get nativeQueueLength => _queue.length;
@@ -320,7 +367,7 @@ class QuranAudioController extends ChangeNotifier {
       album: 'Quran recitation',
       artist: _plan!.reciter.name,
       artUri: _artwork,
-      duration: _player.duration,
+      duration: _backend.duration,
       extras: {
         'surah': item.surah,
         if (item.ayah != null) 'ayah': item.ayah!,
@@ -338,7 +385,7 @@ class QuranAudioController extends ChangeNotifier {
     if (tag is! QuranAudioOccurrence || tag.sessionGeneration != _session) {
       return;
     }
-    final latest = _player.sequenceState.currentSource?.tag;
+    final latest = _backend.sequenceState.currentSource?.tag;
     if (latest is! QuranAudioOccurrence ||
         latest.occurrenceId != tag.occurrenceId) {
       return;
@@ -366,10 +413,10 @@ class QuranAudioController extends ChangeNotifier {
         );
       _pending.removeWhere(_queue.contains);
     }
-    _adopt(entry, begun: _intent && _player.playing);
+    _adopt(entry, begun: _intent && _backend.playing);
     _phase = !_intent
         ? QuranPlaybackPhase.paused
-        : _player.playing
+        : _backend.playing
         ? QuranPlaybackPhase.playing
         : QuranPlaybackPhase.buffering;
     _publish();
@@ -378,8 +425,8 @@ class QuranAudioController extends ChangeNotifier {
 
   void _nativeState(PlayerState state) {
     if (_disposed ||
-        state.processingState != _player.processingState ||
-        state.playing != _player.playing) {
+        state.processingState != _backend.processingState ||
+        state.playing != _backend.playing) {
       return;
     }
     // Only commands/session interruptions change intent. A late native start
@@ -390,8 +437,8 @@ class QuranAudioController extends ChangeNotifier {
         if (!_disposed &&
             generation == _session &&
             !_intent &&
-            _player.playing) {
-          unawaited(_player.pause());
+            _backend.playing) {
+          unawaited(_backend.pause());
         }
       });
     }
@@ -402,6 +449,9 @@ class QuranAudioController extends ChangeNotifier {
       return;
     }
     if (_pcmActive) _pcmPositionChanged();
+    if (!_pcmActive && _media?.duration != _backend.duration) {
+      _metadata(_current!);
+    }
     _trackListening();
     if (state.processingState == ProcessingState.completed && !_exhausted) {
       _exhausted = true;
@@ -465,9 +515,9 @@ class QuranAudioController extends ChangeNotifier {
       occurrence: entry.occurrence.occurrenceId,
       verse: '${entry.item.surah}:${entry.item.ayah}',
       countVerse: !entry.item.isIntroduction,
-      position: _player.position,
-      duration: _player.duration,
-      playing: audible && _player.playing,
+      position: _backend.position,
+      duration: _backend.duration,
+      playing: audible && _backend.playing,
     );
   }
 
@@ -507,7 +557,23 @@ class QuranAudioController extends ChangeNotifier {
     }
     final generation = _session, revision = _revision;
     _publish();
-    await _player.stop();
+    await _backend.stop();
+    if (!_valid(generation, revision)) return;
+    if (identical(_backend, _retiringBackend)) {
+      await _backend.dispose();
+      if (!_valid(generation, revision)) return;
+      _bindBackend(_legacyBackend);
+    }
+    continuousFallbackReason = null;
+    if (_pcmProof?.supports(plan) ?? false) {
+      if (usingContinuousPcm) {
+        final old = _backend;
+        _bindBackend(_legacyBackend);
+        await old.dispose();
+      }
+    } else if (!usingContinuousPcm && _continuousFactory != null) {
+      _bindBackend(_continuousFactory());
+    }
     if (!_valid(generation, revision)) return;
     if (_pcmProof?.supports(plan) ?? false) {
       await _preparePcmProof(generation, revision);
@@ -714,12 +780,12 @@ class QuranAudioController extends ChangeNotifier {
       try {
         await _native(() async {
           if (!_valid(generation, revision)) return;
-          await _player.pause().timeout(loadTimeout);
+          await _backend.pause().timeout(loadTimeout);
           if (!_valid(generation, revision)) return;
           _queue.clear();
           _queue.add(entry);
           _queueReloads++;
-          await _player
+          await _backend
               .setAudioSources(
                 [_source(entry, entry.path!)],
                 initialIndex: 0,
@@ -727,9 +793,9 @@ class QuranAudioController extends ChangeNotifier {
               )
               .timeout(loadTimeout);
           if (!_valid(generation, revision)) return;
-          await _player.setLoopMode(LoopMode.off);
-          if (_player.processingState == ProcessingState.idle ||
-              _player.processingState == ProcessingState.completed) {
+          await _backend.setLoopMode(LoopMode.off);
+          if (_backend.processingState == ProcessingState.idle ||
+              _backend.processingState == ProcessingState.completed) {
             throw StateError('Recording did not become ready');
           }
         });
@@ -750,7 +816,11 @@ class QuranAudioController extends ChangeNotifier {
         return;
       } catch (error) {
         if (!_valid(generation, revision)) return;
-        await _player.stop();
+        if (usingContinuousPcm) {
+          await _fallbackContinuous(error);
+          return;
+        }
+        await _backend.stop();
         if (!_valid(generation, revision)) return;
         entry.failure = _problem(error);
         entry.preparation = null;
@@ -792,7 +862,7 @@ class QuranAudioController extends ChangeNotifier {
         ? QuranPlaybackPhase.buffering
         : QuranPlaybackPhase.preparing;
     unawaited(
-      _player.play().then<void>(
+      _backend.play().then<void>(
         (_) {
           // A play Future normally ends at EOF/Pause. Some interrupted startup
           // paths return early in ready/false; recover those without another tap.
@@ -801,8 +871,8 @@ class QuranAudioController extends ChangeNotifier {
               _intent &&
               !_installing &&
               !_exhausted &&
-              _player.processingState == ProcessingState.ready &&
-              !_player.playing) {
+              _backend.processingState == ProcessingState.ready &&
+              !_backend.playing) {
             unawaited(_recoverCurrent(invalidate: false));
           }
         },
@@ -821,7 +891,7 @@ class QuranAudioController extends ChangeNotifier {
     );
     // play() may update getters before its state stream delivers the event, or
     // may already be active. Awaiting its Future would wait until playback ends.
-    _nativeState(PlayerState(_player.playing, _player.processingState));
+    _nativeState(PlayerState(_backend.playing, _backend.processingState));
   }
 
   void _fail(_QueueEntry entry, AudioFailure problem) {
@@ -874,7 +944,7 @@ class QuranAudioController extends ChangeNotifier {
       final index = _queue.indexOf(_current!);
       final remove = index - 1;
       if (remove <= 0) return;
-      await _player.removeAudioSourceRange(0, remove).timeout(loadTimeout);
+      await _backend.removeAudioSourceRange(0, remove).timeout(loadTimeout);
       if (!_valid(generation, revision)) return;
       _queue.removeRange(0, remove);
     });
@@ -920,7 +990,12 @@ class QuranAudioController extends ChangeNotifier {
         await _trim(generation, revision);
         if (!_valid(generation, revision)) return;
         _planPending();
-        if (_pending.isEmpty) return;
+        if (_pending.isEmpty) {
+          if (_next(_queue.lastOrNull ?? _current!) == null) {
+            await _backend.finishQueue();
+          }
+          return;
+        }
         final next = _pending.first;
         if (next.failure == null && next.path == null) {
           try {
@@ -951,7 +1026,7 @@ class QuranAudioController extends ChangeNotifier {
           if (_queue.length >= nativeQueueLimit) return;
           _queue.add(next);
           try {
-            await _player
+            await _backend
                 .addAudioSource(_source(next, next.path!))
                 .timeout(loadTimeout);
           } catch (error) {
@@ -961,12 +1036,19 @@ class QuranAudioController extends ChangeNotifier {
           if (_valid(generation, revision)) _pending.remove(next);
         });
         if (_exhausted) continue;
+        if (_pending.isEmpty && _next(next) == null) {
+          await _backend.finishQueue();
+        }
         if (_queue.length >= nativeQueueLimit) return;
         final index = _queue.indexOf(_current!);
         if (index >= 0 && _queue.length - index >= forwardWindow + 1) return;
       }
     } catch (error) {
       if (!_valid(generation, revision)) return;
+      if (usingContinuousPcm) {
+        await _fallbackContinuous(error);
+        return;
+      }
       // An append failure belongs to the appended future recording, not current.
       final broken = _queue.where((e) => e.failure != null).firstOrNull;
       if (broken != null) {
@@ -982,13 +1064,13 @@ class QuranAudioController extends ChangeNotifier {
       _active = _intent = _begun = false;
       _phase = QuranPlaybackPhase.completed;
       _tracker?.flush();
-      await _player.pause();
+      await _backend.pause();
       _publish();
       return;
     }
     if (!_active || _current == null) return;
     // A native automatic transition may have overtaken the EOF callback.
-    if (_player.processingState != ProcessingState.completed) {
+    if (_backend.processingState != ProcessingState.completed) {
       _exhausted = false;
       return;
     }
@@ -1000,7 +1082,7 @@ class QuranAudioController extends ChangeNotifier {
       _intent = false;
       _phase = QuranPlaybackPhase.completed;
       _tracker?.flush();
-      await _player.pause();
+      await _backend.pause();
       _publish();
       return;
     }
@@ -1018,9 +1100,13 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _nativeError(PlayerException error) {
+    if (_active && usingContinuousPcm) {
+      unawaited(_fallbackContinuous(error));
+      return;
+    }
     if (!_active || _installing || phase == QuranPlaybackPhase.failed) return;
     final index = error.index;
-    final nativeSequence = _player.sequenceState.sequence;
+    final nativeSequence = _backend.sequenceState.sequence;
     final sourceTag =
         index != null && index >= 0 && index < nativeSequence.length
         ? nativeSequence[index].tag
@@ -1048,7 +1134,7 @@ class QuranAudioController extends ChangeNotifier {
       unawaited(() async {
         await _deferFutureFailure(affected, generation, revision);
         if (_valid(generation, revision) &&
-            _player.processingState == ProcessingState.idle) {
+            _backend.processingState == ProcessingState.idle) {
           await _recoverCurrent(invalidate: false);
         }
       }());
@@ -1067,7 +1153,7 @@ class QuranAudioController extends ChangeNotifier {
       final index = _queue.indexOf(entry), current = _queue.indexOf(_current!);
       if (index <= current || index < 0) return;
       final suffix = _queue.sublist(index);
-      await _player
+      await _backend
           .removeAudioSourceRange(index, _queue.length)
           .timeout(loadTimeout);
       if (!_valid(generation, revision)) return;
@@ -1079,6 +1165,10 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> _recoverCurrent({required bool invalidate}) async {
+    if (usingContinuousPcm) {
+      await _fallbackContinuous(StateError('Continuous output stalled'));
+      return;
+    }
     if (_pcmActive) {
       await _fallbackPcmProof(_session, _revision);
       return;
@@ -1100,10 +1190,10 @@ class QuranAudioController extends ChangeNotifier {
           'Repeated decoder failures. Retry, skip, or stop.',
         ),
       );
-      await _player.pause();
+      await _backend.pause();
       return;
     }
-    var position = _player.position;
+    var position = _backend.position;
     _token.cancel('Recovering native queue');
     _token = CancelToken();
     final generation = _session, revision = ++_revision;
@@ -1114,7 +1204,7 @@ class QuranAudioController extends ChangeNotifier {
         ? QuranPlaybackPhase.recovering
         : QuranPlaybackPhase.paused;
     _publish();
-    await _player.pause();
+    await _backend.pause();
     if (!_valid(generation, revision)) return;
     if (invalidate) {
       await _repair(entry);
@@ -1127,6 +1217,52 @@ class QuranAudioController extends ChangeNotifier {
     entry.attempts = 0;
     await _install(entry, generation, revision, position: position);
     if (_valid(generation, revision)) _kickFill();
+  }
+
+  Future<void> _fallbackContinuous(Object reason) async {
+    if (!usingContinuousPcm || !_active || _continuousHandoff) return;
+    _continuousHandoff = true;
+    final failedBackend = _backend;
+    _retiringBackend = failedBackend;
+    // Only the rendered cursor is authoritative. A failure in a future decode
+    // must never skip from the audible ayah to the failed future recording.
+    final entry = _current ?? _waiting;
+    final generation = _session, revision = ++_revision;
+    _token.cancel('Continuous backend handoff');
+    _token = CancelToken();
+    _fillRevision = null;
+    _installing = true;
+    _starting = false;
+    _playRequest++;
+    _stall?.cancel();
+    continuousFallbackReason = reason.toString();
+    debugPrint('Quran audio fallback: $continuousFallbackReason');
+    try {
+      // Release output before the legacy player can activate the shared session.
+      await failedBackend.dispose();
+      if (!_valid(generation, revision)) return;
+      _bindBackend(_legacyBackend);
+      _queue.clear();
+      _pending.clear();
+      _tracker?.flush();
+      _current = _waiting = _failed = null;
+      _begun = _exhausted = false;
+      if (entry == null) return;
+      entry.source = null;
+      entry.failure = null;
+      entry.attempts = 0;
+      await _install(entry, generation, revision);
+      if (_valid(generation, revision)) {
+        _kickFill();
+        if (_legacyPreparer == null) unawaited(downloadSelection(_plan!));
+      }
+    } catch (error) {
+      if (_valid(generation, revision) && entry != null) {
+        _fail(entry, _problem(error));
+      }
+    } finally {
+      _continuousHandoff = false;
+    }
   }
 
   Future<void> play() async {
@@ -1162,7 +1298,7 @@ class QuranAudioController extends ChangeNotifier {
     }
     _trackListening();
     _publish();
-    await _player.pause();
+    await _backend.pause();
   }
 
   Future<void> togglePlayPause() => playing ? pause() : play();
@@ -1209,7 +1345,7 @@ class QuranAudioController extends ChangeNotifier {
     _media = null;
     _phase = QuranPlaybackPhase.idle;
     _publish();
-    await _player.stop();
+    await _backend.stop();
   }
 
   Future<void> _navigate(bool next) async {
@@ -1243,7 +1379,7 @@ class QuranAudioController extends ChangeNotifier {
     _pending.clear();
     _current = _failed = _waiting = null;
     _begun = false;
-    await _player.stop();
+    await _backend.stop();
     if (!_valid(generation, revision)) return;
     await _install(_entry(cursor), generation, revision);
     if (_valid(generation, revision)) _kickFill();
@@ -1268,7 +1404,12 @@ class QuranAudioController extends ChangeNotifier {
       return;
     }
     if (!_active || _installing || _exhausted || _current == null) return;
-    await _player.seek(position);
+    try {
+      await _backend.seek(position);
+    } catch (error) {
+      if (!usingContinuousPcm) rethrow;
+      await _fallbackContinuous(error);
+    }
     _trackListening();
     _publish();
   }
@@ -1396,7 +1537,8 @@ class QuranAudioController extends ChangeNotifier {
       unawaited(subscription.cancel());
     }
     _tracker?.reset();
-    unawaited(_player.dispose());
+    unawaited(_backend.dispose());
+    if (usingContinuousPcm) unawaited(_legacyBackend.dispose());
     super.dispose();
   }
 }

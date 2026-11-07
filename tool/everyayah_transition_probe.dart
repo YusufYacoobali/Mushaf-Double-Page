@@ -10,10 +10,13 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
+import 'package:mushaf_two_page/logic/audio_playback_backend.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 
 const _control = bool.fromEnvironment('AUDIO_TRANSITION_CONTROL');
 const _directory = String.fromEnvironment('AUDIO_TRANSITION_DIRECTORY');
+// Diagnostic baseline selector only. Production continuous playback is default.
+const _legacy = bool.fromEnvironment('AUDIO_TRANSITION_LEGACY');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,10 +56,13 @@ Future<void> main() async {
       }
     }
     final player = AudioPlayer(maxSkipsOnError: 0, handleInterruptions: false);
-    await player.setVolume(.5);
+    await player.setVolume(1);
     // ignore: invalid_use_of_visible_for_testing_member
     final c = controller = QuranAudioController.forTesting(
       player: player,
+      continuousBackend: !_control && !_legacy && ContinuousPcmBackend.supported
+          ? ContinuousPcmBackend()
+          : null,
       prepareSources: (_) async => _control
           ? [AudioSource.file('$root/${manifest['unsplitControl']}')]
           : [
@@ -85,8 +91,10 @@ Future<void> main() async {
     final events = <Map<String, Object?>>[];
     final clock = Stopwatch()..start();
     final done = Completer<void>();
+    int? firstRenderedUs;
     var previous = '';
     c.addListener(() {
+      if (c.audible) firstRenderedUs ??= clock.elapsedMicroseconds;
       final key = c.currentOccurrence?.occurrenceId ?? '';
       if (key != previous) {
         previous = key;
@@ -124,6 +132,8 @@ Future<void> main() async {
     await done.future.timeout(const Duration(seconds: 30));
     final error = c.error;
     final reloads = c.queueReloadCount;
+    final backend = c.activeBackend;
+    final fallback = c.continuousFallbackReason;
     await c.stop();
     await File(
       '$root/${_control ? 'control' : 'split'}-events.json',
@@ -132,6 +142,9 @@ Future<void> main() async {
         'platform': Platform.operatingSystem,
         'control': _control,
         'queueLoads': reloads,
+        'backend': backend,
+        'fallbackReason': fallback,
+        'firstRenderedEventUs': firstRenderedUs,
         'events': events,
         'nativeOutputGapMs': null,
         'note':
@@ -140,6 +153,9 @@ Future<void> main() async {
       }),
     );
     if (error != null) throw StateError(error);
+    if (!_control && !_legacy && backend != 'continuous-pcm') {
+      throw StateError('Continuous probe fell back: $fallback');
+    }
     status.value =
         'Probe complete. Analyze captured output; event timing is not a gap measurement.';
   } catch (error) {
