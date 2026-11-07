@@ -9,10 +9,21 @@
 #import "./include/just_audio/ClippingAudioSource.h"
 #import <AVFoundation/AVFoundation.h>
 #import <stdlib.h>
+#import "./include/just_audio/QueuePrefix.h"
 #include <TargetConditionals.h>
 
 #define TREADMILL_SIZE 2
 #define ERROR_ABORT 10000000
+
+typedef struct {
+    __unsafe_unretained NSArray *existing;
+    __unsafe_unretained NSArray *desired;
+} JAQueuePrefixContext;
+
+static bool JAQueueItemMatches(void *context, size_t index) {
+    JAQueuePrefixContext *items = context;
+    return [items->existing objectAtIndex:index] == [items->desired objectAtIndex:index];
+}
 
 // TODO: Check for and report invalid state transitions.
 // TODO: Apply Apple's guidance on seeking: https://developer.apple.com/library/archive/qa/qa1820/_index.html
@@ -512,6 +523,41 @@
     IndexedPlayerItem *existingItem = nil;
     IndexedPlayerItem *newItem = _indexedAudioSources.count > 0 ? _indexedAudioSources[_index].playerItem : nil;
     NSArray *oldPlayerItems = [NSArray arrayWithArray:_player.items];
+
+    // Ordinary bounded-playlist edits must not remove/reinsert the prepared
+    // next AVPlayerItem. Doing so discards its queue residency even when the
+    // logical order is unchanged. Keep the native prefix and repair only a
+    // divergent suffix. Manual current-item changes and native loop modes keep
+    // the established path below (including secondary loop items).
+    if (newItem && oldItem == newItem && _loopMode == lmLoopOff) {
+        NSMutableArray *desired = [NSMutableArray array];
+        BOOL include = NO;
+        _enqueuedAll = YES;
+        for (NSNumber *orderedIndex in _order) {
+            int si = orderedIndex.intValue;
+            if (si == _index) include = YES;
+            if (!include) continue;
+            if (_indexedAudioSources[si].lazyLoading && desired.count >= TREADMILL_SIZE) {
+                _enqueuedAll = NO;
+                break;
+            }
+            [desired addObject:_indexedAudioSources[si].playerItem];
+        }
+        JAQueuePrefixContext context = {oldPlayerItems, desired};
+        size_t keep = JAMatchingQueuePrefix(oldPlayerItems.count, desired.count,
+                                           &context, JAQueueItemMatches);
+        if (keep > 0) {
+            // Remove from the tail; never transiently advance the active item.
+            for (NSUInteger i = oldPlayerItems.count; i > keep; --i) {
+                [_player removeItem:oldPlayerItems[i - 1]];
+            }
+            for (NSUInteger i = keep; i < desired.count; ++i) {
+                [_player insertItem:desired[i] afterItem:nil];
+            }
+            [self updateEndAction];
+            return;
+        }
+    }
     // In the first pass, preserve the old and new items.
     // TODO: preserve as much of the treadmill as possible
     for (int i = 0; i < oldPlayerItems.count; i++) {

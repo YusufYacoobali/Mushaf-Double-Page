@@ -78,6 +78,26 @@ editions and 70%, 80% and 100% zoom, with and without contextual controls.
 Portrait → landscape → portrait retains the focused page and original geometry.
 These are Flutter widget/rendering tests; no physical iPhone is attached.
 
+### Landscape iPhone dock follow-up
+
+Starting from `17558d9`, ordinary landscape iPhone windows also use v4's
+full-screen dock coordinates. The exception applies only to iOS landscape
+windows with a shortest side below 600 px, a continuous full-viewport spread,
+and no reported fold or hinge. Android, tablet-sized windows and foldable
+layouts keep the regional wrapper. No page or navigator layout is changed.
+
+The v4 side tab is 4 px from the physical right edge when collapsed. Expanded
+controls use `max(6, safe.right)` once, and the vertical band uses
+`max(12, safe.top)` / `max(12, safe.bottom)` in both states. Contextual controls
+retain their 58 px allowance. The original ReaderDock handles these offsets.
+
+`iphone_landscape_dock_geometry_test.dart` measures rendered tab/control bounds at
+812 × 375, 852 × 393 and 932 × 430 with left/right notch insets and a 21 px home
+indicator, with and without audio controls. Both Surah and Juz retain full-height,
+right-edge panel backgrounds, adaptive widths and content-only safe padding.
+Additional rendered-bounds checks preserve Android, iPad, flat-fold and hinge
+regions. These tests exercise the same ReaderDockOverlay used in `main.dart`.
+
 ## Restored regular-phone landscape geometry
 
 The remote `v4` branch is no longer present. Its last merged commit is
@@ -198,10 +218,10 @@ in the noncompact card and Journey screen.
 
 ## Validation
 
-Latest checks include the iPhone portrait restoration:
+Latest checks include the iPhone portrait and landscape dock restorations:
 
 - `flutter analyze --no-pub`: no issues.
-- `flutter test --no-pub --reporter expanded`: **382 tests passed**.
+- `flutter test --no-pub --reporter expanded`: **392 tests passed**.
 - `git diff --check`: clean.
 - Targeted Flutter widget-rendering diagnostic: three navigator sizes plus the
   minimal reminder, using the actual Inter and Material icon fonts. This is

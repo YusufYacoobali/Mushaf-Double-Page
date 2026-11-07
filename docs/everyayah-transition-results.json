@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-07",
+  "status": "native_preparation_fix_hardware_acceptance_pending",
+  "provider": "EveryAyah",
+  "reportedSwitchingGapMs": 100,
+  "reportedSwitchingGapMeasuredHere": false,
+  "ios": {
+    "identifiedDefect": "Unchanged queued next AVPlayerItem removed and reinserted on ordinary playlist edits",
+    "implementedFix": "Retain identity-matching native prefix; repair divergent suffix only with current unchanged and native looping off",
+    "stableNextItemQueueOperationsBefore": 2,
+    "stableNextItemQueueOperationsAfter": 0,
+    "nativeBuildPerformed": false,
+    "capturedGapBeforeMs": null,
+    "capturedGapAfterMs": null
+  },
+  "android": {
+    "engine": "Media3 1.4.1",
+    "identifiedWrapperStopPerCachedTransition": false,
+    "decoderReuse": "Compatible audio reuse may flush; changes/workarounds may recreate codec",
+    "runtimeChanges": false,
+    "nativeBuildPerformed": false,
+    "capturedGapBeforeMs": null,
+    "capturedGapAfterMs": null
+  },
+  "syntheticAnalyzer": {
+    "referenceFramesPerPart": 66150,
+    "sampleRate": 44100,
+    "knownInsertedGapFrames": 4410,
+    "detectedInsertedGapMs": 100,
+    "unsplitControlAdditionalFrames": 0,
+    "nativePlayerMeasurement": false
+  },
+  "decodedStreamingBackendImplemented": false,
+  "recitationSamplesEdited": false,
+  "productionDecodedCacheAdded": false,
+  "flutterAnalyze": "passed_no_issues",
+  "flutterTests": 395,
+  "pythonTests": 6,
+  "nativePrefixCases": 970,
+  "audibleGaplessnessAcceptance": "unverified_on_physical_ios_and_android"
+}

@@ -1,5 +1,8 @@
 # v5 audio boundary investigation
 
+Historical preparation/content investigation. The later native item-transition
+review and narrow Darwin fix are recorded in [EveryAyah transition latency](everyayah-transition-latency.md).
+
 This follow-up starts at `a4fa802`. It preserves the bounded native playlist and
 all Bismillah, repeat, recovery, offline, highlighting and statistics behavior.
 

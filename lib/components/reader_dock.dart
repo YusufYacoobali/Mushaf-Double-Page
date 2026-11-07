@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show DisplayFeatureType;
 import 'package:flutter/material.dart';
 import '../utils/app_palette.dart';
 import '../utils/app_motion.dart';
@@ -17,7 +18,23 @@ class ReaderDockOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (layout.fullWidthPortrait) return child;
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    final iPhoneLandscape =
+        Theme.of(context).platform == TargetPlatform.iOS &&
+        size.width > size.height &&
+        size.shortestSide < 600 &&
+        layout.spreadLayout == ReaderSpreadLayout.centeredLandscape &&
+        layout.usableContentBounds == (Offset.zero & size) &&
+        !media.displayFeatures.any(
+          (feature) =>
+              feature.type == DisplayFeatureType.fold ||
+              feature.type == DisplayFeatureType.hinge,
+        );
+    // v4 positioned the iPhone side dock against the screen. ReaderDock itself
+    // owns the notch/home-indicator offsets; wrapping it in a safe region would
+    // shift the collapsed edge tab and apply different expanded coordinates.
+    if (layout.fullWidthPortrait || iPhoneLandscape) return child;
     return Positioned.fromRect(
       rect: layout.controlsRegion,
       child: MediaQuery.removePadding(

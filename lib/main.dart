@@ -45,9 +45,11 @@ import 'components/translation_modal.dart';
 import 'firebase_options.dart';
 import 'utils/app_review.dart';
 import 'utils/recent_surah_history.dart';
+import 'utils/retired_audio_cache.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(removeRetiredAudioCache());
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _initBackgroundAudio();
   await ReminderNotifications.initialize();
