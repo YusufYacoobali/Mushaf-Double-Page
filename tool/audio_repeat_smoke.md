@@ -19,10 +19,12 @@ boundary are intentional recording content. The app does not remove them.
 Set `AUDIO_SMOKE_REAL=true` for real EveryAyah downloads/cache playback at audible
 volume. This uses the production hash-bound reusable Bismillah sources and
 automatically saves the selection without an opening-consent dialog. It runs
-seven cases including Al-Ikhlas short ayahs,
+seven cases per reciter for Alafasy, Husary and Shaatree (21 total), including Al-Ikhlas short ayahs,
 Al-Ikhlas/An-Nas introductions, verse/range repetitions and an infinite range.
 Run again with networking disabled after all required files have been cached to
-check offline transitions. Real cases time out after ten minutes each; generated
+check offline transitions. Add `AUDIO_SMOKE_OFFLINE=true` alongside
+`AUDIO_SMOKE_REAL=true` to reject every cache-miss HTTP request and fail/report
+any attempted request. This guard affects only the diagnostic, not production. Real cases time out after ten minutes each; generated
 cases time out after two minutes. Cache preparation is included in elapsed timing.
 
 The JSON report is `audio_repeat_report.json` in the application-support directory
@@ -114,3 +116,11 @@ No Android/iOS device or emulator is available here. The diagnostic has been
 analyzed but not run on either native platform. Audible output gaps and locked
 screen playback remain unmeasured. See `docs/v5-validation.md` for automated
 regression results and content-audit limitations.
+
+## Split-signal native output capture
+
+For two MP3s split from one uninterrupted synthetic signal, an unsplit control,
+and waveform-based extra-delay measurement, use [everyayah_transition_probe.md](everyayah_transition_probe.md).
+It does not use the default tone fixture's intentional 100 ms of edge silence.
+See [the current native investigation](../docs/everyayah-transition-latency.md)
+for the Darwin queue-residency fix and unmeasured hardware acceptance criteria.

@@ -7,7 +7,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:dio/dio.dart';
+import 'package:mushaf_two_page/logic/audio_repository.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
@@ -16,6 +19,8 @@ import 'package:mushaf_two_page/utils/bismillah_sources.dart';
 
 const _realAudio = bool.fromEnvironment('AUDIO_SMOKE_REAL');
 const _audible = bool.fromEnvironment('AUDIO_SMOKE_AUDIBLE');
+const _offline = bool.fromEnvironment('AUDIO_SMOKE_OFFLINE');
+Reciter _reciter = quranReciters.first;
 final _navigator = GlobalKey<NavigatorState>();
 final _status = ValueNotifier<String>('Preparing native playback checks…');
 
@@ -38,12 +43,15 @@ Future<void> main() async {
   final directory = await getApplicationSupportDirectory();
   final report = File('${directory.path}/audio_repeat_report.json');
   final results = <Map<String, Object?>>[];
+  var blockedNetworkRequests = 0;
   Future<void> save(String state, [Object? error]) async {
     await report.writeAsString(
       jsonEncode({
         'state': state,
         'platform': Platform.operatingSystem,
         'results': results,
+        'offlineGuard': _offline,
+        'blockedNetworkRequests': blockedNetworkRequests,
         if (error != null) 'error': error.toString(),
       }),
       flush: true,
@@ -54,7 +62,11 @@ Future<void> main() async {
   try {
     final fixture = File('${directory.path}/decoder_fixture.wav');
     await fixture.writeAsBytes(_tone(), flush: true);
-    final player = AudioPlayer(maxSkipsOnError: 0);
+    final player = AudioPlayer(
+      maxSkipsOnError: 0,
+      handleInterruptions: false,
+      handleAudioSessionActivation: true,
+    );
     // Decode normally, quietly. Native EOF and item transitions must occur;
     // extrapolated position alone is not accepted as proof of a completed loop.
     await player.setVolume(_realAudio || _audible ? 1 : 0);
@@ -64,12 +76,39 @@ Future<void> main() async {
     // ignore: invalid_use_of_visible_for_testing_member
     final controller = QuranAudioController.forTesting(
       player: player,
+      repository: AudioRepository(
+        dio:
+            Dio(
+                BaseOptions(
+                  connectTimeout: const Duration(seconds: 15),
+                  receiveTimeout: const Duration(seconds: 25),
+                  sendTimeout: const Duration(seconds: 15),
+                ),
+              )
+              ..interceptors.add(
+                InterceptorsWrapper(
+                  onRequest: (options, handler) {
+                    if (_offline) {
+                      blockedNetworkRequests++;
+                      handler.reject(
+                        DioException(
+                          requestOptions: options,
+                          message: 'Offline diagnostic: cache miss',
+                        ),
+                      );
+                    } else {
+                      handler.next(options);
+                    }
+                  },
+                ),
+              ),
+      ),
       prepareSources: _realAudio ? null : (plan) async => [source],
       resolveIntroduction: _realAudio
           ? BismillahSources.resolve
           : _fixturePolicy,
     );
-    await AudioService.init(
+    final handler = await AudioService.init(
       builder: () => QuranAudioHandler(controller),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.quran.quran_double_page.audio',
@@ -77,30 +116,46 @@ Future<void> main() async {
         androidNotificationOngoing: true,
       ),
     );
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.speech());
+    handler.bindSessionEvents(
+      becomingNoisy: session.becomingNoisyEventStream,
+      interruptions: session.interruptionEventStream,
+    );
     try {
-      for (final count in (_realAudio ? [1, 2] : [3, 5, 10])) {
-        for (final ayahs in (_realAudio ? [2, 4] : [1, 2])) {
-          results.add(await _check(controller, player, _plan(count, ayahs)));
-          await save('running');
+      for (final reciterId
+          in (_realAudio ? ['alafasy', 'husary', 'shaatree'] : ['alafasy'])) {
+        _reciter = quranReciters.firstWhere((r) => r.id == reciterId);
+        for (final count in (_realAudio ? [1, 2] : [3, 5, 10])) {
+          for (final ayahs in (_realAudio ? [2, 4] : [1, 2])) {
+            results.add(await _check(controller, player, _plan(count, ayahs)));
+            await save('running');
+          }
         }
+        results.add(
+          await _check(
+            controller,
+            player,
+            _plan(5, 2, repeatMode: AudioRepeatMode.ayah),
+          ),
+        );
+        await save('running');
+        results.add(await _check(controller, player, _plan(3, 1, queue: true)));
+        await save('running');
+        results.add(
+          await _check(controller, player, _plan(null, 1), stopAfter: 12),
+        );
       }
-      results.add(
-        await _check(
-          controller,
-          player,
-          _plan(5, 2, repeatMode: AudioRepeatMode.ayah),
-        ),
-      );
-      await save('running');
-      results.add(await _check(controller, player, _plan(3, 1, queue: true)));
-      await save('running');
-      results.add(
-        await _check(controller, player, _plan(null, 1), stopAfter: 12),
-      );
+      if (_offline && blockedNetworkRequests != 0) {
+        throw StateError(
+          'Offline suite attempted $blockedNetworkRequests cache-miss downloads',
+        );
+      }
       await save('passed');
       _status.value = '${results.length} native playback checks passed';
     } finally {
       await controller.stop();
+      await handler.dispose();
       controller.dispose();
     }
   } catch (error, stack) {
@@ -115,7 +170,7 @@ AudioPlaybackPlan _plan(
   AudioRepeatMode repeatMode = AudioRepeatMode.range,
   bool queue = false,
 }) => AudioPlaybackPlan(
-  reciter: quranReciters.first,
+  reciter: _reciter,
   surah: 112,
   fromAyah: 1,
   toAyah: ayahs,
@@ -244,6 +299,7 @@ Future<Map<String, Object?>> _check(
       throw StateError('Unbounded native queue/source registrations');
     }
     return {
+      'reciter': plan.reciter.id,
       'repeatCount': plan.repeatCount,
       'repeatMode': plan.repeatMode.name,
       'sourceMode': plan.sourceMode.name,
