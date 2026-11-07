@@ -68,6 +68,7 @@ void main() {
       final writes = <String>[];
       var active = 0, maximum = 0;
       final store = TasbeehStore(
+        saveInterval: Duration.zero,
         writeSnapshot: (snapshot) async {
           active++;
           maximum = active > maximum ? active : maximum;
@@ -115,6 +116,81 @@ void main() {
       reopened.dispose();
     },
   );
+  testWidgets(
+    'rapid counting checkpoints are bounded and flush saves the latest count immediately',
+    (tester) async {
+      final writes = <String>[];
+      final store = TasbeehStore(
+        writeSnapshot: (value) async {
+          writes.add(value);
+          return true;
+        },
+      );
+      await store.restore();
+      var notifications = 0;
+      store.addListener(() => notifications++);
+      for (var i = 0; i < 100; i++) {
+        store.increment();
+        await tester.pump(const Duration(milliseconds: 5));
+      }
+      expect(store.count, BigInt.from(100));
+      expect(writes.length, inInclusiveRange(1, 2));
+      expect(
+        notifications,
+        100,
+      ); // Successful storage writes do not rebuild the UI.
+      store.increment();
+      await store.flush();
+      expect((jsonDecode(writes.last)['counts'] as Map)['subhanallah'], '101');
+      expect(writes.length, lessThanOrEqualTo(3));
+      store.dispose();
+    },
+  );
+  testWidgets('failed checkpoints retain the newest count for explicit retry', (
+    tester,
+  ) async {
+    var accept = false;
+    final writes = <String>[];
+    final store = TasbeehStore(
+      writeSnapshot: (value) async {
+        writes.add(value);
+        return accept;
+      },
+    );
+    await store.restore();
+    store.increment();
+    await store.flush();
+    expect(store.saveError, isNotNull);
+    await tester.pump(const Duration(seconds: 1));
+    expect(writes, hasLength(1)); // No background hot retry loop.
+    store.increment();
+    store.increment();
+    accept = true;
+    await store.flush();
+    expect(store.saveError, isNull);
+    expect((jsonDecode(writes.last)['counts'] as Map)['subhanallah'], '3');
+    store.dispose();
+  });
+  testWidgets('disposing before a checkpoint drains the pending count', (
+    tester,
+  ) async {
+    final writes = <String>[];
+    final store = TasbeehStore(
+      writeSnapshot: (value) async {
+        writes.add(value);
+        return true;
+      },
+    );
+    await store.restore();
+    store.increment();
+    store.increment();
+    expect(writes, isEmpty);
+    store.dispose();
+    await store.flush();
+    expect((jsonDecode(writes.single)['counts'] as Map)['subhanallah'], '2');
+    await tester.pump(const Duration(seconds: 1));
+    expect(writes, hasLength(1));
+  });
   testWidgets(
     'completed taps count once; cancel does not count; Undo and Reset confirmation',
     (tester) async {

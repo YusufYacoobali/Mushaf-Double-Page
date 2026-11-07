@@ -211,8 +211,9 @@ class ContinuousPcmBackend implements AudioPlaybackBackend {
   void _event(dynamic raw) {
     if (_disposed || _failed || raw is! Map) return;
     if (raw['generation'] != _generation) return;
-    if (raw['error'] != null) {
-      _error(raw['error'] as Object);
+    final problem = raw['error'];
+    if (problem != null && (raw['rows'] == null || raw['frames'] == null)) {
+      _error(problem as Object);
       return;
     }
     _rows = (raw['rows'] as List)
@@ -220,13 +221,23 @@ class ContinuousPcmBackend implements AudioPlaybackBackend {
         .toList();
     _frames = (raw['frames'] as num).toInt();
     _buffered = (raw['bufferedFrames'] as num).toInt();
+    final previousUnderruns = underruns;
     underruns = (raw['underruns'] as num?)?.toInt() ?? 0;
     diagnostics = {
       'underruns': underruns,
       'pcmBufferedFrames': raw['pcmBufferedFrames'],
       'pcmCapacityFrames': raw['pcmCapacityFrames'],
       'renderedFrames': _frames,
+      'scheduledBuffers': raw['scheduledBuffers'],
+      'completedBuffers': raw['completedBuffers'],
+      'scheduleWaitMaxMs': raw['scheduleWaitMaxMs'],
+      'queuedRecordings': raw['queuedRecordings'],
+      'decodingOccurrence': raw['decodingOccurrence'],
+      'minBufferedFrames': raw['minBufferedFrames'],
     };
+    if (underruns > previousUnderruns) {
+      debugPrint('Quran PCM underrun: $diagnostics');
+    }
     final row = _rows
         .where((r) => _frames >= r.start && (r.end == null || _frames < r.end!))
         .firstOrNull;
@@ -246,6 +257,12 @@ class ContinuousPcmBackend implements AudioPlaybackBackend {
       _sequences.add(sequenceState);
     }
     _positions.add(position);
+    // Adopt the rendered occurrence from the error's snapshot before handing
+    // off. A delayed UI event must not replay an already-finished prior ayah.
+    if (problem != null) {
+      _error(problem as Object);
+      return;
+    }
     _emitState();
   }
 

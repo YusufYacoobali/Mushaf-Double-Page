@@ -1,11 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/logic/audio_playback_backend.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
+import 'package:mushaf_two_page/pages/tasbeeh.dart';
+import 'package:mushaf_two_page/utils/tasbeeh_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'audio_test_fixtures.dart';
 
@@ -78,7 +82,13 @@ class NativeClock {
   }
 
   int count(String method) => calls.where((c) => c.method == method).length;
-  void clock(int value, {String state = 'ready', int? eventGeneration}) {
+  void clock(
+    int value, {
+    String state = 'ready',
+    int? eventGeneration,
+    int underruns = 0,
+    String? error,
+  }) {
     frame = value;
     events.add({
       'generation': eventGeneration ?? generation,
@@ -86,7 +96,8 @@ class NativeClock {
       'bufferedFrames': total,
       'rows': List.of(rows),
       'state': state,
-      'underruns': 0,
+      'underruns': underruns,
+      if (error != null) 'error': error,
     });
   }
 
@@ -423,6 +434,87 @@ void main() {
       native.clock(44100, eventGeneration: old);
       expect(controller.phase, QuranPlaybackPhase.idle);
       expect(controller.hasActivePlayback, isFalse);
+    },
+  );
+
+  test('an error snapshot adopts the rendered ayah before fallback', () async {
+    await controller.playPlan(plan(count: 2));
+    await flush();
+    native.clock(5000);
+    expect(controller.currentAyah, 2);
+    // The UI missed a boundary while busy. The native error carries the latest
+    // played clock; handing off the previous UI cursor would repeat ayah 2.
+    native.clock(44100 + 1000, error: 'decoder failed');
+    await flush();
+    expect(controller.activeBackend, 'just_audio');
+    expect(controller.currentItem!.ayah, 3);
+    expect(controller.currentRepeat, 1);
+    expect(legacy.played.first.item.ayah, 3);
+    expect(legacy.starts, 1);
+  });
+
+  testWidgets(
+    'three short surahs keep their order through rapid Tasbeeh taps and transient buffering',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final writes = <String>[];
+      final store = TasbeehStore(
+        writeSnapshot: (value) async {
+          writes.add(value);
+          return true;
+        },
+      );
+      await store.restore();
+      await tester.pumpWidget(MaterialApp(home: TasbeehPage(store: store)));
+      await tester.pumpAndSettle();
+      final selection = plan(queue: [112, 113, 114]);
+      await tester.runAsync(() async {
+        await controller.playPlan(selection);
+        await flush();
+      });
+      await tester.pump();
+      final expected = QuranPlaybackCursor(
+        selection,
+        introductionForSurah: (_) => true,
+      )..introduction = true;
+      final seen = <String>{};
+      var at = 0, count = 0, underruns = 0;
+      do {
+        await tester.runAsync(() async {
+          native.clock(at, underruns: underruns);
+          await flush();
+        });
+        await tester.pump();
+        expect(controller.currentItem!.key, expected.item.key);
+        expect(seen.add(controller.currentOccurrence!.occurrenceId), isTrue);
+        for (var tap = 0; tap < 12; tap++) {
+          await tester.tap(find.bySemanticsLabel('Count dhikr'));
+          await tester.pump(const Duration(milliseconds: 8));
+          count++;
+        }
+        final occurrence = controller.currentOccurrence;
+        native.clock(at + 12000, state: 'buffering', underruns: ++underruns);
+        expect(controller.phase, QuranPlaybackPhase.buffering);
+        native.clock(at + 13000, underruns: underruns);
+        expect(controller.currentOccurrence, occurrence);
+        expect(controller.phase, QuranPlaybackPhase.playing);
+        expect(controller.usingContinuousPcm, isTrue);
+        at += 44100;
+      } while (expected.advance());
+      expect(store.count, BigInt.from(count));
+      expect(writes.length, lessThan(count ~/ 4));
+      expect(native.count('prepare'), 1);
+      expect(native.count('play'), 1);
+      expect(legacy.starts, 0);
+      await tester.runAsync(() async {
+        native.clock(at, state: 'completed', underruns: underruns);
+        await flush();
+      });
+      await tester.pump();
+      expect(controller.phase, QuranPlaybackPhase.completed);
+      await tester.pumpWidget(const SizedBox());
+      await store.flush();
+      store.dispose();
     },
   );
 }

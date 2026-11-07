@@ -1237,6 +1237,12 @@ class QuranAudioController extends ChangeNotifier {
     _stall?.cancel();
     continuousFallbackReason = reason.toString();
     debugPrint('Quran audio fallback: $continuousFallbackReason');
+    if (failedBackend is ContinuousPcmBackend) {
+      debugPrint(
+        'Quran audio handoff at ${entry?.item.key}: '
+        '${failedBackend.diagnostics}',
+      );
+    }
     try {
       // Release output before the legacy player can activate the shared session.
       await failedBackend.dispose();

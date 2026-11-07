@@ -3,6 +3,59 @@ import XCTest
 @testable import quran_pcm_audio
 
 final class RunnerTests: XCTestCase {
+    func testThreeRecordingsContinueWhileMainThreadIsBlocked() throws {
+        XCTAssertTrue(Thread.isMainThread)
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("caf")
+        defer { try? FileManager.default.removeItem(at: path) }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
+        let frames: AVAudioFrameCount = 52920 // 1.2 s: exceeds the one-second producer window.
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        for channel in 0..<2 {
+            for frame in 0..<Int(frames) { buffer.floatChannelData![channel][frame] = 0.001 }
+        }
+        do { let file = try AVAudioFile(forWriting: path, settings: format.settings); try file.write(from: buffer) }
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .spokenAudio)
+        try session.setActive(true)
+        defer { try? session.setActive(false) }
+        let output = try PcmOutput(generation: 10, seconds: 1, seek: 0)
+        defer { output.cancel() }
+        for index in 0..<3 { try output.enqueue(["id": "surah-\(index)", "path": path.path]) }
+        output.start(); output.finish(); try output.setPlaying(true)
+        let deadline = Date().addingTimeInterval(10)
+        var paused = false
+        while Date() < deadline {
+            // Deliberately do not pump main, including completions or UI timers.
+            Thread.sleep(forTimeInterval: 0.05)
+            let snapshot = output.snapshot()
+            XCTAssertNil(snapshot["error"])
+            let played = snapshot["frames"] as! Int64
+            XCTAssertLessThanOrEqual(snapshot["pcmBufferedFrames"] as! Int64, 44100)
+            if !paused && played > 4410 {
+                try output.setPlaying(false)
+                let position = output.snapshot()["frames"] as! Int64
+                Thread.sleep(forTimeInterval: 0.15)
+                XCTAssertEqual(output.snapshot()["frames"] as! Int64, position)
+                try output.setPlaying(true)
+                paused = true
+            }
+            if snapshot["state"] as? String == "completed" {
+                XCTAssertEqual(played, Int64(frames) * 3)
+                XCTAssertTrue(paused)
+                let rows = snapshot["rows"] as! [[String: Any]]
+                XCTAssertEqual(rows.count, 3)
+                for (index, row) in rows.enumerated() {
+                    XCTAssertEqual(row["start"] as? Int64, Int64(index) * Int64(frames))
+                    XCTAssertEqual(row["end"] as? Int64, Int64(index + 1) * Int64(frames))
+                }
+                XCTAssertGreaterThan(snapshot["scheduledBuffers"] as! Int, 30)
+                return
+            }
+        }
+        XCTFail("PCM output stalled while the main thread was blocked")
+    }
+
     func testIncrementalDecodePreservesStereoFramesIncludingSilence() throws {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("caf")
         defer { try? FileManager.default.removeItem(at: path) }

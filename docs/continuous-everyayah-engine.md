@@ -111,6 +111,11 @@ iOS maps the player-node rendering clock through scheduled chunks, accounts for
 downstream output latency and reconciles data-played-back callbacks. Actual
 speaker/Bluetooth latency and route-dependent accuracy still need measurement.
 
+iOS scheduling, completions and its 50 ms clock timer run on a dedicated serial
+output queue; main only copies snapshots for Flutter telemetry. See
+[iOS UI contention](ios-pcm-ui-contention.md) for thread ownership, diagnostics,
+the Tasbeeh regression and outstanding device verification.
+
 Position telemetry is throttled to 10 Hz. Half-open frame intervals select the
 logical cursor; the UI inherits this update cadence, not per-sample notification
 precision. Existing metadata, highlighting, page following and Journey consume

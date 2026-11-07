@@ -46,15 +46,20 @@ const builtInDhikr = [
 /// All values live in one versioned snapshot. Writes are serialized and coalesced
 /// so slow platform writes can never publish an older count after a newer one.
 class TasbeehStore extends ChangeNotifier {
-  TasbeehStore({this.writeSnapshot});
+  TasbeehStore({
+    this.writeSnapshot,
+    this.saveInterval = const Duration(milliseconds: 250),
+  });
   // One store survives route changes, including an unfinished platform save.
   static final instance = TasbeehStore();
   static const storageKey = 'tasbeeh_state_v1';
   final Future<bool> Function(String)? writeSnapshot;
+  final Duration saveInterval;
+  Timer? _saveTimer;
   SharedPreferences? _prefs;
   Future<void>? _restoring;
   Future<void>? _saving;
-  String? _pending;
+  bool _dirty = false;
   bool ready = false;
   bool _disposed = false;
   String? saveError;
@@ -164,52 +169,72 @@ class TasbeehStore extends ChangeNotifier {
   }
 
   void _changed() {
-    _pending = jsonEncode({
-      'version': 1,
-      'selected': _selected,
-      'counts': _counts.map((k, v) => MapEntry(k, '$v')),
-      'custom': _custom.map((d) => {'id': d.id, 'label': d.label}).toList(),
-    });
+    _dirty = true;
     notifyListeners();
-    _saving ??= _drain();
+    _scheduleSave();
+  }
+
+  String _snapshot() => jsonEncode({
+    'version': 1,
+    'selected': _selected,
+    'counts': _counts.map((k, v) => MapEntry(k, '$v')),
+    'custom': _custom.map((d) => {'id': d.id, 'label': d.label}).toList(),
+  });
+
+  void _scheduleSave() {
+    if (_disposed || _saving != null || _saveTimer != null || !_dirty) return;
+    if (saveInterval == Duration.zero) {
+      _saving = _drain();
+    } else {
+      // Do not restart this timer per tap: continuous counting still checkpoints
+      // every interval, without a platform write and JSON encoding on every tap.
+      _saveTimer = Timer(saveInterval, () {
+        _saveTimer = null;
+        _saving ??= _drain();
+      });
+    }
   }
 
   Future<void> _drain() async {
-    // Yield once so _saving is assigned even with an immediate test writer.
+    // Assign _saving before even an immediate writer.
     await Future<void>.value();
+    final previousError = saveError;
     try {
-      while (_pending != null) {
-        final snapshot = _pending!;
-        _pending = null;
-        final saved =
-            await (writeSnapshot?.call(snapshot) ??
-                _prefs!.setString(storageKey, snapshot));
-        if (!saved) throw StateError('Local storage rejected the save');
-        saveError = null;
-      }
+      if (!_dirty) return;
+      _dirty = false;
+      final snapshot = _snapshot();
+      final saved =
+          await (writeSnapshot?.call(snapshot) ??
+              _prefs!.setString(storageKey, snapshot));
+      if (!saved) throw StateError('Local storage rejected the save');
+      saveError = null;
     } catch (_) {
       saveError = 'Progress could not be saved. Please try again.';
-      // Keep the newest snapshot queued for flush/retry.
-      _pending ??= jsonEncode({
-        'version': 1,
-        'selected': _selected,
-        'counts': _counts.map((k, v) => MapEntry(k, '$v')),
-        'custom': _custom.map((d) => {'id': d.id, 'label': d.label}).toList(),
-      });
+      _dirty = true; // Retry the newest state, never the failed older snapshot.
     } finally {
       _saving = null;
-      if (!_disposed) notifyListeners();
+      if (!_disposed && previousError != saveError) notifyListeners();
+      // A failure waits for a new change or explicit retry; no hot retry loop.
+      if (_dirty && saveError == null) _scheduleSave();
     }
   }
 
   Future<void> flush() async {
-    if (_saving == null && _pending != null) _saving = _drain();
-    await _saving;
+    do {
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      if (!_dirty && _saving == null) return;
+      await (_saving ??= _drain());
+      if (saveError != null) return;
+    } while (_dirty || _saving != null);
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    unawaited(flush());
     super.dispose();
   }
 }
