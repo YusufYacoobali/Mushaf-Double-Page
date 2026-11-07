@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'quran_audio.dart';
 
@@ -66,6 +67,23 @@ class EveryAyahPcmProof {
             sha256) {
       throw StateError('PCM proof file failed integrity check');
     }
+    final bytes = Uint8List.fromList(await file.openRead(0, 44).first);
+    final header = ByteData.sublistView(bytes);
+    String text(int start, int end) =>
+        String.fromCharCodes(bytes.sublist(start, end));
+    if (text(0, 4) != 'RIFF' ||
+        text(8, 12) != 'WAVE' ||
+        text(12, 16) != 'fmt ' ||
+        header.getUint32(16, Endian.little) != 16 ||
+        header.getUint16(20, Endian.little) != 1 ||
+        header.getUint16(22, Endian.little) != 2 ||
+        header.getUint32(24, Endian.little) != sampleRate ||
+        header.getUint16(32, Endian.little) != 4 ||
+        header.getUint16(34, Endian.little) != 16 ||
+        text(36, 40) != 'data' ||
+        header.getUint32(40, Endian.little) != frames * 4) {
+      throw StateError('PCM proof WAV format mismatch');
+    }
   }
 
   static Future<EveryAyahPcmProof> load(Directory directory) async {
@@ -96,8 +114,9 @@ class EveryAyahPcmProof {
           ),
       ],
     );
-    if (proof.frames != m['frames'])
+    if (proof.frames != m['frames']) {
       throw StateError('Proof sample count mismatch');
+    }
     await proof.verify();
     return proof;
   }

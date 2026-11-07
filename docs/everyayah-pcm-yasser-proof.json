@@ -141,5 +141,22 @@
   "builderPeakRssKiB": 24924,
   "decodedWorkingSet": "One recording PCM file at a time; 64 KiB write buffers. Verification reads one recording at a time.",
   "limitations": "Stage A offline preparation only; no progressive producer. Native output gap, battery and mobile startup unmeasured.",
-  "recordingProvenance": "Original EveryAyah mappings; review corpus from maqra yasser-ad-dossari-128kbps/055.zip and existing hash-verified Bismillah fixture. Live upstream equality not independently rechecked."
+  "recordingProvenance": "Original EveryAyah mappings; review corpus from maqra yasser-ad-dossari-128kbps/055.zip and existing hash-verified Bismillah fixture. Live upstream equality not independently rechecked.",
+  "openingContentCheck": {
+    "method": "Unprompted sherpa-onnx Whisper small int8 Arabic; automated, not human listening",
+    "001001.mp3": "بسم الله الرحمن الرحيم",
+    "055001.mp3": "الرحمن",
+    "055002.mp3": "علم القرآن"
+  },
+  "deliveryValidation": {
+    "flutterAnalyze": "no issues",
+    "flutterTest": "405 passed, 2 optional checks skipped",
+    "artifactValidation": "passed on actual generated WAV",
+    "releaseGuard": "passed",
+    "pythonBuilderTests": 2,
+    "androidBuild": "attempted; blocked by missing Android SDK",
+    "iosBuild": "unavailable on Linux",
+    "nativeOutputGap": "unmeasured",
+    "progressiveProductionStages": "not implemented; regular EveryAyah fallback retained"
+  }
 }

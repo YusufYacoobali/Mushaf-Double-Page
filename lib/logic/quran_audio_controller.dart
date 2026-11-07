@@ -11,6 +11,9 @@ import '../progress/reading_progress_store.dart';
 import '../utils/audio_artwork.dart';
 import '../utils/bismillah_sources.dart';
 import 'audio_repository.dart';
+import '../models/everyayah_pcm_proof.dart';
+
+part 'quran_audio_pcm_proof.dart';
 
 enum QuranAudioErrorKind { none, connectionRequired, playback }
 
@@ -56,6 +59,7 @@ class QuranAudioController extends ChangeNotifier {
     AudioPlayer? player,
     AudioRecordingRepository? repository,
     bool trackJourney = true,
+    ListeningTracker? listeningTracker,
     this.retryDelay = const Duration(seconds: 1),
     this.loadTimeout = const Duration(seconds: 20),
     this.resolveIntroduction = BismillahSources.resolve,
@@ -69,6 +73,7 @@ class QuranAudioController extends ChangeNotifier {
            ),
        _repository = repository ?? AudioRepository(),
        _legacyPreparer = prepareSources {
+    _tracker = listeningTracker;
     if (trackJourney) {
       _tracker = ListeningTracker(
         onListen: (verse) {
@@ -78,10 +83,13 @@ class QuranAudioController extends ChangeNotifier {
         onSeconds: (seconds) =>
             unawaited(JourneyStore.recordTime(listening: seconds)),
       );
-      _subscriptions.add(
-        _player.positionStream.listen((_) => _trackListening()),
-      );
     }
+    _subscriptions.add(
+      _player.positionStream.listen((_) {
+        if (_pcmActive) _pcmPositionChanged();
+        _trackListening();
+      }),
+    );
     _subscriptions.add(_player.sequenceStateStream.listen(_sequenceChanged));
     _subscriptions.add(_player.playerStateStream.listen(_nativeState));
     _subscriptions.add(_player.errorStream.listen(_nativeError));
@@ -93,6 +101,7 @@ class QuranAudioController extends ChangeNotifier {
     AudioRecordingRepository? repository,
     Future<List<AudioSource>> Function(AudioPlaybackPlan)? prepareSources,
     BismillahResolver resolveIntroduction = BismillahSources.resolve,
+    ListeningTracker? listeningTracker,
     Duration retryDelay = Duration.zero,
     Duration loadTimeout = const Duration(seconds: 20),
   }) => QuranAudioController._(
@@ -100,6 +109,7 @@ class QuranAudioController extends ChangeNotifier {
     repository: repository,
     prepareSources: prepareSources,
     trackJourney: false,
+    listeningTracker: listeningTracker,
     resolveIntroduction: resolveIntroduction,
     retryDelay: retryDelay,
     loadTimeout: loadTimeout,
@@ -107,6 +117,18 @@ class QuranAudioController extends ChangeNotifier {
 
   static const nativeQueueLimit = 6;
   static const forwardWindow = 3;
+  EveryAyahPcmProof? _pcmProof;
+  bool _pcmActive = false, _pcmLoaded = false;
+  int _pcmNavigation = 0;
+  PcmProofOccurrence? _pcmRow;
+  bool get usingPcmProof => _pcmActive;
+
+  /// Explicit Stage-A target only. Regular main and release builds never opt in.
+  void registerPcmProofForDevelopment(EveryAyahPcmProof proof) {
+    if (kReleaseMode || _active) throw StateError('Cannot register PCM proof');
+    _pcmProof = proof;
+  }
+
   final AudioPlayer _player;
   final AudioRecordingRepository _repository;
   final BismillahResolver resolveIntroduction;
@@ -166,7 +188,12 @@ class QuranAudioController extends ChangeNotifier {
   bool get hasPlan => _plan != null;
   int get playbackSessionId => _session;
   ProcessingState get processingState => _player.processingState;
-  Duration get playbackPosition => _waiting != null && _waiting != _current
+  Duration get bufferedPlaybackPosition => _pcmActive && _pcmRow != null
+      ? _pcmRelative(_player.bufferedPosition)
+      : _player.bufferedPosition;
+  Duration get playbackPosition => _pcmActive && _pcmRow != null
+      ? _pcmRelative(_player.position)
+      : _waiting != null && _waiting != _current
       ? Duration.zero
       : _player.position;
   int? get currentIndex => _cursor?.index;
@@ -305,6 +332,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _sequenceChanged(SequenceState state) {
+    if (_pcmActive) return;
     if (!_active || _installing) return;
     final tag = state.currentSource?.tag;
     if (tag is! QuranAudioOccurrence || tag.sessionGeneration != _session) {
@@ -373,6 +401,7 @@ class QuranAudioController extends ChangeNotifier {
         _current == null) {
       return;
     }
+    if (_pcmActive) _pcmPositionChanged();
     _trackListening();
     if (state.processingState == ProcessingState.completed && !_exhausted) {
       _exhausted = true;
@@ -426,6 +455,10 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _trackListening() {
+    if (_pcmActive) {
+      _trackPcmListening();
+      return;
+    }
     final entry = _current;
     if (!_begun || entry == null) return;
     _tracker?.sample(
@@ -441,6 +474,10 @@ class QuranAudioController extends ChangeNotifier {
   Future<void> playPlan(AudioPlaybackPlan plan) async {
     cancelDownload();
     _cancelWork();
+    _pcmActive = false;
+    _pcmLoaded = false;
+    _pcmRow = null;
+    _pcmNavigation = 0;
     _plan = plan;
     _active = true;
     _intent = true;
@@ -472,6 +509,10 @@ class QuranAudioController extends ChangeNotifier {
     _publish();
     await _player.stop();
     if (!_valid(generation, revision)) return;
+    if (_pcmProof?.supports(plan) ?? false) {
+      await _preparePcmProof(generation, revision);
+      return;
+    }
     final cursor = QuranPlaybackCursor(
       plan,
       introductionForSurah: _includeIntroduction,
@@ -798,6 +839,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _kickFill() {
+    if (_pcmActive) return;
     if (!_active ||
         _installing ||
         phase == QuranPlaybackPhase.failed ||
@@ -936,6 +978,14 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> _endOfQueue() async {
+    if (_pcmActive) {
+      _active = _intent = _begun = false;
+      _phase = QuranPlaybackPhase.completed;
+      _tracker?.flush();
+      await _player.pause();
+      _publish();
+      return;
+    }
     if (!_active || _current == null) return;
     // A native automatic transition may have overtaken the EOF callback.
     if (_player.processingState != ProcessingState.completed) {
@@ -1029,6 +1079,10 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> _recoverCurrent({required bool invalidate}) async {
+    if (_pcmActive) {
+      await _fallbackPcmProof(_session, _revision);
+      return;
+    }
     final entry = _current;
     if (!_active || _installing || entry == null) return;
     if (entry.decoderRestarts++ >= 3) {
@@ -1139,6 +1193,8 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    _pcmActive = false;
+    _pcmRow = null;
     _active = false;
     _intent = false;
     _begun = false;
@@ -1157,6 +1213,10 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> _navigate(bool next) async {
+    if (_pcmActive) {
+      await _navigatePcm(next);
+      return;
+    }
     if (!_active || _display == null) return;
     final old = _display!;
     final cursor = old.cursor.copy();
@@ -1192,6 +1252,21 @@ class QuranAudioController extends ChangeNotifier {
   Future<void> seekNext() => _navigate(true);
   Future<void> seekPrevious() => _navigate(false);
   Future<void> seek(Duration position) async {
+    if (_pcmActive) {
+      if (_installing || !_active) return;
+      final start = _pcmProof!.time(_pcmRow!.startFrame);
+      final duration = _pcmProof!.time(_pcmRow!.endFrame) - start;
+      await _seekPcm(
+        start +
+            Duration(
+              microseconds: position.inMicroseconds.clamp(
+                0,
+                duration.inMicroseconds,
+              ),
+            ),
+      );
+      return;
+    }
     if (!_active || _installing || _exhausted || _current == null) return;
     await _player.seek(position);
     _trackListening();
@@ -1199,6 +1274,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> downloadSelection(AudioPlaybackPlan selection) async {
+    if (_pcmActive && selection.matches(_plan)) return;
     _offlineToken?.cancel('New offline selection');
     final token = _offlineToken = CancelToken();
     final items = <String, QuranAudioItem>{};

@@ -91,7 +91,7 @@ class QuranAudioHandler extends BaseAudioHandler with SeekHandler {
         },
         playing: c.playing,
         updatePosition: c.playbackPosition,
-        bufferedPosition: c.player.bufferedPosition,
+        bufferedPosition: c.bufferedPlaybackPosition,
         speed: 1,
         errorCode: c.failure == null ? null : 1,
         errorMessage: c.error,
