@@ -1,5 +1,6 @@
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
@@ -412,6 +413,10 @@ class _AudioModalState extends State<AudioModal> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (DevelopmentAudioSourceIndicator.visible) ...[
+          DevelopmentAudioSourceIndicator(provider: controller.nativeProvider),
+          const SizedBox(height: 7),
+        ],
         if (controller.downloadState.active) ...[
           LinearProgressIndicator(
             value: controller.downloadState.progress,
@@ -931,6 +936,26 @@ class _AudioModalState extends State<AudioModal> {
                   },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The release build removes both this label and its modal spacing.
+class DevelopmentAudioSourceIndicator extends StatelessWidget {
+  static const visible = !kReleaseMode;
+  const DevelopmentAudioSourceIndicator({super.key, required this.provider});
+  final QuranAudioProvider? provider;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visible) return const SizedBox.shrink();
+    return Text(
+      'Audio source: ${provider?.label ?? "No active source"}',
+      key: const ValueKey('development-audio-source'),
+      style: TextStyle(
+        color: AppPalette.of(context).surfaceMuted,
+        fontSize: 12,
       ),
     );
   }

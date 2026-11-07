@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:audio_session/audio_session.dart';
@@ -91,7 +92,7 @@ void main() {
       ]) {
         expect(Mp3QuranPilot.supports(p), isFalse);
       }
-      expect(Mp3QuranPilot.verifiedManifest, isNull);
+      expect(Mp3QuranPilot.verifiedManifest, isNotNull);
     });
     test('incomplete, reordered and overlapping timings are rejected', () {
       final rows = manifest().intervals;
@@ -114,6 +115,48 @@ void main() {
         throwsArgumentError,
       );
     });
+    test(
+      'bundled manifest matches the exact recording audit and every supplied boundary',
+      () {
+        final m = Mp3QuranPilot.verifiedManifest!;
+        final audit =
+            jsonDecode(
+                  File(
+                    'docs/mp3quran-alafasy-evidence/content-audit.json',
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        expect(m.sha256, audit['recordingSha256']);
+        expect(m.bytes, audit['bytes']);
+        expect(m.durationMs, (audit['decodedDurationMs'] as num).round());
+        expect(audit['allIntervalsIdentifyExpectedAyah'], isTrue);
+        final clips = (audit['clips'] as List)
+            .where((c) => c['ayah'] >= 0)
+            .toList();
+        expect(m.intervals, hasLength(31));
+        for (var i = 0; i < clips.length; i++) {
+          final row = clips[i];
+          final interval = m.intervals[i];
+          expect(
+            [interval.ayah, interval.startMs, interval.endMs],
+            [row['ayah'], row['startMs'], row['endMs']],
+          );
+          expect(
+            m.at(Duration(milliseconds: interval.startMs))!.ayah,
+            interval.ayah,
+          );
+          expect(
+            m.at(Duration(milliseconds: interval.endMs - 1))!.ayah,
+            interval.ayah,
+          );
+          expect(m.at(Duration(milliseconds: interval.endMs)), isNull);
+        }
+        expect(m.at(const Duration(milliseconds: 7264)), isNull);
+        expect(m.at(const Duration(milliseconds: 7265))!.ayah, 0);
+        expect(m.at(const Duration(milliseconds: 206570))!.ayah, 15);
+        expect(m.at(const Duration(milliseconds: 437630))!.ayah, 30);
+      },
+    );
     test('exact half-open intervals never fill silence gaps or tail', () {
       final m = manifest();
       expect(m.at(const Duration(milliseconds: 999)), isNull);

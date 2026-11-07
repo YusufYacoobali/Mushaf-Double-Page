@@ -1,0 +1,418 @@
+{
+  "recordingSha256": "ded3b53cfc22c3544170f222068472174e200f5958b35561d298bb4db7e54f11",
+  "bytes": 7293947,
+  "method": "Unprompted sherpa-onnx Whisper small int8, Arabic, exact supplied interval cuts",
+  "sherpaOnnxVersion": "2.0.1",
+  "modelUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-small.tar.bz2",
+  "modelSha256": {
+    "small-encoder.int8.onnx": "4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9",
+    "small-decoder.int8.onnx": "acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee",
+    "small-tokens.txt": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"
+  },
+  "catalogueVersion": 668,
+  "timestampSource": "docs/mp3quran-alafasy-evidence/v4-timings.json",
+  "clips": [
+    {
+      "ayah": -1,
+      "startMs": 0,
+      "endMs": 7265,
+      "expected": "أعوذ بالله من الشيطان الرجيم",
+      "transcript": "أعوذ بالله من الشيطان الرجيم",
+      "similarity": 1.0,
+      "nearestAyah": -1
+    },
+    {
+      "ayah": 0,
+      "startMs": 7265,
+      "endMs": 13718,
+      "expected": "بسم الله الرحمن الرحيم",
+      "transcript": "بسم الله الرحمن الرحيم",
+      "similarity": 1.0,
+      "nearestAyah": 0
+    },
+    {
+      "ayah": 1,
+      "startMs": 13865,
+      "endMs": 24086,
+      "expected": "تَبَـٰرَكَ ٱلَّذِى بِيَدِهِ ٱلْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَىْءٍ قَدِيرٌ",
+      "transcript": "تبارك الذي بيده الملك وهو على كل شيء قدير",
+      "similarity": 0.9697,
+      "nearestAyah": 1
+    },
+    {
+      "ayah": 2,
+      "startMs": 24680,
+      "endMs": 38134,
+      "expected": "ٱلَّذِى خَلَقَ ٱلْمَوْتَ وَٱلْحَيَوٰةَ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا ۚ وَهُوَ ٱلْعَزِيزُ ٱلْغَفُورُ",
+      "transcript": "الذي خلق الموت والحيات ليبلوكم أيكم أحسن عمله وهو العزيز الغفور",
+      "similarity": 0.9434,
+      "nearestAyah": 2
+    },
+    {
+      "ayah": 3,
+      "startMs": 38409,
+      "endMs": 57410,
+      "expected": "ٱلَّذِى خَلَقَ سَبْعَ سَمَـٰوَٰتٍ طِبَاقًا ۖ مَّا تَرَىٰ فِى خَلْقِ ٱلرَّحْمَـٰنِ مِن تَفَـٰوُتٍ ۖ فَٱرْجِعِ ٱلْبَصَرَ هَلْ تَرَىٰ مِن فُطُورٍ",
+      "transcript": "181] الذي خلق سبع سماوات طباقة ما ترا في خلق الرحمن من تفاوت فرجع البصر هل ترى من فطور",
+      "similarity": 0.9147,
+      "nearestAyah": 3
+    },
+    {
+      "ayah": 4,
+      "startMs": 57510,
+      "endMs": 70038,
+      "expected": "ثُمَّ ٱرْجِعِ ٱلْبَصَرَ كَرَّتَيْنِ يَنقَلِبْ إِلَيْكَ ٱلْبَصَرُ خَاسِئًا وَهُوَ حَسِيرٌ",
+      "transcript": "ثم مرجع البصار كرتين ينقلب إليك البصر خاسئا وهو حسير",
+      "similarity": 0.9647,
+      "nearestAyah": 4
+    },
+    {
+      "ayah": 5,
+      "startMs": 70249,
+      "endMs": 89960,
+      "expected": "وَلَقَدْ زَيَّنَّا ٱلسَّمَآءَ ٱلدُّنْيَا بِمَصَـٰبِيحَ وَجَعَلْنَـٰهَا رُجُومًا لِّلشَّيَـٰطِينِ ۖ وَأَعْتَدْنَا لَهُمْ عَذَابَ ٱلسَّعِيرِ",
+      "transcript": "ولقد زينا السماء الدنيا بمصابيح وجعلناها رجوماً لشياطين وأعتدنا لهم عذاب السعير",
+      "similarity": 0.9481,
+      "nearestAyah": 5
+    },
+    {
+      "ayah": 6,
+      "startMs": 90170,
+      "endMs": 99786,
+      "expected": "وَلِلَّذِينَ كَفَرُوا۟ بِرَبِّهِمْ عَذَابُ جَهَنَّمَ ۖ وَبِئْسَ ٱلْمَصِيرُ",
+      "transcript": "وللذين كفروا بربهم عذاب جهنم وبئس المصير",
+      "similarity": 1.0,
+      "nearestAyah": 6
+    },
+    {
+      "ayah": 7,
+      "startMs": 100070,
+      "endMs": 110820,
+      "expected": "إِذَآ أُلْقُوا۟ فِيهَا سَمِعُوا۟ لَهَا شَهِيقًا وَهِىَ تَفُورُ",
+      "transcript": "إذا ألقوا فيها سمعوا لها شهيقا وهي تفور",
+      "similarity": 1.0,
+      "nearestAyah": 7
+    },
+    {
+      "ayah": 8,
+      "startMs": 110825,
+      "endMs": 129600,
+      "expected": "تَكَادُ تَمَيَّزُ مِنَ ٱلْغَيْظِ ۖ كُلَّمَآ أُلْقِىَ فِيهَا فَوْجٌ سَأَلَهُمْ خَزَنَتُهَآ أَلَمْ يَأْتِكُمْ نَذِيرٌ",
+      "transcript": "تكاد تميز من الغير كل ما ألقي فيها فوج سألهم خزنتها ألن يأتكم نذير",
+      "similarity": 0.9623,
+      "nearestAyah": 8
+    },
+    {
+      "ayah": 9,
+      "startMs": 129800,
+      "endMs": 150130,
+      "expected": "قَالُوا۟ بَلَىٰ قَدْ جَآءَنَا نَذِيرٌ فَكَذَّبْنَا وَقُلْنَا مَا نَزَّلَ ٱللَّهُ مِن شَىْءٍ إِنْ أَنتُمْ إِلَّا فِى ضَلَـٰلٍ كَبِيرٍ",
+      "transcript": "قالوا بلا قد جاءنا نذير فكذبنا وقلنا ما نزل الله من شيء إن أنتم إلا في ضلال كبير",
+      "similarity": 0.9683,
+      "nearestAyah": 9
+    },
+    {
+      "ayah": 10,
+      "startMs": 150217,
+      "endMs": 162980,
+      "expected": "وَقَالُوا۟ لَوْ كُنَّا نَسْمَعُ أَوْ نَعْقِلُ مَا كُنَّا فِىٓ أَصْحَـٰبِ ٱلسَّعِيرِ",
+      "transcript": "وقالوا لو كنا نسمع أو نعقل ما كنا في أصحاب السعير",
+      "similarity": 0.9744,
+      "nearestAyah": 10
+    },
+    {
+      "ayah": 11,
+      "startMs": 162985,
+      "endMs": 171507,
+      "expected": "فَٱعْتَرَفُوا۟ بِذَنۢبِهِمْ فَسُحْقًا لِّأَصْحَـٰبِ ٱلسَّعِيرِ",
+      "transcript": "فاعترفوا بذنبهم فسحقا لأصحاب السعير",
+      "similarity": 0.9677,
+      "nearestAyah": 11
+    },
+    {
+      "ayah": 12,
+      "startMs": 171920,
+      "endMs": 185507,
+      "expected": "إِنَّ ٱلَّذِينَ يَخْشَوْنَ رَبَّهُم بِٱلْغَيْبِ لَهُم مَّغْفِرَةٌ وَأَجْرٌ كَبِيرٌ",
+      "transcript": "إن الذين يخشون ربهم بالغيب لهم مغفرة وأجر كبير",
+      "similarity": 1.0,
+      "nearestAyah": 12
+    },
+    {
+      "ayah": 13,
+      "startMs": 185780,
+      "endMs": 198920,
+      "expected": "وَأَسِرُّوا۟ قَوْلَكُمْ أَوِ ٱجْهَرُوا۟ بِهِۦٓ ۖ إِنَّهُۥ عَلِيمٌۢ بِذَاتِ ٱلصُّدُورِ",
+      "transcript": "30. وأسروا قولكم أو جهروا به إنه عليم بذات الصدور",
+      "similarity": 0.9867,
+      "nearestAyah": 13
+    },
+    {
+      "ayah": 14,
+      "startMs": 199410,
+      "endMs": 206188,
+      "expected": "أَلَا يَعْلَمُ مَنْ خَلَقَ وَهُوَ ٱللَّطِيفُ ٱلْخَبِيرُ",
+      "transcript": "ألا يعلم من خلقه واللطيف الخبير",
+      "similarity": 0.9811,
+      "nearestAyah": 14
+    },
+    {
+      "ayah": 15,
+      "startMs": 206570,
+      "endMs": 221590,
+      "expected": "هُوَ ٱلَّذِى جَعَلَ لَكُمُ ٱلْأَرْضَ ذَلُولًا فَٱمْشُوا۟ فِى مَنَاكِبِهَا وَكُلُوا۟ مِن رِّزْقِهِۦ ۖ وَإِلَيْهِ ٱلنُّشُورُ",
+      "transcript": "122] هو الذي جعل لكم الأرض ذلولا فمشوا في مناكبها وكلوا من رزقه وإليهم نشور",
+      "similarity": 0.9655,
+      "nearestAyah": 15
+    },
+    {
+      "ayah": 16,
+      "startMs": 221801,
+      "endMs": 235067,
+      "expected": "ءَأَمِنتُم مَّن فِى ٱلسَّمَآءِ أَن يَخْسِفَ بِكُمُ ٱلْأَرْضَ فَإِذَا هِىَ تَمُورُ",
+      "transcript": "2] أأمنت من في السماء أن يحسف بكم الأرض فإذا هي تمور",
+      "similarity": 0.9367,
+      "nearestAyah": 16
+    },
+    {
+      "ayah": 17,
+      "startMs": 235630,
+      "endMs": 251427,
+      "expected": "أَمْ أَمِنتُم مَّن فِى ٱلسَّمَآءِ أَن يُرْسِلَ عَلَيْكُمْ حَاصِبًا ۖ فَسَتَعْلَمُونَ كَيْفَ نَذِيرِ",
+      "transcript": "2. أم أمنت من في السماء أن يُصل عليكم حاصبا فستعلمون كيف نذير",
+      "similarity": 0.9574,
+      "nearestAyah": 17
+    },
+    {
+      "ayah": 18,
+      "startMs": 251910,
+      "endMs": 261220,
+      "expected": "وَلَقَدْ كَذَّبَ ٱلَّذِينَ مِن قَبْلِهِمْ فَكَيْفَ كَانَ نَكِيرِ",
+      "transcript": "ولقد كذب الذين من قبلهم فكيف كان نكير",
+      "similarity": 1.0,
+      "nearestAyah": 18
+    },
+    {
+      "ayah": 19,
+      "startMs": 261320,
+      "endMs": 286280,
+      "expected": "أَوَلَمْ يَرَوْا۟ إِلَى ٱلطَّيْرِ فَوْقَهُمْ صَـٰٓفَّـٰتٍ وَيَقْبِضْنَ ۚ مَا يُمْسِكُهُنَّ إِلَّا ٱلرَّحْمَـٰنُ ۚ إِنَّهُۥ بِكُلِّ شَىْءٍۭ بَصِيرٌ",
+      "transcript": "أولم يروا إلى الطير فوقهم صافات ويقبض ما يمسكهن إلا الرحمن إنه بكل شيء بصير",
+      "similarity": 0.9516,
+      "nearestAyah": 19
+    },
+    {
+      "ayah": 20,
+      "startMs": 286380,
+      "endMs": 305668,
+      "expected": "أَمَّنْ هَـٰذَا ٱلَّذِى هُوَ جُندٌ لَّكُمْ يَنصُرُكُم مِّن دُونِ ٱلرَّحْمَـٰنِ ۚ إِنِ ٱلْكَـٰفِرُونَ إِلَّا فِى غُرُورٍ",
+      "transcript": "أما هذا الذي هو جند لكم ينصركم من دون الرحمن إن الكافرون إلا في غور",
+      "similarity": 0.9358,
+      "nearestAyah": 20
+    },
+    {
+      "ayah": 21,
+      "startMs": 306140,
+      "endMs": 319520,
+      "expected": "أَمَّنْ هَـٰذَا ٱلَّذِى يَرْزُقُكُمْ إِنْ أَمْسَكَ رِزْقَهُۥ ۚ بَل لَّجُّوا۟ فِى عُتُوٍّ وَنُفُورٍ",
+      "transcript": "7] أما هذا الذي يرزقكم إن أمسك رزقه بل لجو في عتو ونفور",
+      "similarity": 0.9524,
+      "nearestAyah": 21
+    },
+    {
+      "ayah": 22,
+      "startMs": 320050,
+      "endMs": 338500,
+      "expected": "أَفَمَن يَمْشِى مُكِبًّا عَلَىٰ وَجْهِهِۦٓ أَهْدَىٰٓ أَمَّن يَمْشِى سَوِيًّا عَلَىٰ صِرَٰطٍ مُّسْتَقِيمٍ",
+      "transcript": "2. أف من يمشي مكب على وجهه أهداً من يمشي سويًا على صراط مستقيم",
+      "similarity": 0.967,
+      "nearestAyah": 22
+    },
+    {
+      "ayah": 23,
+      "startMs": 338600,
+      "endMs": 353069,
+      "expected": "قُلْ هُوَ ٱلَّذِىٓ أَنشَأَكُمْ وَجَعَلَ لَكُمُ ٱلسَّمْعَ وَٱلْأَبْصَـٰرَ وَٱلْأَفْـِٔدَةَ ۖ قَلِيلًا مَّا تَشْكُرُونَ",
+      "transcript": "قل هو الذي أنشأكم وجعل لكم السمع والأبصار والأفئدة قليلا ما تشكرون",
+      "similarity": 0.9636,
+      "nearestAyah": 23
+    },
+    {
+      "ayah": 24,
+      "startMs": 353580,
+      "endMs": 360949,
+      "expected": "قُلْ هُوَ ٱلَّذِى ذَرَأَكُمْ فِى ٱلْأَرْضِ وَإِلَيْهِ تُحْشَرُونَ",
+      "transcript": "خل هو الذي ذرأكم في الأرض وإليه تحشرون",
+      "similarity": 0.9677,
+      "nearestAyah": 24
+    },
+    {
+      "ayah": 25,
+      "startMs": 361210,
+      "endMs": 370820,
+      "expected": "وَيَقُولُونَ مَتَىٰ هَـٰذَا ٱلْوَعْدُ إِن كُنتُمْ صَـٰدِقِينَ",
+      "transcript": "ويقولون متاهذا الوعد إن كنتم صادتين",
+      "similarity": 0.8852,
+      "nearestAyah": 25
+    },
+    {
+      "ayah": 26,
+      "startMs": 370825,
+      "endMs": 383909,
+      "expected": "قُلْ إِنَّمَا ٱلْعِلْمُ عِندَ ٱللَّهِ وَإِنَّمَآ أَنَا۠ نَذِيرٌ مُّبِينٌ",
+      "transcript": "قل إنما العلم عند الله وإنما أنا نذير مبين",
+      "similarity": 1.0,
+      "nearestAyah": 26
+    },
+    {
+      "ayah": 27,
+      "startMs": 384350,
+      "endMs": 401229,
+      "expected": "فَلَمَّا رَأَوْهُ زُلْفَةً سِيٓـَٔتْ وُجُوهُ ٱلَّذِينَ كَفَرُوا۟ وَقِيلَ هَـٰذَا ٱلَّذِى كُنتُم بِهِۦ تَدَّعُونَ",
+      "transcript": "فلما رأىه زلفة تنسيئ تجوه الذين كفروا وقيل هذا الذي كنتم به تدعون",
+      "similarity": 0.9245,
+      "nearestAyah": 27
+    },
+    {
+      "ayah": 28,
+      "startMs": 401740,
+      "endMs": 422020,
+      "expected": "قُلْ أَرَءَيْتُمْ إِنْ أَهْلَكَنِىَ ٱللَّهُ وَمَن مَّعِىَ أَوْ رَحِمَنَا فَمَن يُجِيرُ ٱلْكَـٰفِرِينَ مِنْ عَذَابٍ أَلِيمٍ",
+      "transcript": "12] قل أرأيتم إن أهلكني الله ومن معي أو رحمنا فمن يجيروا الكافرين من عذاب أليم",
+      "similarity": 0.9492,
+      "nearestAyah": 28
+    },
+    {
+      "ayah": 29,
+      "startMs": 422100,
+      "endMs": 437238,
+      "expected": "قُلْ هُوَ ٱلرَّحْمَـٰنُ ءَامَنَّا بِهِۦ وَعَلَيْهِ تَوَكَّلْنَا ۖ فَسَتَعْلَمُونَ مَنْ هُوَ فِى ضَلَـٰلٍ مُّبِينٍ",
+      "transcript": "12] قل هو الرحمن آمننا به وعليه توكلنا فستعلمون من هو في ظلال مبين",
+      "similarity": 0.9307,
+      "nearestAyah": 29
+    },
+    {
+      "ayah": 30,
+      "startMs": 437630,
+      "endMs": 454358,
+      "expected": "قُلْ أَرَءَيْتُمْ إِنْ أَصْبَحَ مَآؤُكُمْ غَوْرًا فَمَن يَأْتِيكُم بِمَآءٍ مَّعِينٍۭ",
+      "transcript": "قل أرأيتم إن أصبح ما أكم غورا فمن يأتيكم بما إمعين",
+      "similarity": 0.925,
+      "nearestAyah": 30
+    }
+  ],
+  "boundaries": [
+    {
+      "betweenAyahs": [
+        0,
+        1
+      ],
+      "startMs": 7265,
+      "endMs": 24086,
+      "suppliedPreviousEndMs": 13718,
+      "suppliedNextStartMs": 13865,
+      "expectedPrevious": "بسم الله الرحمن الرحيم",
+      "expectedNext": "تَبَـٰرَكَ ٱلَّذِى بِيَدِهِ ٱلْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَىْءٍ قَدِيرٌ",
+      "transcript": "بسم الله الرحمن الرحيم تبارك الذي بيده الملك وهو على كل شيء قدير"
+    },
+    {
+      "betweenAyahs": [
+        1,
+        2
+      ],
+      "startMs": 16086,
+      "endMs": 38134,
+      "suppliedPreviousEndMs": 24086,
+      "suppliedNextStartMs": 24680,
+      "expectedPrevious": "تَبَـٰرَكَ ٱلَّذِى بِيَدِهِ ٱلْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَىْءٍ قَدِيرٌ",
+      "expectedNext": "ٱلَّذِى خَلَقَ ٱلْمَوْتَ وَٱلْحَيَوٰةَ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا ۚ وَهُوَ ٱلْعَزِيزُ ٱلْغَفُورُ",
+      "transcript": "وحده الملك وهو على كل شيء قدير الذي خلق الموت والحياة ليبلوك أن يكم أحسن عمله وهو العزيز الغفور"
+    },
+    {
+      "betweenAyahs": [
+        14,
+        15
+      ],
+      "startMs": 199410,
+      "endMs": 221590,
+      "suppliedPreviousEndMs": 206188,
+      "suppliedNextStartMs": 206570,
+      "expectedPrevious": "أَلَا يَعْلَمُ مَنْ خَلَقَ وَهُوَ ٱللَّطِيفُ ٱلْخَبِيرُ",
+      "expectedNext": "هُوَ ٱلَّذِى جَعَلَ لَكُمُ ٱلْأَرْضَ ذَلُولًا فَٱمْشُوا۟ فِى مَنَاكِبِهَا وَكُلُوا۟ مِن رِّزْقِهِۦ ۖ وَإِلَيْهِ ٱلنُّشُورُ",
+      "transcript": "162] ألا يعلم من خلقه واللطيف الخبير هو الذي جعل لكم الأرض ذلولا فمشوا في مناكبها وكلوا من رزقه وإليهم نشور"
+    },
+    {
+      "betweenAyahs": [
+        15,
+        16
+      ],
+      "startMs": 213590,
+      "endMs": 235067,
+      "suppliedPreviousEndMs": 221590,
+      "suppliedNextStartMs": 221801,
+      "expectedPrevious": "هُوَ ٱلَّذِى جَعَلَ لَكُمُ ٱلْأَرْضَ ذَلُولًا فَٱمْشُوا۟ فِى مَنَاكِبِهَا وَكُلُوا۟ مِن رِّزْقِهِۦ ۖ وَإِلَيْهِ ٱلنُّشُورُ",
+      "expectedNext": "ءَأَمِنتُم مَّن فِى ٱلسَّمَآءِ أَن يَخْسِفَ بِكُمُ ٱلْأَرْضَ فَإِذَا هِىَ تَمُورُ",
+      "transcript": "وكلوم الرزقه وإليهم نشور أأمنتم من في السماء أن يحسف بكم الأرض فإذا هي تمور"
+    },
+    {
+      "betweenAyahs": [
+        29,
+        30
+      ],
+      "startMs": 429238,
+      "endMs": 454358,
+      "suppliedPreviousEndMs": 437238,
+      "suppliedNextStartMs": 437630,
+      "expectedPrevious": "قُلْ هُوَ ٱلرَّحْمَـٰنُ ءَامَنَّا بِهِۦ وَعَلَيْهِ تَوَكَّلْنَا ۖ فَسَتَعْلَمُونَ مَنْ هُوَ فِى ضَلَـٰلٍ مُّبِينٍ",
+      "expectedNext": "قُلْ أَرَءَيْتُمْ إِنْ أَصْبَحَ مَآؤُكُمْ غَوْرًا فَمَن يَأْتِيكُم بِمَآءٍ مَّعِينٍۭ",
+      "transcript": "فستعلمون من هو في ظلال مبين قل أرأيتم إن أصبح ما أكم غورا فمن يأتيكم بما إمعين"
+    }
+  ],
+  "limitations": [
+    "Automated content audit; no human listening or independent speaker identification.",
+    "ASR can omit/hallucinate words; similarity is not an independent timestamp measurement.",
+    "No word timestamps were produced by this model. No supplied timestamps are modified.",
+    "Device highlighting and native seeking must still be compared on iPhone and Android."
+  ],
+  "decodedDurationMs": 455444.9375,
+  "allIntervalsIdentifyExpectedAyah": true,
+  "auditedOn": "2026-11-07",
+  "reviewDecision": "Accept unchanged v4 intervals for opt-in development playback; keep release disabled pending human/device review.",
+  "boundaryReview": [
+    {
+      "betweenAyahs": [
+        0,
+        1
+      ],
+      "finding": "Bismillah and full ayah 1 recovered in order."
+    },
+    {
+      "betweenAyahs": [
+        1,
+        2
+      ],
+      "finding": "Ayah 1 ending (الملك وهو على كل شيء قدير) followed by ayah 2 recovered in order; ASR word substitutions retained."
+    },
+    {
+      "betweenAyahs": [
+        14,
+        15
+      ],
+      "finding": "Ayah 14 and ayah 15 recovered in order; ASR annotation/word substitutions retained."
+    },
+    {
+      "betweenAyahs": [
+        15,
+        16
+      ],
+      "finding": "Ayah 15 ending (من رزقه وإليه النشور) followed by ayah 16 recovered in order; ASR substitutions retained."
+    },
+    {
+      "betweenAyahs": [
+        29,
+        30
+      ],
+      "finding": "Ayah 29 ending (من هو في ضلال مبين) followed by ayah 30 recovered in order; ASR substitutions retained."
+    }
+  ]
+}

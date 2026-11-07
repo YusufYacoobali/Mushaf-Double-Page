@@ -1,7 +1,7 @@
 {
   "investigatedOn": "2026-11-07",
-  "baseCommit": "a371881",
-  "status": "implemented_but_disabled_pending_content_audit",
+  "baseCommit": "f430991",
+  "status": "automated_content_review_complete_development_opt_in_ready",
   "runtimeProviderImplemented": true,
   "activeProvider": "EveryAyah",
   "experimentalFlag": "EXPERIMENTAL_MP3QURAN_AL_MULK",
@@ -22,7 +22,8 @@
     "durationMs": 455444.878,
     "metadataDurationMs": 455000,
     "decoded": true,
-    "contentVerified": false
+    "contentVerified": true,
+    "contentVerificationMethod": "Unprompted Whisper small int8 Arabic ASR on exact v4 cuts; automated, not human/device certification."
   },
   "api": {
     "metadataUrl": "https://api-staging.mp3quran.net/v4/recitations/mishary-alafasy/r1/surahs/67",
@@ -63,7 +64,34 @@
     ],
     "recordingBoundaryAccuracyValidated": false,
     "estimatedIntervalsUsed": false,
-    "runtimeManifestBundled": false
+    "runtimeManifestBundled": true,
+    "recordingBoundaryContentValidated": true,
+    "subSecondBoundaryPrecisionMeasured": false,
+    "reviewedBoundaryPairs": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        14,
+        15
+      ],
+      [
+        15,
+        16
+      ],
+      [
+        29,
+        30
+      ]
+    ],
+    "contentAudit": "mp3quran-alafasy-evidence/content-audit.json",
+    "prologueContent": "istiadhah identified by ASR; no -1 timestamp invented",
+    "manifestDurationMs": 455445
   },
   "usagePermission": {
     "documentationUrl": "https://www.mp3quran.net/eng/privacy",
@@ -77,11 +105,24 @@
   },
   "validation": {
     "flutterAnalyze": "passed_no_issues",
-    "flutterTest": "passed_422_tests",
-    "newPilotTests": 30,
-    "existingTests": 392,
+    "flutterTest": "passed_428_tests; two mode-specific checks skipped in default run",
+    "developmentFlagTest": "passed_with_EXPERIMENTAL_MP3QURAN_AL_MULK_true",
+    "productFlagTest": "passed_with_dart_vm_product_true_and_pilot_flag_true; indicator_hidden_and_manifest_null",
     "gitDiffCheck": "passed",
     "evidenceJson": "parsed",
+    "pythonAuditScript": "py_compile_passed",
     "mobileDevicesAttached": false
-  }
+  },
+  "indicator": {
+    "developmentOnly": true,
+    "sourceOfTruth": "successful native source installation and actual fallback handoff",
+    "labels": [
+      "MP3Quran (continuous)",
+      "EveryAyah (normal)",
+      "EveryAyah (fallback)"
+    ],
+    "noInstalledSourceLabel": "No active source"
+  },
+  "developmentOptInReady": true,
+  "defaultProvider": "EveryAyah"
 }

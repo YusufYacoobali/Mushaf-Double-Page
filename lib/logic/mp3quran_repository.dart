@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/quran_audio.dart';
+import '../utils/mp3quran_al_mulk_verified.dart';
 
 /// No network API is consulted at runtime. A reviewed, hash-bound manifest must
 /// be bundled before this flag can select the pilot. Release remains blocked.
@@ -12,8 +13,19 @@ abstract final class Mp3QuranPilot {
   static const enabled =
       !kReleaseMode && bool.fromEnvironment('EXPERIMENTAL_MP3QURAN_AL_MULK');
 
-  // Intentionally absent: live v4 intervals have not passed a content audit.
-  static const Mp3QuranManifest? verifiedManifest = null;
+  // Reviewed exact-file snapshot; no staging service is used by the app.
+  // Keep the manifest unavailable in release, independently of the opt-in flag.
+  static final Mp3QuranManifest? verifiedManifest = kReleaseMode
+      ? null
+      : Mp3QuranManifest(
+          sha256: alMulkAudioSha256,
+          bytes: alMulkAudioBytes,
+          durationMs: alMulkDurationMs,
+          intervals: [
+            for (final row in alMulkAyahTimings)
+              Mp3QuranInterval(row[0], row[1], row[2]),
+          ],
+        );
 
   static bool supports(AudioPlaybackPlan plan) =>
       plan.reciter.id == 'alafasy' &&

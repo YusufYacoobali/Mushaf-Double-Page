@@ -15,6 +15,15 @@ import 'mp3quran_repository.dart';
 
 part 'quran_audio_continuous.dart';
 
+enum QuranAudioProvider {
+  mp3QuranContinuous('MP3Quran (continuous)'),
+  everyAyah('EveryAyah (normal)'),
+  everyAyahFallback('EveryAyah (fallback)');
+
+  const QuranAudioProvider(this.label);
+  final String label;
+}
+
 enum QuranAudioErrorKind { none, connectionRequired, playback }
 
 class AudioDownloadState {
@@ -135,6 +144,12 @@ class QuranAudioController extends ChangeNotifier {
   int _continuousCycle = 1;
   Mp3QuranInterval? _interval;
   bool get usingContinuousAudio => _continuous;
+  QuranAudioProvider? _nativeProvider;
+  bool _usedContinuousFallback = false;
+
+  /// Set only after native source installation succeeds. Selection/preparation
+  /// alone never establishes which provider the player is actually using.
+  QuranAudioProvider? get nativeProvider => _active ? _nativeProvider : null;
 
   final BismillahResolver resolveIntroduction;
   final Duration retryDelay, loadTimeout;
@@ -497,6 +512,7 @@ class QuranAudioController extends ChangeNotifier {
     cancelDownload();
     _cancelWork();
     _continuous = false;
+    _usedContinuousFallback = false;
     _interval = null;
     _continuousCycle = 1;
     _plan = plan;
@@ -530,11 +546,14 @@ class QuranAudioController extends ChangeNotifier {
     _publish();
     await _player.stop();
     if (!_valid(generation, revision)) return;
-    if (_continuousEnabled &&
-        Mp3QuranPilot.supports(plan) &&
-        _continuousRepository.manifest != null) {
-      await _prepareContinuous(generation, revision);
-      return;
+    if (_continuousEnabled && Mp3QuranPilot.supports(plan)) {
+      if (_continuousRepository.manifest != null) {
+        await _prepareContinuous(generation, revision);
+        return;
+      }
+      // Eligible opt-in request could not supply continuous timings. Report a
+      // fallback only once EveryAyah has actually been installed below.
+      _usedContinuousFallback = true;
     }
     final cursor = QuranPlaybackCursor(
       plan,
@@ -549,6 +568,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _cancelWork({bool cancelRecordings = true}) {
+    _nativeProvider = null;
     _starting = false;
     _playRequest++;
     if (cancelRecordings) {
@@ -757,6 +777,9 @@ class QuranAudioController extends ChangeNotifier {
           }
         });
         if (!_valid(generation, revision)) return;
+        _nativeProvider = _usedContinuousFallback
+            ? QuranAudioProvider.everyAyahFallback
+            : QuranAudioProvider.everyAyah;
         _installing = false;
         _download = const AudioDownloadState.idle();
         recoveryAttempt = 0;
@@ -775,6 +798,7 @@ class QuranAudioController extends ChangeNotifier {
         if (!_valid(generation, revision)) return;
         await _player.stop();
         if (!_valid(generation, revision)) return;
+        _nativeProvider = null;
         entry.failure = _problem(error);
         entry.preparation = null;
         position = Duration.zero;
@@ -848,6 +872,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   void _fail(_QueueEntry entry, AudioFailure problem) {
+    _nativeProvider = null;
     _failed = _waiting = entry;
     failure = problem;
     _error = '${entry.item.label}: ${problem.message}';
@@ -1212,6 +1237,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    _usedContinuousFallback = false;
     _continuous = false;
     _interval = null;
     _active = false;

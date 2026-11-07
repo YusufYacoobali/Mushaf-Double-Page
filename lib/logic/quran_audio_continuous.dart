@@ -52,6 +52,7 @@ extension _ContinuousPlayback on QuranAudioController {
               1000) {
         throw StateError('Continuous recording duration mismatch');
       }
+      _nativeProvider = QuranAudioProvider.mp3QuranContinuous;
       _installing = false;
       _download = const AudioDownloadState.idle();
       _continuousPositionChanged();
@@ -209,6 +210,7 @@ extension _ContinuousPlayback on QuranAudioController {
     final introduction = last == null || last.ayah <= 0;
     // Synchronous guard against duplicate decoder failures.
     _continuous = false;
+    _usedContinuousFallback = true;
     _interval = null;
     _tracker?.reset();
     _installing = true;
@@ -222,6 +224,7 @@ extension _ContinuousPlayback on QuranAudioController {
       if (_valid(generation, handoffRevision)) await _player.stop();
     });
     if (!_valid(generation, handoffRevision)) return;
+    _nativeProvider = null;
     _exhausted = false;
     _begun = false;
     _current = _waiting = _failed = null;
