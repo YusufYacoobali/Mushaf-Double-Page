@@ -22,8 +22,10 @@ separate decisions.
    side toolbar overlaid and no permanent 140 px width reduction. Hinge-separated
    spreads retain independent safe regions, and wide portrait spreads keep their
    142 px bottom gutter. Other constrained side-dock cases retain their gutter.
-   Single pages with a bottom dock use their full safe region, with controls
-   overlaid. Revealing/hiding controls does not change page mode or page geometry.
+   Conventional portrait phones (width below 600, without a separating feature)
+   retain v4's full viewport for the page and dock. Adaptive single pages use
+   their safe region. Controls remain overlaid; revealing/hiding them does not
+   change page mode or page geometry.
 4. For a seamless display, a spread needs a safe region at least **720 logical
    pixels wide in portrait/square windows**, or **600 in landscape**. Two separate
    side-by-side safe regions can also qualify without that overall-width gate.
@@ -34,20 +36,47 @@ separate decisions.
    Otherwise the reader uses a single page in the largest usable region.
 
 All dimensions are logical pixels. Source aspects remain `721 / 1058` for
-Indo-Pak and `2096 / 3008` for Madani. Page images/highlight coordinates maintain
-those proportions; the old single-page stretching is removed. Toolbar scale
-preferences remain separate for single pages and spreads. Spreads retain vertical
-scrolling at larger zoom levels and RTL horizontal page turns. Layout changes
+Indo-Pak and `2096 / 3008` for Madani. Spreads and adaptive single-page regions
+maintain those proportions. Conventional portrait phones preserve v4's full-width,
+height-only scaling; image, highlights and touches share the same normalized
+surface. Toolbar scale preferences remain separate for single pages and spreads.
+Spreads retain vertical scrolling at larger zoom levels and RTL horizontal page
+turns. Layout changes
 reset a transient pinch transform to the new geometry while retaining saved zoom
 percentages and their mode-specific limits.
 
-Compact-phone follow-up: at 320 × 568 without safe insets and the saved 80% zoom,
-the single page is approximately 310 px wide for Indo-Pak and 317 px for Madani,
-instead of being constrained by the former permanent 142 px bottom gutter.
-Regressions require at least 95% of viewport width for both editions, preserve
-the native aspect ratio, and verify identical bounds and focused page with the
-dock collapsed, expanded and collapsed again. Safe insets still apply; spread
-gutters and breakpoints are unchanged.
+Compact-phone follow-up: at 320 × 568 with the saved 80% zoom, the single page
+fills all 320 px for both editions, with height 454.4 px, matching v4. No permanent
+142 px bottom gutter is reserved. Controls handle their own insets; spread gutters
+and breakpoints are unchanged.
+
+## Restored iPhone portrait geometry — 7 November 2026
+
+This follow-up starts from `b749480` on the existing `v5` branch.
+Compared directly with `9cab9d5ce3d2c3d0e44d51bb4ac336126362f740` in
+`page_view.dart`, `main.dart`, `reader_dock.dart` and `navigator.dart`:
+
+- A normal portrait phone uses the full screen width at every toolbar zoom.
+  Its page height is viewport height × zoom, vertically centred, exactly as v4.
+  The image uses the original fill transform; the normalized highlight/touch
+  surface uses those same bounds. Adaptive single-page regions retain their
+  native-ratio fit.
+- `ReaderDockOverlay` leaves the phone dock in screen coordinates with its real
+  MediaQuery insets. ReaderDock applies the original 16 px collapsed offset and
+  `max(16, safe.bottom)` expanded offset once. Contextual controls retain their
+  original 56 px allowance. Other layouts keep their existing regional wrapper.
+- The Surah/Juz Material background reaches the panel region's physical edges;
+  a content SafeArea applies the original minimum 12 px vertical inset. Local
+  insets account for the panel's position, so a separating hinge stays clear.
+  Adaptive width rules, tab state and scroll-position preservation remain.
+
+`iphone_portrait_geometry_test.dart` measures actual page frames, decoded image
+render boxes, highlight paint, normalized touch positions, collapsed/expanded
+tabs and panels, and navigator background/content bounds. Its v4 baseline checks
+375 × 812 (44/34 px insets), 393 × 852 and 430 × 932 (59/34 px insets), both
+editions and 70%, 80% and 100% zoom, with and without contextual controls.
+Portrait → landscape → portrait retains the focused page and original geometry.
+These are Flutter widget/rendering tests; no physical iPhone is attached.
 
 ## Restored regular-phone landscape geometry
 
@@ -127,13 +156,13 @@ themes, scrolling, reduced-motion behavior and business logic remain.
 
 Normal portrait phones retain 320 px width. Landscape width is
 `clamp(window.width * .55, 420, 480)`. Portrait windows at least 600 px wide use
-`clamp(window.width * .5, 420, 560)`. The result is clamped to the safe panel region;
+`clamp(window.width * .5, 420, 560)`. The result is clamped to the panel region;
 regions at least 600 px wide also cap it to 65% of that region.
 
-The dialog explicitly anchors to the right display pane. Safe insets are removed
-from its local MediaQuery after positioning so the scrollbar does not apply them
-twice. The existing slide/fade, colors, selector and draggable right scrollbar
-remain. Both lists keep independent state. Resizing recomputes row extents using
+The dialog explicitly anchors to the right display pane. Safe insets apply once
+to the contents inside the full-height background. The existing slide/fade,
+colors, selector and draggable right scrollbar remain. Both lists keep independent
+state. Resizing recomputes row extents using
 actual text width/text scale and preserves the first visible row and within-row
 fraction. Number badges grow for scaled text, titles wrap naturally and the
 trailing indicator remains aligned.
@@ -169,8 +198,10 @@ in the noncompact card and Journey screen.
 
 ## Validation
 
+Latest checks include the iPhone portrait restoration:
+
 - `flutter analyze --no-pub`: no issues.
-- `flutter test --no-pub --reporter expanded`: **273 tests passed**.
+- `flutter test --no-pub --reporter expanded`: **382 tests passed**.
 - `git diff --check`: clean.
 - Targeted Flutter widget-rendering diagnostic: three navigator sizes plus the
   minimal reminder, using the actual Inter and Material icon fonts. This is

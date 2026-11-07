@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/surah_list.dart';
@@ -27,29 +28,39 @@ class SurahJuzNavigator {
       pageBuilder: (context, _, _) => LayoutBuilder(
         builder: (context, constraints) {
           final size = constraints.biggest;
+          final media = MediaQuery.of(context);
           final region = navigationRegion(
             size,
-            MediaQuery.paddingOf(context),
+            EdgeInsets.zero,
             MediaQuery.displayFeaturesOf(context),
           );
           final window = sourceContext.mounted
               ? MediaQuery.sizeOf(sourceContext)
               : size;
           final width = navigatorPanelWidth(window, region);
+          final panel = Rect.fromLTWH(
+            region.right - width,
+            region.top,
+            width,
+            region.height,
+          );
+          // Paint to the screen edges, but inset content only where this panel
+          // actually touches an unsafe edge. Hinge boundaries remain separate.
+          EdgeInsets localInsets(EdgeInsets insets) => EdgeInsets.fromLTRB(
+            math.max(0, insets.left - panel.left),
+            math.max(0, insets.top - panel.top),
+            math.max(0, panel.right - (size.width - insets.right)),
+            math.max(0, panel.bottom - (size.height - insets.bottom)),
+          );
           return Stack(
             children: [
               Positioned.fromRect(
-                rect: Rect.fromLTWH(
-                  region.right - width,
-                  region.top,
-                  width,
-                  region.height,
-                ),
+                rect: panel,
                 child: MediaQuery(
-                  data: MediaQuery.of(context).copyWith(
+                  data: media.copyWith(
                     size: Size(width, region.height),
-                    padding: EdgeInsets.zero,
-                    viewPadding: EdgeInsets.zero,
+                    padding: localInsets(media.padding),
+                    viewPadding: localInsets(media.viewPadding),
                     displayFeatures: const [],
                   ),
                   child: _Panel(
@@ -128,9 +139,10 @@ class _PanelState extends State<_Panel> {
       shadowColor: palette.shadow,
       child: SizedBox.expand(
         key: const ValueKey('surah-juz-panel'),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        child: SafeArea(
+          minimum: const EdgeInsets.only(top: 12, bottom: 12),
           child: Column(
+            key: const ValueKey('surah-juz-content'),
             children: [
               Expanded(
                 child: PageStorage(

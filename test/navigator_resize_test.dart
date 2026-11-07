@@ -132,51 +132,53 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-  testWidgets(
-    'open navigator remains inside the right hinge region and safe insets',
-    (tester) async {
-      tester.view.physicalSize = const Size(950, 669);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              padding: const EdgeInsets.only(right: 20, bottom: 21),
-              displayFeatures: const [
-                DisplayFeature(
-                  bounds: Rect.fromLTWH(460, 0, 30, 669),
-                  type: DisplayFeatureType.hinge,
-                  state: DisplayFeatureState.postureHalfOpened,
-                ),
-              ],
-            ),
-            child: child!,
-          ),
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () => SurahJuzNavigator.show(
-                  context: context,
-                  mushaf: 'madani',
-                  onJumpToPage: (_) {},
-                ),
-                child: const Text('Open'),
+  testWidgets('open navigator fills the right hinge region with safe content', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(950, 669);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            padding: const EdgeInsets.only(right: 20, bottom: 21),
+            displayFeatures: const [
+              DisplayFeature(
+                bounds: Rect.fromLTWH(460, 0, 30, 669),
+                type: DisplayFeatureType.hinge,
+                state: DisplayFeatureState.postureHalfOpened,
               ),
+            ],
+          ),
+          child: child!,
+        ),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => SurahJuzNavigator.show(
+                context: context,
+                mushaf: 'madani',
+                onJumpToPage: (_) {},
+              ),
+              child: const Text('Open'),
             ),
           ),
         ),
-      );
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
-      final panel = tester.getRect(
-        find.byKey(const ValueKey('surah-juz-panel')),
-      );
-      expect(panel.left, greaterThanOrEqualTo(490));
-      expect(panel.right, 930);
-      expect(panel.bottom, 648);
-      expect(tester.takeException(), isNull);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final panel = tester.getRect(find.byKey(const ValueKey('surah-juz-panel')));
+    expect(panel.left, greaterThanOrEqualTo(490));
+    expect(panel.right, 950);
+    expect(panel.bottom, 669);
+    final content = tester.getRect(
+      find.byKey(const ValueKey('surah-juz-content')),
+    );
+    expect(content.right, 930);
+    expect(content.bottom, 648);
+    expect(tester.takeException(), isNull);
+  });
 }

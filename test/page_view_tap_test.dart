@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:ui' as ui;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -12,12 +12,14 @@ void main() {
   setUpAll(() async {
     imageDirectory = await Directory.systemTemp.createTemp('mushaf_page_test_');
     imageFile = File('${imageDirectory.path}/page.png');
-    await imageFile.writeAsBytes(
-      base64Decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4'
-        '2mP8/x8AAusB9Wl2nkwAAAAASUVORK5CYII=',
-      ),
-    );
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawColor(Colors.white, BlendMode.src);
+    final picture = recorder.endRecording();
+    final page = await picture.toImage(721, 1058);
+    final bytes = await page.toByteData(format: ui.ImageByteFormat.png);
+    await imageFile.writeAsBytes(bytes!.buffer.asUint8List());
+    page.dispose();
+    picture.dispose();
   });
 
   tearDownAll(() async {
@@ -135,31 +137,39 @@ void main() {
 
     final pageSurface = find.byType(Image);
 
+    await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+    await tester.runAsync(() async {
+      final provider = FileImage(imageFile);
+      await provider.evict();
+      await precacheImage(provider, tester.element(find.byType(Scaffold)));
+    });
     await tester.pumpWidget(readerAt(QuranPageView.minPageScalePortrait));
     await tester.pumpAndSettle();
-    final minimumSize = tester.getSize(pageSurface);
+    final minimumSize = tester.getRect(pageSurface).size;
     final minimumRect = tester.getRect(pageSurface);
 
     await tester.pumpWidget(readerAt(1.0));
     await tester.pumpAndSettle();
-    final maximumSize = tester.getSize(pageSurface);
+    final maximumSize = tester.getRect(pageSurface).size;
     final maximumRect = tester.getRect(pageSurface);
 
-    expect(maximumSize.width, greaterThan(minimumSize.width + 20));
-    expect(
-      maximumSize.width / maximumSize.height,
-      closeTo(QuranPageView.pageAspectRatio, .001),
-    );
-    expect(
-      minimumSize.width / minimumSize.height,
-      closeTo(QuranPageView.pageAspectRatio, .001),
-    );
+    final viewport = tester.getSize(find.byType(Scaffold));
+    expect(minimumSize.width, closeTo(viewport.width, .001));
+    expect(maximumSize.width, closeTo(viewport.width, .001));
+    expect(minimumSize.height, closeTo(viewport.height * .7, .001));
+    expect(maximumSize.height, closeTo(viewport.height, .001));
     expect(maximumSize.height, greaterThan(minimumSize.height + 20));
     expect(minimumRect.center, maximumRect.center);
   });
 
   testWidgets('old 120 percent zoom is capped at 100 percent', (tester) async {
     final transform = TransformationController();
+    await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+    await tester.runAsync(() async {
+      final provider = FileImage(imageFile);
+      await provider.evict();
+      await precacheImage(provider, tester.element(find.byType(Scaffold)));
+    });
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

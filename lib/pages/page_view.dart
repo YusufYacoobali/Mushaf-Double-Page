@@ -3,9 +3,9 @@ import 'dart:math' as math;
 import '../utils/cache.dart';
 
 class QuranPageView {
-  // Each geometry index is generated in its printed image's native coordinate
-  // space. Keep the visible page at that same aspect ratio so taps and
-  // highlights stay aligned.
+  // Spread/adaptive pages use their printed image's native aspect ratio.
+  // Phone portrait pages retain v4's full-width, height-only toolbar zoom;
+  // highlights and taps share that stretched surface's normalized coordinates.
   static const double pageAspectRatio = 721 / 1058;
   static const double madaniPageAspectRatio = 2096 / 3008;
 
@@ -52,6 +52,7 @@ class QuranPageView {
     VoidCallback? onBackgroundTap,
     TransformationController? transformationController,
     ValueChanged<int>? onFocus,
+    bool fullWidthPortrait = true,
   }) {
     final clamped = pageScale.clamp(minPageScalePortrait, maxPageScalePortrait);
     final path = imagePath(logicalPage);
@@ -65,10 +66,14 @@ class QuranPageView {
       onBackgroundTap: onBackgroundTap,
       builder: (pageSurfaceKey) => LayoutBuilder(
         builder: (context, constraints) {
-          final width = math.min(
-            constraints.maxWidth,
-            constraints.maxHeight * clamped * aspectRatio,
-          );
+          // v4 portrait zoom changes height only; phone pages always fill the
+          // viewport width. Adaptive single-page regions keep their native ratio.
+          final width = fullWidthPortrait
+              ? constraints.maxWidth
+              : math.min(
+                  constraints.maxWidth,
+                  constraints.maxHeight * clamped * aspectRatio,
+                );
           return SizedBox.expand(
             child: InteractiveViewer(
               key: ValueKey(clamped),
@@ -84,12 +89,16 @@ class QuranPageView {
                   child: SizedBox(
                     key: ValueKey('quran-page-$logicalPage'),
                     width: width,
-                    height: width / aspectRatio,
+                    height: fullWidthPortrait
+                        ? constraints.maxHeight * clamped
+                        : width / aspectRatio,
                     child: Listener(
                       onPointerDown: (_) => onFocus?.call(logicalPage),
                       child: _PageContent(
                         surfaceKey: pageSurfaceKey,
-                        image: image,
+                        image: fullWidthPortrait
+                            ? FittedBox(fit: BoxFit.fill, child: image)
+                            : image,
                         aspectRatio: aspectRatio,
                         stretchToFit: true,
                         highlightRects: highlightRects,

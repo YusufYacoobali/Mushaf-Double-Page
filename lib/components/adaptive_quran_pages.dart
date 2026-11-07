@@ -97,6 +97,7 @@ class AdaptiveQuranPages extends StatelessWidget {
                     onTap: onTap,
                     onFocus: focus,
                     onBackgroundTap: onBackgroundTap,
+                    fullWidthPortrait: layout.fullWidthPortrait,
                   ),
                 ),
               ],

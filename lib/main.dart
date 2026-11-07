@@ -1150,36 +1150,25 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                     ),
                   ),
                 ),
-                Positioned.fromRect(
-                  rect: layout.controlsRegion,
-                  child: MediaQuery.removePadding(
-                    context: context,
-                    removeLeft: true,
-                    removeRight: true,
-                    removeTop: true,
-                    removeBottom: true,
-                    child: Stack(
-                      children: [
-                        ReaderDock(
-                          contextControls:
-                              audioControls ??
-                              (_selPage == null
-                                  ? null
-                                  : _buildAyahContextRow(palette)),
-                          placement: layout.dockPlacement,
-                          expanded: _isScrollbarVisible,
-                          onToggle: () {
-                            setState(
-                              () => _isScrollbarVisible = !_isScrollbarVisible,
-                            );
-                            if (_isScrollbarVisible) _startHideScrollbarTimer();
-                          },
-                          palette: palette,
-                          zoom: _readerZoom(palette),
-                          actions: _readerActions(palette),
-                        ),
-                      ],
-                    ),
+                ReaderDockOverlay(
+                  layout: layout,
+                  child: ReaderDock(
+                    contextControls:
+                        audioControls ??
+                        (_selPage == null
+                            ? null
+                            : _buildAyahContextRow(palette)),
+                    placement: layout.dockPlacement,
+                    expanded: _isScrollbarVisible,
+                    onToggle: () {
+                      setState(
+                        () => _isScrollbarVisible = !_isScrollbarVisible,
+                      );
+                      if (_isScrollbarVisible) _startHideScrollbarTimer();
+                    },
+                    palette: palette,
+                    zoom: _readerZoom(palette),
+                    actions: _readerActions(palette),
                   ),
                 ),
               ],

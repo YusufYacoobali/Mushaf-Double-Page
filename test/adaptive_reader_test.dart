@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:ui' as ui;
 import 'dart:io';
 import 'dart:ui' show DisplayFeature, DisplayFeatureType, DisplayFeatureState;
 import 'package:flutter/material.dart';
@@ -16,12 +16,14 @@ void main() {
   setUpAll(() async {
     dir = await Directory.systemTemp.createTemp('adaptive_quran_');
     image = '${dir.path}/page.png';
-    await File(image).writeAsBytes(
-      base64Decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4'
-        '2mP8/x8AAusB9Wl2nkwAAAAASUVORK5CYII=',
-      ),
-    );
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawColor(Colors.white, BlendMode.src);
+    final picture = recorder.endRecording();
+    final page = await picture.toImage(721, 1058);
+    final bytes = await page.toByteData(format: ui.ImageByteFormat.png);
+    await File(image).writeAsBytes(bytes!.buffer.asUint8List());
+    page.dispose();
+    picture.dispose();
   });
   tearDownAll(() async => dir.delete(recursive: true));
   for (final mushaf in ['indopak_tajweed', 'madani']) {
@@ -111,11 +113,8 @@ void main() {
         await tester.pumpAndSettle();
         final page = find.byKey(const ValueKey('quran-page-237'));
         final collapsed = tester.getRect(page);
-        expect(collapsed.width, inInclusiveRange(304, 320));
-        expect(
-          collapsed.width / collapsed.height,
-          closeTo(QuranPageView.aspectRatioForMushaf(mushaf), .001),
-        );
+        expect(collapsed.width, 320);
+        expect(collapsed.height, closeTo(568 * .8, .001));
         await tester.tap(find.byTooltip('Open navigation'));
         await tester.pumpAndSettle();
         expect(tester.getRect(page), collapsed);

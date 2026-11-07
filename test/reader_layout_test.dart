@@ -55,7 +55,7 @@ void main() {
     }
   });
   test(
-    'single pages use the full safe height beneath bottom control overlays',
+    'phone portrait pages use the full viewport beneath bottom control overlays',
     () {
       final compact = ReaderLayout.resolve(size: const Size(320, 568));
       expect(compact.singlePage, isTrue);
@@ -65,7 +65,8 @@ void main() {
         size: const Size(320, 568),
         padding: const EdgeInsets.only(top: 20, bottom: 24),
       );
-      expect(inset.pageRegions.single, const Rect.fromLTWH(0, 20, 320, 524));
+      expect(inset.pageRegions.single, const Rect.fromLTWH(0, 0, 320, 568));
+      expect(inset.fullWidthPortrait, isTrue);
       // Wide portrait spreads still reserve their stable contextual-dock gutter.
       final spread = ReaderLayout.resolve(size: const Size(900, 900));
       expect(spread.singlePage, isFalse);

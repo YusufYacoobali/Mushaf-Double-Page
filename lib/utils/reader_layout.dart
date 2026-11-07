@@ -18,6 +18,7 @@ class ReaderLayout {
     required this.pageRegions,
     required this.controlsRegion,
     required this.safeRegions,
+    this.fullWidthPortrait = false,
   });
   final ReaderPageMode pageMode;
   final ReaderSpreadLayout spreadLayout;
@@ -29,6 +30,10 @@ class ReaderLayout {
   final List<Rect> pageRegions;
   final Rect controlsRegion;
   final List<Rect> safeRegions;
+
+  /// Conventional portrait phones retain v4's edge-to-edge page and dock.
+  /// Insets belong to the controls themselves, not their enclosing viewport.
+  final bool fullWidthPortrait;
   bool get singlePage => pageMode == ReaderPageMode.single;
   bool get bottomDock => dockPlacement == DockPlacement.bottom;
 
@@ -127,6 +132,12 @@ class ReaderLayout {
         centeredLandscape &&
         regions.length == 1 &&
         largest == safeDisplayRegions(size, padding, const []).single;
+    final originalPortraitBounds =
+        !landscape &&
+        size.width < 600 &&
+        regions.length == 1 &&
+        largest == safeDisplayRegions(size, padding, const []).single;
+    final singleBounds = originalPortraitBounds ? Offset.zero & size : single;
     final spreadBounds = originalLandscapeBounds
         ? Offset.zero & size
         : combined;
@@ -134,10 +145,13 @@ class ReaderLayout {
       pageMode: canSpread ? ReaderPageMode.spread : ReaderPageMode.single,
       spreadLayout: spreadLayout,
       dockPlacement: bottom ? DockPlacement.bottom : DockPlacement.side,
-      usableContentBounds: canSpread ? spreadBounds : single,
-      pageRegions: List.unmodifiable(canSpread ? spreadRegions : [single]),
+      usableContentBounds: canSpread ? spreadBounds : singleBounds,
+      pageRegions: List.unmodifiable(
+        canSpread ? spreadRegions : [singleBounds],
+      ),
       controlsRegion: controls,
       safeRegions: List.unmodifiable(regions),
+      fullWidthPortrait: originalPortraitBounds,
     );
   }
 }

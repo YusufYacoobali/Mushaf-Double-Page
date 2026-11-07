@@ -4,6 +4,34 @@ import '../utils/app_palette.dart';
 import '../utils/app_motion.dart';
 import '../utils/reader_layout.dart';
 
+/// Keep the v4 phone dock in screen coordinates so ReaderDock applies iPhone
+/// insets once. Partitioned/adaptive layouts still own a hinge-safe region.
+class ReaderDockOverlay extends StatelessWidget {
+  const ReaderDockOverlay({
+    super.key,
+    required this.layout,
+    required this.child,
+  });
+  final ReaderLayout layout;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (layout.fullWidthPortrait) return child;
+    return Positioned.fromRect(
+      rect: layout.controlsRegion,
+      child: MediaQuery.removePadding(
+        context: context,
+        removeLeft: true,
+        removeRight: true,
+        removeTop: true,
+        removeBottom: true,
+        child: Stack(children: [child]),
+      ),
+    );
+  }
+}
+
 class ReaderDock extends StatelessWidget {
   const ReaderDock({
     super.key,
