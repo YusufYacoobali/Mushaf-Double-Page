@@ -1,5 +1,9 @@
 # Yasser Al-Dossari / Ar-Rahman continuous PCM proof
 
+This is the historical Stage-A proof record. The subsequent
+[progressive continuous engine](continuous-everyayah-engine.md) is now the
+default on iOS/Android; this bounded WAV target remains a development reference.
+
 ## Delivered scope
 
 Stage A uses **Yasser Al-Dossari (`yasser_dussary`), Ar-Rahman 55:1–10**, once,

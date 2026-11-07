@@ -34,6 +34,7 @@ using the diagnostic application ID. For example, on a selected simulator:
 
 ```sh
 flutter run -d DEVICE_ID -t tool/everyayah_transition_probe.dart
+flutter run -d DEVICE_ID -t tool/everyayah_transition_probe.dart --dart-define=AUDIO_TRANSITION_LEGACY=true
 flutter run -d DEVICE_ID -t tool/everyayah_transition_probe.dart --dart-define=AUDIO_TRANSITION_CONTROL=true
 ```
 
@@ -45,6 +46,13 @@ plans three repetitions so the normal bounded queue receives future edits, then
 stops when cycle two begins: only the first two signal landmarks play completely.
 The control plays the entire unsplit signal once. The target shares the native
 player/background handler and records occurrence events, not an output-gap value.
+
+The default split probe now exercises the progressive continuous PCM backend on
+iOS/Android. `AUDIO_TRANSITION_LEGACY=true` selects the old split-MP3 backend for
+a same-build baseline; it is a diagnostic-only selector, not a production feature
+flag. The unsplit WAV control uses just_audio. Event reports name the actual
+backend and fallback reason: reject a candidate capture that fell back to legacy.
+`firstRenderedEventUs` is throttled telemetry, not an acoustic onset measurement.
 
 For baseline use cleanup commit `eb638da` (copy only the diagnostic tools into an
 isolated checkout); for candidate use the second delivery commit. Compare the
