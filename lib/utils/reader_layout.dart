@@ -8,7 +8,8 @@ enum DockPlacement { bottom, side }
 
 enum ReaderSpreadLayout { centeredLandscape, separateRegions, widePortrait }
 
-/// Window geometry, independent of device names and physical pixel resolution.
+/// Window geometry with an explicit iPad portrait compatibility hint.
+/// Width alone cannot distinguish an iPad mini from an unfolded phone.
 class ReaderLayout {
   const ReaderLayout({
     required this.pageMode,
@@ -42,6 +43,7 @@ class ReaderLayout {
     EdgeInsets padding = EdgeInsets.zero,
     List<DisplayFeature> displayFeatures = const [],
     double pageAspectRatio = 721 / 1058,
+    bool preserveLegacyIPadPortrait = false,
   }) {
     final regions = safeDisplayRegions(size, padding, displayFeatures);
     final largest = regions.reduce(
@@ -64,6 +66,9 @@ class ReaderLayout {
           ..sort((a, b) => a.left.compareTo(b.left));
     final controls = sameRow.length >= 2 ? sameRow.last : largest;
     final landscape = size.width > size.height;
+    // Original iPad reading was always one full-width page in portrait.
+    // Do not apply the unfolded-phone width threshold to an iPad window.
+    final legacyIPadPortrait = preserveLegacyIPadPortrait && !landscape;
     final bottom = (!landscape || sameRow.length >= 2) && controls.width >= 300;
     final pageBounds = <Rect>[];
     final candidates = sameRow.length >= 2
@@ -113,6 +118,7 @@ class ReaderLayout {
           ];
     final minimumWidth = landscape ? 600.0 : 720.0;
     final canSpread =
+        !legacyIPadPortrait &&
         (physicalPair || largest.width >= minimumWidth) &&
         spreadRegions.every(
           (r) =>
@@ -134,7 +140,7 @@ class ReaderLayout {
         largest == safeDisplayRegions(size, padding, const []).single;
     final originalPortraitBounds =
         !landscape &&
-        size.width < 600 &&
+        (size.width < 600 || legacyIPadPortrait) &&
         regions.length == 1 &&
         largest == safeDisplayRegions(size, padding, const []).single;
     final singleBounds = originalPortraitBounds ? Offset.zero & size : single;

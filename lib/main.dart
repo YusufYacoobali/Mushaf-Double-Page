@@ -1,3 +1,4 @@
+import 'utils/ios_device_idiom.dart';
 import 'utils/reader_layout.dart';
 import 'utils/reader_paging.dart';
 import 'utils/audio_vertical_follower.dart';
@@ -158,6 +159,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   PageController get _pageController => _paging!.controller;
 
   bool _ready = false;
+  bool _isIPad = false;
   bool get _hasPageController => _paging != null;
   bool _singlePage = true;
   bool _bottomDock = true;
@@ -229,6 +231,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   }
 
   Future<void> _init() async {
+    // Resolve the native device family before exposing the reader, avoiding
+    // a brief two-page iPad layout or a page-mode change after first paint.
+    _isIPad = await IosDeviceIdiom.isIPad();
     _docDir = await getApplicationDocumentsDirectory();
     _mushaf = await StorageManager.getMushaf();
     _surahHistory = RecentSurahHistory(_mushaf);
@@ -1120,6 +1125,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             padding: MediaQuery.paddingOf(context),
             displayFeatures: MediaQuery.displayFeaturesOf(context),
             pageAspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
+            preserveLegacyIPadPortrait: _isIPad,
           );
           _paging!.configure(layout.pageMode);
           _singlePage = layout.singlePage;
