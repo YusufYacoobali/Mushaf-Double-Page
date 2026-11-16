@@ -67,7 +67,7 @@ void main() {
   late String imagePath;
   setUpAll(() async {
     images = await Directory.systemTemp.createTemp('ipad_layout_regression_');
-    imagePath = images.path + '/page.png';
+    imagePath = '${images.path}/page.png';
     final recorder = ui.PictureRecorder();
     Canvas(recorder).drawColor(Colors.white, BlendMode.src);
     final picture = recorder.endRecording();
