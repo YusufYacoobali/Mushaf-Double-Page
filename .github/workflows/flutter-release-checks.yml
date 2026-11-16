@@ -1,0 +1,42 @@
+name: Flutter release checks
+
+on:
+  push:
+    branches: [v5]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Static analysis
+        run: flutter analyze --no-pub
+      - name: Flutter tests
+        run: flutter test --no-pub --reporter expanded
+
+  ios-no-codesign-build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Compile iOS app without signing
+        run: flutter build ios --release --no-codesign
