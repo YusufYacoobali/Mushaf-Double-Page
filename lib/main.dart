@@ -1,6 +1,7 @@
 import 'utils/ios_device_idiom.dart';
 import 'utils/reader_layout.dart';
 import 'utils/reader_paging.dart';
+import 'utils/deferred_reminders.dart';
 import 'utils/audio_vertical_follower.dart';
 import 'components/adaptive_quran_pages.dart';
 import 'utils/reader_highlight_preferences.dart';
@@ -54,8 +55,11 @@ void main() async {
   unawaited(removeRetiredAudioCache());
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _initBackgroundAudio();
-  await ReminderNotifications.initialize();
+  // Never await optional notification setup before Flutter's first frame.
+  // On iOS 27 its plugin initialization can wait indefinitely for a scene or
+  // permissions; previously this trapped the app on the launch storyboard.
   runApp(const MyApp());
+  scheduleDeferredReminders(ReminderNotifications.initialize);
 }
 
 Future<void> _initBackgroundAudio() async {
