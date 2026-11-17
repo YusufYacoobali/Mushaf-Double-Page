@@ -51,7 +51,7 @@ jobs:
           File.write(path, text)
           RUBY
       - name: Build actual Flutter iOS simulator app
-        run: flutter build ios --simulator --debug --no-pub
+        run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub
       - name: Install Duo simulator control tool
         run: brew install skarol/tap/duoctl
       - name: Capture real iPhone Duo screens
