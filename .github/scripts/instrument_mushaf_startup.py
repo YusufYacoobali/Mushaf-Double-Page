@@ -17,8 +17,8 @@ change("  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPl
        "  print('MUSHAF_BOOT firebase-start');\n  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);\n  print('MUSHAF_BOOT firebase-done');")
 change("  await _initBackgroundAudio();",
        "  print('MUSHAF_BOOT audio-start');\n  await _initBackgroundAudio();\n  print('MUSHAF_BOOT audio-done');")
-change("  await ReminderNotifications.initialize();",
-       "  print('MUSHAF_BOOT reminders-start');\n  await ReminderNotifications.initialize();\n  print('MUSHAF_BOOT reminders-done');")
+change("  scheduleDeferredReminders(ReminderNotifications.initialize);",
+       "  print('MUSHAF_BOOT reminders-deferred');\n  scheduleDeferredReminders(() async {\n    print('MUSHAF_BOOT reminders-start');\n    await ReminderNotifications.initialize();\n    print('MUSHAF_BOOT reminders-done');\n  });")
 change("  runApp(const MyApp());","  print('MUSHAF_BOOT runApp-start');\n  runApp(const MyApp());\n  print('MUSHAF_BOOT runApp-returned');")
 change("    await QuranAudioHandler.initialize();", "    print('MUSHAF_BOOT audio-handler-initialize-start');\n    await QuranAudioHandler.initialize();\n    print('MUSHAF_BOOT audio-handler-initialize-done');")
 p.write_text(s)

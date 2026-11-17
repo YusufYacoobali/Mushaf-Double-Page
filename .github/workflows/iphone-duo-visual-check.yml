@@ -8,6 +8,8 @@ on:
       - '.github/scripts/capture_duo_zoom.sh'
       - 'ios/Runner/**'
       - 'ios/Runner.xcodeproj/project.pbxproj'
+      - 'lib/main.dart'
+      - 'lib/utils/deferred_reminders.dart'
       - 'lib/utils/reader_layout.dart'
       - 'lib/pages/page_view.dart'
       - 'lib/components/adaptive_quran_pages.dart'
