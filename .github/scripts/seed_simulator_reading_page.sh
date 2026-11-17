@@ -22,6 +22,7 @@ data.update({
     "flutter.quran_single_page_scale": 0.8,
     "flutter.quran_landscape_page_scale": 0.7,
     "flutter.reader_controls_arrow_only": False,
+    "flutter.review_prompt_rate_chosen": True,
 })
 with open(path,"wb") as f: plistlib.dump(data,f,fmt=plistlib.FMT_BINARY)
 print("CI simulator starting page=4, single zoom=80%, spread zoom=70%")
