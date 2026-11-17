@@ -53,7 +53,9 @@ jobs:
       - name: Build actual Flutter iOS simulator app
         run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub
       - name: Install Duo simulator control tool
-        run: brew install skarol/tap/duoctl
+        run: |
+          brew install skarol/tap/duoctl
+          brew install cameroncooke/axe/axe
       - name: Capture real iPhone Duo screens
         shell: bash
         run: |
@@ -91,22 +93,32 @@ jobs:
             sleep 8
           done
           echo "Duo pages-ready: $READY" | tee screenshots/duo-status.txt
+          if [[ "$READY" -ne 1 ]]; then
+            echo "::error::Duo Quran download did not finish; cannot verify real reader screenshots"
+            duoctl screenshot screenshots/duo-download-incomplete.png || true
+            exit 1
+          fi
 
           # Record state as proof of the display being captured.
           duoctl close
           duoctl state | tee screenshots/duo-folded-state.json
           sleep 4
           duoctl screenshot screenshots/duo-folded.png
+          # Single-page minimum 70%, maximum 100%.
+          bash .github/scripts/capture_duo_zoom.sh duo-folded 70 100
 
           duoctl open
           duoctl state | tee screenshots/duo-unfolded-wide-state.json
           sleep 4
           duoctl screenshot screenshots/duo-unfolded-wide.png
+          # Two-page minimum 60%, maximum 100%.
+          bash .github/scripts/capture_duo_zoom.sh duo-unfolded-wide 60 100
 
           duoctl rotate portrait
           duoctl state | tee screenshots/duo-unfolded-portrait-state.json
           sleep 4
           duoctl screenshot screenshots/duo-unfolded-portrait.png
+          bash .github/scripts/capture_duo_zoom.sh duo-unfolded-portrait 60 100
           echo "Captured:"
           ls -lah screenshots/
       - name: Capture iPad mini comparison
