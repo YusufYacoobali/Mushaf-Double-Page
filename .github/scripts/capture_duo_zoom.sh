@@ -49,8 +49,32 @@ with open(path, "rb") as f:
 assert math.isclose(actual, percent / 100, abs_tol=1e-6)
 with open(evidence_path, "w") as f:
     f.write(f"Real app SharedPreferences {key}={actual}; reader page=4\n")
-print(f"Verified {key} = {actual}")
+print(f"Verified on disk {key} = {actual}")
 PY
+  # Editing the plist file alone is NOT sufficient: iOS cfprefsd caches the
+  # UserDefaults domain across Runner restarts. Update the live preference
+  # service through simctl spawn (the same NSUserDefaults the Flutter plugin
+  # reads), then verify that daemon's value before relaunching the app.
+  local key value live
+  if [[ "$LABEL" == "duo-folded" ]]; then
+    key="flutter.quran_single_page_scale"
+  else
+    key="flutter.quran_landscape_page_scale"
+  fi
+  value="$(python3 -c 'import sys;print(int(sys.argv[1])/100)' "$percent")"
+  if xcrun simctl spawn "$UDID" defaults write "$BUNDLE_ID" "$key" -float "$value"; then
+    live="$(xcrun simctl spawn "$UDID" defaults read "$BUNDLE_ID" "$key")"
+    echo "iOS NSUserDefaults daemon $key: $live" | tee -a "$name-preference.txt"
+    python3 - "$live" "$value" <<'PY'
+import math,sys
+assert math.isclose(float(sys.argv[1]),float(sys.argv[2]),abs_tol=0.0001),sys.argv
+PY
+  else
+    # Simulator versions without a working defaults tool must discard cached
+    # preferences before the next Runner launch.
+    echo "::warning::defaults write unavailable; invalidating cfprefsd cache"
+    xcrun simctl spawn "$UDID" killall cfprefsd >/dev/null 2>&1 || true
+  fi
   for n in 1 2 3; do
     if xcrun simctl launch "$UDID" "$BUNDLE_ID"; then break; fi
     sleep 5
@@ -80,3 +104,12 @@ PY
 echo "Running $LABEL at min=$MIN and max=$MAX"
 capture_at "$MIN" min
 capture_at "$MAX" max
+
+# A bug in the previous CI runner reported both endpoints as a PASS while
+# the captured PNGs were literally byte-identical (the original default zoom
+# was still on screen). Reject this false-positive explicitly.
+if cmp -s "screenshots/$LABEL-min-$MIN.png" "screenshots/$LABEL-max-$MAX.png"; then
+  echo "::error::$LABEL: min and max screenshots are identical, so zoom was NOT verified"
+  exit 1
+fi
+echo "PASS: $LABEL min $MIN% and max $MAX% generated distinct genuine screenshots"
