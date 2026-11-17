@@ -44,6 +44,7 @@ class ReaderLayout {
     List<DisplayFeature> displayFeatures = const [],
     double pageAspectRatio = 721 / 1058,
     bool preserveLegacyIPadPortrait = false,
+    bool iosPhoneWidePortrait = false,
   }) {
     final regions = safeDisplayRegions(size, padding, displayFeatures);
     final largest = regions.reduce(
@@ -116,7 +117,13 @@ class ReaderLayout {
               combined.bottom,
             ),
           ];
-    final minimumWidth = landscape ? 600.0 : 720.0;
+    // The unfolded iPhone Duo's inner screen is 669 logical px wide in
+    // portrait, below the generic 720 px threshold. Its two readable leaves
+    // fit at this width, while iPads still retain their legacy portrait mode.
+    // Do not lower the breakpoint for Android tablets or split-screen windows.
+    final minimumWidth = landscape
+        ? 600.0
+        : (iosPhoneWidePortrait && !preserveLegacyIPadPortrait ? 640.0 : 720.0);
     final canSpread =
         !legacyIPadPortrait &&
         (physicalPair || largest.width >= minimumWidth) &&

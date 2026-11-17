@@ -49,10 +49,12 @@ void main() {
       expect(layout.dockPlacement, DockPlacement.side);
     });
 
-    test('$edition unfolded Duo uses two pages in the same wide window', () {
+    test('$edition unfolded Duo 669x951 portrait shows a true spread', () {
+      // Measured from the iPhone Duo Xcode 27 simulator, not an assumed size.
       final layout = ReaderLayout.resolve(
-        size: const Size(900, 900),
-        preserveLegacyIPadPortrait: false,
+        size: const Size(669, 951),
+        padding: const EdgeInsets.only(top: 24, bottom: 21),
+        iosPhoneWidePortrait: true,
         pageAspectRatio: QuranPageView.aspectRatioForMushaf(edition),
       );
       expect(layout.pageMode, ReaderPageMode.spread);
@@ -60,6 +62,24 @@ void main() {
       expect(layout.pageRegions.length, 2);
       expect(layout.pageRegions.first.right, lessThan(layout.pageRegions.last.left));
       expect(layout.dockPlacement, DockPlacement.bottom);
+    });
+
+    test('$edition Duo folded 466x678 remains single page', () {
+      final layout = ReaderLayout.resolve(
+        size: const Size(466, 678),
+        iosPhoneWidePortrait: true,
+        pageAspectRatio: QuranPageView.aspectRatioForMushaf(edition),
+      );
+      expect(layout.pageMode, ReaderPageMode.single);
+      expect(layout.fullWidthPortrait, isTrue);
+    });
+
+    test('$edition Android 669x951 portrait retains original width policy', () {
+      final layout = ReaderLayout.resolve(
+        size: const Size(669, 951),
+        pageAspectRatio: QuranPageView.aspectRatioForMushaf(edition),
+      );
+      expect(layout.pageMode, ReaderPageMode.single);
     });
   }
 

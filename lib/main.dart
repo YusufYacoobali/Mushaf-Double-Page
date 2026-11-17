@@ -1126,6 +1126,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             displayFeatures: MediaQuery.displayFeaturesOf(context),
             pageAspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
             preserveLegacyIPadPortrait: _isIPad,
+            iosPhoneWidePortrait:
+                Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
           );
           _paging!.configure(layout.pageMode);
           _singlePage = layout.singlePage;
