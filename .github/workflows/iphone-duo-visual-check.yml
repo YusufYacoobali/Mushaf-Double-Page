@@ -58,7 +58,11 @@ jobs:
           DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
           READY=0
           for n in $(seq 1 75); do
-            COUNT=$(find "$DATA/Documents/indopak_tajweed" -type f -name '*.webp' 2>/dev/null | wc -l | tr -d ' ')
+            if [[ -d "$DATA/Documents/indopak_tajweed" ]]; then
+              COUNT=$(find "$DATA/Documents/indopak_tajweed" -type f -name '*.webp' | wc -l | tr -d ' ')
+            else
+              COUNT=0
+            fi
             echo "Quran page images downloaded: $COUNT / 851"
             if [[ "$COUNT" -ge 851 ]]; then READY=1; break; fi
             sleep 8
@@ -93,13 +97,18 @@ jobs:
             echo "No iPad mini (A17 Pro) simulator on this runner; skipping comparison"
             exit 0
           fi
+          xcrun simctl shutdown "$DUOCTL_UDID" || true
           xcrun simctl boot "$IPAD"
           xcrun simctl bootstatus "$IPAD" -b
           xcrun simctl install "$IPAD" "$APP"
           xcrun simctl launch "$IPAD" "$BUNDLE_ID"
           DATA="$(xcrun simctl get_app_container "$IPAD" "$BUNDLE_ID" data)"
           for n in $(seq 1 50); do
-            COUNT=$(find "$DATA/Documents/indopak_tajweed" -type f -name '*.webp' 2>/dev/null | wc -l | tr -d ' ')
+            if [[ -d "$DATA/Documents/indopak_tajweed" ]]; then
+              COUNT=$(find "$DATA/Documents/indopak_tajweed" -type f -name '*.webp' | wc -l | tr -d ' ')
+            else
+              COUNT=0
+            fi
             echo "iPad pages: $COUNT / 851"
             if [[ "$COUNT" -ge 851 ]]; then break; fi
             sleep 8
