@@ -121,11 +121,25 @@ jobs:
           # registered the new bundle. This happens on cold CI simulators:
           # SpringBoard announces registration 10-30s after installation.
           # Retrying is required even when install itself succeeded.
-          xcrun simctl listapps "$UDID" > screenshots/duo-installed-apps.txt 2>&1 || true
-          sleep 25
+          # Hosted Xcode 27 simulators can silently return to Shutdown during
+          # the first installation. A launch retry alone cannot recover from
+          # CoreSimulator error 405; check the *actual device state* and reboot.
+          xcrun simctl list devices -j > screenshots/duo-devices-after-install.json
+          sleep 10
           LAUNCHED=0
-          for attempt in $(seq 1 12); do
-            echo "Duo app launch attempt $attempt of 12"
+          for attempt in $(seq 1 4); do
+            STATE="$(xcrun simctl list devices -j | jq -r --arg id "$UDID" '[.devices[][] | select(.udid == $id) | .state][0] // "Missing"')"
+            echo "Duo app launch attempt $attempt/4; simulator state=$STATE"
+            if [[ "$STATE" == "Missing" ]]; then
+              echo "::error::The iPhone Duo simulator is no longer registered"
+              break
+            fi
+            if [[ "$STATE" != "Booted" ]]; then
+              echo "::warning::iPhone Duo unexpectedly shut down; rebooting before retry"
+              xcrun simctl boot "$UDID" || true
+              xcrun simctl bootstatus "$UDID" -b || true
+              sleep 10
+            fi
             if xcrun simctl launch "$UDID" "$BUNDLE_ID" > screenshots/duo-last-launch.txt 2>&1; then
               cat screenshots/duo-last-launch.txt
               LAUNCHED=1
@@ -135,7 +149,8 @@ jobs:
             sleep 8
           done
           if [[ "$LAUNCHED" -ne 1 ]]; then
-            echo "::error::App was installed but could not be launched after FrontBoard registration retries"
+            echo "::error::Duo app launch failed after state-aware recovery attempts; this does not verify the reading layout"
+            xcrun simctl list devices -j > screenshots/duo-devices-after-failure.json || true
             xcrun simctl listapps "$UDID" > screenshots/duo-postfailure-installed-apps.txt 2>&1 || true
             exit 1
           fi
@@ -265,9 +280,21 @@ jobs:
           xcrun simctl bootstatus "$IPAD" -b
           xcrun simctl install "$IPAD" "$APP"
           bash .github/scripts/seed_simulator_reading_page.sh "$IPAD" "$BUNDLE_ID"
-          sleep 25
+          sleep 10
           IPAD_LAUNCHED=0
-          for attempt in $(seq 1 12); do
+          for attempt in $(seq 1 4); do
+            IPAD_STATE="$(xcrun simctl list devices -j | jq -r --arg id "$IPAD" '[.devices[][] | select(.udid == $id) | .state][0] // "Missing"')"
+            echo "iPad mini app launch attempt $attempt/4; simulator state=$IPAD_STATE"
+            if [[ "$IPAD_STATE" == "Missing" ]]; then
+              echo "::error::iPad mini simulator is no longer registered"
+              break
+            fi
+            if [[ "$IPAD_STATE" != "Booted" ]]; then
+              echo "::warning::iPad mini unexpectedly shut down; rebooting"
+              xcrun simctl boot "$IPAD" || true
+              xcrun simctl bootstatus "$IPAD" -b || true
+              sleep 10
+            fi
             if xcrun simctl launch "$IPAD" "$BUNDLE_ID"; then
               IPAD_LAUNCHED=1
               break
@@ -275,7 +302,8 @@ jobs:
             sleep 8
           done
           if [[ "$IPAD_LAUNCHED" -ne 1 ]]; then
-            echo "::error::iPad simulator installation did not register with FrontBoard"
+            xcrun simctl list devices -j > screenshots/ipad-devices-after-failure.json || true
+            echo "::error::iPad mini app launch failed even after simulator recovery; no page-layout verification"
             exit 1
           fi
           DATA="$(xcrun simctl get_app_container "$IPAD" "$BUNDLE_ID" data)"
