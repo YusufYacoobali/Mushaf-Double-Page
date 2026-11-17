@@ -41,4 +41,9 @@ done
 [[ "$ready" -eq 1 ]] || { echo "::error::iPad did not load real Quran pages"; exit 1; }
 sleep 3
 xcrun simctl io "$UDID" screenshot screenshots-ipad/ipad-mini-portrait.png
+# The initial intercession tip overlays Quran text. Capture a later state too
+# without altering application code, so reviewers can distinguish an
+# auto-dismissing overlay from a persistent layout issue.
+sleep 18
+xcrun simctl io "$UDID" screenshot screenshots-ipad/ipad-mini-portrait-after-18s.png
 echo "iPad mini portrait: Quran images loaded, app screenshot captured" | tee screenshots-ipad/status.txt
