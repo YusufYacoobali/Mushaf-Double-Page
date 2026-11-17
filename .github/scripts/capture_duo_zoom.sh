@@ -20,6 +20,21 @@ read_ui() {
   duoctl elements > "$ui_file"
 }
 
+# Flutter's accessibility tree duplicates some button labels, for example
+# "Open navigation\nOpen navigation". duoctl --label matches exactly, so
+# the short label never matched, despite the control being visible.
+# Resolve a unique button's frame and tap its centre in active-screen points.
+tap_button() {
+  local label="$1"
+  local coordinates x y
+  if ! coordinates="$(python3 .github/scripts/duo_accessibility_tap.py "$ui_file" "$label")"; then
+    return 1
+  fi
+  read -r x y <<< "$coordinates"
+  echo "Tapping $label at ($x, $y)"
+  duoctl tap "$x" "$y"
+}
+
 # An expanded dock automatically collapses after ten seconds of inactivity.
 # Reopen it whenever needed rather than tapping invisible controls.
 ensure_dock() {
@@ -28,7 +43,7 @@ ensure_dock() {
     return 0
   fi
   if grep -Fq 'Open navigation' "$ui_file"; then
-    duoctl tap --label "Open navigation"
+    tap_button "Open navigation"
     sleep 0.5
     read_ui
   fi
@@ -51,7 +66,7 @@ reach_percent() {
       reached=1
       break
     fi
-    duoctl tap --label "$button"
+    tap_button "$button"
     sleep 0.15
   done
   ensure_dock

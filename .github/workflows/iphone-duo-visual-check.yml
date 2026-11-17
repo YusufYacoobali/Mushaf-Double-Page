@@ -28,6 +28,28 @@ jobs:
           channel: stable
           flutter-version: '3.38.1'
           cache: true
+      - name: Verify Flutter button lookup against duplicated labels
+        run: |
+          python3 - <<'PY'
+          import importlib.util, json, tempfile
+          spec = importlib.util.spec_from_file_location(
+              "duo", ".github/scripts/duo_accessibility_tap.py"
+          )
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          with tempfile.NamedTemporaryFile(mode="w+", suffix=".json") as test:
+              json.dump([
+                {"type": "Application", "label": "Quran Dual Page"},
+                {"type": "Button", "label": "Open navigation\\nOpen navigation",
+                 "frame": {"x": 160, "y": 638, "width": 72, "height": 24}},
+                {"type": "Button", "label": "Zoom out\\nZoom out",
+                 "frame": {"x": 90, "y": 600, "width": 32, "height": 32}}
+              ], test)
+              test.flush()
+              assert module.find_center(test.name, "Open navigation") == (196, 650)
+              assert module.find_center(test.name, "Zoom out") == (106, 616)
+              print("Duplicate-label button lookup and coordinate resolution PASS")
+          PY
       - name: Inspect Apple simulator availability
         run: |
           xcodebuild -version
