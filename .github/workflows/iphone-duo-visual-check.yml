@@ -40,9 +40,9 @@ jobs:
           with tempfile.NamedTemporaryFile(mode="w+", suffix=".json") as test:
               json.dump([
                 {"type": "Application", "label": "Quran Dual Page"},
-                {"type": "Button", "label": "Open navigation\\nOpen navigation",
+                {"type": "Button", "label": "Open navigation\nOpen navigation",
                  "frame": {"x": 160, "y": 638, "width": 72, "height": 24}},
-                {"type": "Button", "label": "Zoom out\\nZoom out",
+                {"type": "Button", "label": "Zoom out\nZoom out",
                  "frame": {"x": 90, "y": 600, "width": 32, "height": 32}}
               ], test)
               test.flush()
