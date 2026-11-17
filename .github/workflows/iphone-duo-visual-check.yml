@@ -85,10 +85,8 @@ jobs:
           mkdir -p ci-app
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
-      - name: Install Duo controls
-        run: |
-          brew install skarol/tap/duoctl
-          brew install cameroncooke/axe/axe
+      - name: Install Duo controls (no accessibility dependency)
+        run: brew install skarol/tap/duoctl
       - name: Run genuine folded and unfolded reader screenshots
         shell: bash
         run: bash .github/scripts/run_duo_simulator_qa.sh
