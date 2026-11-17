@@ -121,6 +121,25 @@ jobs:
           bash .github/scripts/capture_duo_zoom.sh duo-unfolded-portrait 60 100
           echo "Captured:"
           ls -lah screenshots/
+      - name: Diagnose missing reader on Duo
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p screenshots
+          if [[ -z "${DUOCTL_UDID:-}" ]]; then
+            echo "Duo simulator was not yet booted; no runtime diagnostics available" > screenshots/duo-runtime-diagnostic.txt
+            exit 0
+          fi
+          echo "Inspecting simulator after the reader failed to become ready" > screenshots/duo-runtime-diagnostic.txt
+          axe describe-ui --udid "$DUOCTL_UDID" > screenshots/duo-accessibility-on-failure.txt 2>&1 || true
+          xcrun simctl spawn "$DUOCTL_UDID" launchctl list > screenshots/duo-launchctl.txt 2>&1 || true
+          xcrun simctl spawn "$DUOCTL_UDID" log show --last 12m --style compact --predicate 'process == "Runner" OR eventMessage CONTAINS[c] "mushafTwoPage" OR eventMessage CONTAINS[c] "Flutter"' 2>&1 | tail -n 2500 > screenshots/duo-runtime-log.txt || true
+          DIAG="$HOME/Library/Developer/CoreSimulator/Devices/$DUOCTL_UDID/data/Library/Logs/DiagnosticReports"
+          if [[ -d "$DIAG" ]]; then
+            find "$DIAG" -maxdepth 1 -type f -name '*.ips' -mmin -30 -exec cp {} screenshots/ \; || true
+          fi
+          echo "Simulator diagnostics collected (not a reader-layout assertion)"
+
       - name: Capture iPad mini comparison
         if: success()
         shell: bash
