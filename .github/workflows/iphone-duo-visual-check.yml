@@ -27,6 +27,29 @@ jobs:
           df -h .
       - name: Resolve Flutter packages
         run: flutter pub get
+      # Xcode 27 rejects the legacy iOS 11-13 deployment targets embedded in
+      # third-party pods. This is a CI-only adjustment; do not raise the
+      # published app's actual minimum iOS version to capture screenshots.
+      - name: Normalize simulator deployment targets for Xcode 27
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          ruby - <<'RUBY'
+          path = "ios/Podfile"
+          text = File.read(path)
+          marker = "    flutter_additional_ios_build_settings(target)\n"
+          unless text.include?(marker)
+            abort "Could not locate flutter_additional_ios_build_settings in Podfile"
+          end
+          override = <<~CFG
+            target.build_configurations.each do |config|
+              config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+            end
+          CFG
+          text.sub!(marker, marker + override.lines.map { |line| "    " + line }.join)
+          File.write(path, text)
+          RUBY
       - name: Build actual Flutter iOS simulator app
         run: flutter build ios --simulator --debug --no-pub
       - name: Install Duo simulator control tool
