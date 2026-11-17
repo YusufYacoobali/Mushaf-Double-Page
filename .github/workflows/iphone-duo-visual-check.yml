@@ -5,6 +5,12 @@ on:
   push:
     paths:
       - '.github/workflows/iphone-duo-visual-check.yml'
+      - '.github/scripts/capture_duo_zoom.sh'
+      - 'ios/Runner/**'
+      - 'ios/Runner.xcodeproj/project.pbxproj'
+      - 'lib/utils/reader_layout.dart'
+      - 'lib/pages/page_view.dart'
+      - 'lib/components/adaptive_quran_pages.dart'
 
 permissions:
   contents: read
@@ -27,6 +33,14 @@ jobs:
           df -h .
       - name: Resolve Flutter packages
         run: flutter pub get
+      - name: Require iOS 27 UIScene adoption
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/libexec/PlistBuddy -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' ios/Runner/Info.plist | grep -F SceneDelegate
+          grep -Fq 'FlutterImplicitEngineDelegate' ios/Runner/AppDelegate.swift
+          grep -Fq 'didInitializeImplicitFlutterEngine' ios/Runner/AppDelegate.swift
+          echo 'UIScene and implicit Flutter engine registration configured'
       # Xcode 27 rejects the legacy iOS 11-13 deployment targets embedded in
       # third-party pods. This is a CI-only adjustment; do not raise the
       # published app's actual minimum iOS version to capture screenshots.
