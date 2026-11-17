@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Capture the *actual rendered reader* at both zoom extremes, using the
-# app's real visible +/- controls, not a mocked widget or synthetic layout.
+# app's real visible +/- controls on the active Duo display (not the cover
+# screen HID path while unfolded), not a mocked widget or synthetic layout.
 set -euo pipefail
 
 if [[ "$#" -ne 3 ]]; then
@@ -16,7 +17,7 @@ mkdir -p screenshots
 ui_file="screenshots/${LABEL}-accessibility.txt"
 
 read_ui() {
-  axe describe-ui --udid "$UDID" > "$ui_file"
+  duoctl elements > "$ui_file"
 }
 
 # An expanded dock automatically collapses after ten seconds of inactivity.
@@ -27,7 +28,7 @@ ensure_dock() {
     return 0
   fi
   if grep -Fq 'Open navigation' "$ui_file"; then
-    axe tap --label "Open navigation" --udid "$UDID"
+    duoctl tap --label "Open navigation"
     sleep 0.5
     read_ui
   fi
@@ -50,7 +51,7 @@ reach_percent() {
       reached=1
       break
     fi
-    axe tap --label "$button" --udid "$UDID"
+    duoctl tap --label "$button"
     sleep 0.15
   done
   ensure_dock
