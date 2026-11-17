@@ -5,7 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/iphone-duo-visual-check.yml'
-      - '.github/scripts/capture_duo_zoom.sh'
+      - '.github/scripts/**'
       - 'ios/Runner/**'
       - 'ios/Runner.xcodeproj/project.pbxproj'
       - 'lib/main.dart'
@@ -114,6 +114,9 @@ jobs:
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$APP"
+          # Preselect an actual text page, not the Quran cover. This writes
+          # only to the disposable simulator's SharedPreferences store.
+          bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
           # Xcode 27 can return from simctl install *before* FrontBoard has
           # registered the new bundle. This happens on cold CI simulators:
           # SpringBoard announces registration 10-30s after installation.
@@ -197,23 +200,32 @@ jobs:
           duoctl state | tee screenshots/duo-folded-state.json
           sleep 4
           duoctl screenshot screenshots/duo-folded.png
-          # Single-page minimum 70%, maximum 100%.
-          bash .github/scripts/capture_duo_zoom.sh duo-folded 70 100
+          # Run all three cases independently; one failed zoom never prevents
+          # the other posture screenshots or the iPad comparison.
+          RESULT=0
+          if ! bash .github/scripts/capture_duo_zoom.sh duo-folded 70 100; then RESULT=1; fi
 
-          duoctl open
-          duoctl state | tee screenshots/duo-unfolded-wide-state.json
-          sleep 4
-          duoctl screenshot screenshots/duo-unfolded-wide.png
-          # Two-page minimum 60%, maximum 100%.
-          bash .github/scripts/capture_duo_zoom.sh duo-unfolded-wide 60 100
-
-          duoctl rotate portrait
-          duoctl state | tee screenshots/duo-unfolded-portrait-state.json
-          sleep 4
-          duoctl screenshot screenshots/duo-unfolded-portrait.png
-          bash .github/scripts/capture_duo_zoom.sh duo-unfolded-portrait 60 100
-          echo "Captured:"
+          if duoctl open; then
+            duoctl state | tee screenshots/duo-unfolded-wide-state.json
+            sleep 4
+            duoctl screenshot screenshots/duo-unfolded-wide.png
+            if ! bash .github/scripts/capture_duo_zoom.sh duo-unfolded-wide 60 100; then RESULT=1; fi
+            if duoctl rotate portrait; then
+              duoctl state | tee screenshots/duo-unfolded-portrait-state.json
+              sleep 4
+              duoctl screenshot screenshots/duo-unfolded-portrait.png
+              if ! bash .github/scripts/capture_duo_zoom.sh duo-unfolded-portrait 60 100; then RESULT=1; fi
+            else
+              echo "::error::Duo inner portrait rotation failed"
+              RESULT=1
+            fi
+          else
+            echo "::error::Duo unfold operation failed"
+            RESULT=1
+          fi
+          echo "Three posture capture cases completed, failure=$RESULT"
           ls -lah screenshots/
+          exit "$RESULT"
       - name: Diagnose missing reader on Duo
         if: failure()
         shell: bash
@@ -234,11 +246,15 @@ jobs:
           echo "Simulator diagnostics collected (not a reader-layout assertion)"
 
       - name: Capture iPad mini comparison
-        if: success()
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
           APP="build/ios/iphonesimulator/Runner.app"
+          if [[ ! -d "$APP" ]]; then
+            echo "App build not available; no iPad screenshot possible"
+            exit 0
+          fi
           IPAD="$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name == "iPad mini (A17 Pro)" and .isAvailable == true)][0].udid')"
           if [[ "$IPAD" == "null" || -z "$IPAD" ]]; then
             echo "No iPad mini (A17 Pro) simulator on this runner; skipping comparison"
@@ -248,6 +264,7 @@ jobs:
           xcrun simctl boot "$IPAD"
           xcrun simctl bootstatus "$IPAD" -b
           xcrun simctl install "$IPAD" "$APP"
+          bash .github/scripts/seed_simulator_reading_page.sh "$IPAD" "$BUNDLE_ID"
           sleep 25
           IPAD_LAUNCHED=0
           for attempt in $(seq 1 12); do
@@ -272,7 +289,12 @@ jobs:
             if [[ "$COUNT" -ge 851 ]]; then break; fi
             sleep 8
           done
+          axe describe-ui --udid "$IPAD" > screenshots/ipad-mini-accessibility.json 2>&1 || true
           xcrun simctl io "$IPAD" screenshot screenshots/ipad-mini-portrait.png
+          if [[ "$COUNT" -lt 851 ]]; then
+            echo "::error::iPad mini does not have all 851 Quran images; screenshot is not verified"
+            exit 1
+          fi
       - name: Upload genuine simulator screenshots
         if: always()
         uses: actions/upload-artifact@v4

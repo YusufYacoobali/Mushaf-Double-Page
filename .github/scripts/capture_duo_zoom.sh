@@ -1,98 +1,93 @@
 #!/usr/bin/env bash
-# Capture the *actual rendered reader* at both zoom extremes, using the
-# app's real visible +/- controls on the active Duo display (not the cover
-# screen HID path while unfolded), not a mocked widget or synthetic layout.
+# Drive the real reader's on-screen zoom buttons, verify actual percentages and
+# capture the rendered app. Never synthesize page images or assume tap success.
 set -euo pipefail
-
 if [[ "$#" -ne 3 ]]; then
   echo "Usage: $0 <state-label> <min-percent> <max-percent>" >&2
   exit 2
 fi
-LABEL="$1"
-MIN="$2"
-MAX="$3"
-UDID="${DUOCTL_UDID:?DUOCTL_UDID must be set}"
+LABEL="$1"; MIN="$2"; MAX="$3"
+: "${DUOCTL_UDID:?DUOCTL_UDID must be set}"
 mkdir -p screenshots
-
-ui_file="screenshots/${LABEL}-accessibility.txt"
+UI="screenshots/${LABEL}-accessibility.json"
 
 read_ui() {
-  duoctl elements > "$ui_file"
+  local attempt
+  for attempt in 1 2 3; do
+    if duoctl elements > "$UI" && python3 -m json.tool "$UI" > /dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "::error::${LABEL}: Duo accessibility tree unavailable"
+  return 1
 }
-
-# Flutter's accessibility tree duplicates some button labels, for example
-# "Open navigation\nOpen navigation". duoctl --label matches exactly, so
-# the short label never matched, despite the control being visible.
-# Resolve a unique button's frame and tap its centre in active-screen points.
 tap_button() {
-  local label="$1"
-  local coordinates x y
-  if ! coordinates="$(python3 .github/scripts/duo_accessibility_tap.py "$ui_file" "$label")"; then
-    return 1
-  fi
-  read -r x y <<< "$coordinates"
-  echo "Tapping $label at ($x, $y)"
+  local coords x y
+  coords="$(python3 .github/scripts/duo_accessibility_tap.py "$UI" "$1")" || return 1
+  read -r x y <<< "$coords"
+  echo "${LABEL}: tap '$1' at ${x},${y}"
   duoctl tap "$x" "$y"
 }
-
-# An expanded dock automatically collapses after ten seconds of inactivity.
-# Reopen it whenever needed rather than tapping invisible controls.
 ensure_dock() {
-  read_ui
-  if grep -Fq 'Zoom out' "$ui_file" && grep -Fq 'Zoom in' "$ui_file"; then
-    return 0
+  read_ui || return 1
+  if grep -Fq 'Zoom out' "$UI" && grep -Fq 'Zoom in' "$UI"; then return 0; fi
+  if grep -Fq 'Open navigation' "$UI"; then
+    tap_button "Open navigation" || return 1
+    sleep .6
+    read_ui || return 1
   fi
-  if grep -Fq 'Open navigation' "$ui_file"; then
-    tap_button "Open navigation"
-    sleep 0.5
-    read_ui
-  fi
-  if ! grep -Fq 'Zoom out' "$ui_file" || ! grep -Fq 'Zoom in' "$ui_file"; then
-    echo "::error::${LABEL}: cannot find both reader zoom buttons in the simulator accessibility tree"
+  if ! grep -Fq 'Zoom out' "$UI" || ! grep -Fq 'Zoom in' "$UI"; then
+    echo "::error::${LABEL}: dock did not expose both zoom buttons"
     return 1
   fi
 }
-
-# The zoom range is 5%-incremented. Read the on-screen percentage after every
-# tap, and refuse to label an image "minimum"/"maximum" without proof.
-reach_percent() {
+current_zoom() {
+  local found
+  found=$(grep -Eo '(^|[^0-9])(60|65|70|75|80|85|90|95|100)%' "$UI" | grep -Eo '(60|65|70|75|80|85|90|95|100)%' | sort -u || true)
+  local count
+  count=$(printf '%s\n' "$found" | grep -c '[0-9]' || true)
+  if [[ "$count" != 1 ]]; then
+    echo "::error::${LABEL}: cannot read a unique displayed zoom percent; found: ${found:-none}" >&2
+    return 1
+  fi
+  printf '%s\n' "${found%%%}"
+}
+reach_zoom() {
   local target="$1"
-  local button="$2"
-  local reached=0
-  local percent
-  for attempt in $(seq 1 13); do
-    ensure_dock
-    if grep -Fq "${target}%" "$ui_file"; then
-      reached=1
-      break
+  local current action n
+  for n in $(seq 1 17); do
+    ensure_dock || return 1
+    current="$(current_zoom)" || return 1
+    if [[ "$current" -eq "$target" ]]; then
+      echo "${LABEL}: VERIFIED real displayed zoom ${target}%"
+      return 0
     fi
-    tap_button "$button"
-    sleep 0.15
+    if [[ "$current" -gt "$target" ]]; then action="Zoom out"; else action="Zoom in"; fi
+    tap_button "$action" || return 1
+    sleep .25
   done
-  ensure_dock
-  if grep -Fq "${target}%" "$ui_file"; then
-    reached=1
-  fi
-  if [[ "$reached" -ne 1 ]]; then
-    echo "::error::${LABEL}: expected ${target}% after using '$button' but the displayed zoom never reached it"
-    return 1
-  fi
-  percent=$(grep -Eo '(60|65|70|75|80|85|90|95|100)%' "$ui_file" | sort -u | tr '\n' ' ' || true)
-  echo "${LABEL}: verified ${target}% (visible zoom values: ${percent})"
+  ensure_dock || true
+  echo "::error::${LABEL}: unable to reach ${target}% using real buttons"
+  return 1
 }
-
-# Record the actual device state, UI tree and PNG together for human review.
 snapshot() {
-  local suffix="$1"
-  duoctl state > "screenshots/${LABEL}-${suffix}-state.json"
+  local state="$1" 
+  duoctl state > "screenshots/${LABEL}-${state}-state.json"
   read_ui
-  cp "$ui_file" "screenshots/${LABEL}-${suffix}-accessibility.txt"
-  duoctl screenshot "screenshots/${LABEL}-${suffix}.png"
+  cp "$UI" "screenshots/${LABEL}-${state}-accessibility.json"
+  duoctl screenshot "screenshots/${LABEL}-${state}.png"
 }
-
-ensure_dock
-reach_percent "$MIN" 'Zoom out'
-snapshot "min-${MIN}pct"
-reach_percent "$MAX" 'Zoom in'
-snapshot "max-${MAX}pct"
-echo "Captured actual rendered ${LABEL} reader at ${MIN}% and ${MAX}%."
+fail_with_evidence() {
+  echo "FAILED: ${LABEL} $1" | tee -a "screenshots/${LABEL}-result.txt"
+  duoctl screenshot "screenshots/${LABEL}-failed.png" || true
+  cp "$UI" "screenshots/${LABEL}-failed-accessibility.json" 2>/dev/null || true
+  exit 1
+}
+echo "Testing ${LABEL}: ${MIN}% to ${MAX}%" | tee "screenshots/${LABEL}-result.txt"
+ensure_dock || fail_with_evidence "dock not accessible"
+reach_zoom "$MIN" || fail_with_evidence "minimum zoom ${MIN}%"
+snapshot "min-${MIN}pct" || fail_with_evidence "minimum screenshot"
+reach_zoom "$MAX" || fail_with_evidence "maximum zoom ${MAX}%"
+snapshot "max-${MAX}pct" || fail_with_evidence "maximum screenshot"
+echo "PASS: ${LABEL} ${MIN}% / ${MAX}%" | tee -a "screenshots/${LABEL}-result.txt"
