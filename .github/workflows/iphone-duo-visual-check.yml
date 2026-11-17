@@ -1,0 +1,115 @@
+name: iPhone Duo visual check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/iphone-duo-visual-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  screenshot-duo-and-ipad:
+    runs-on: xcode-27
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - name: Inspect Apple simulator availability
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available
+          df -h .
+      - name: Resolve Flutter packages
+        run: flutter pub get
+      - name: Build actual Flutter iOS simulator app
+        run: flutter build ios --simulator --debug --no-pub
+      - name: Install Duo simulator control tool
+        run: brew install skarol/tap/duoctl
+      - name: Capture real iPhone Duo screens
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p screenshots
+          APP="build/ios/iphonesimulator/Runner.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          echo "Bundle ID: $BUNDLE_ID"
+          echo "BUNDLE_ID=$BUNDLE_ID" >> "$GITHUB_ENV"
+
+          UDID="$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name == "iPhone Duo" and (.isAvailable == true))][0].udid')"
+          if [[ "$UDID" == "null" || -z "$UDID" ]]; then
+            echo "::error::This Xcode runner has no installed iPhone Duo simulator"
+            exit 1
+          fi
+          echo "DUOCTL_UDID=$UDID" >> "$GITHUB_ENV"
+          export DUOCTL_UDID="$UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" "$BUNDLE_ID"
+
+          # First installation downloads the actual Quran page images from
+          # Firebase Storage. Never substitute mocked images for screenshots.
+          DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
+          READY=0
+          for n in $(seq 1 75); do
+            COUNT=$(find "$DATA/Documents/indopak_tajweed" -type f -name '*.webp' 2>/dev/null | wc -l | tr -d ' ')
+            echo "Quran page images downloaded: $COUNT / 851"
+            if [[ "$COUNT" -ge 851 ]]; then READY=1; break; fi
+            sleep 8
+          done
+          echo "Duo pages-ready: $READY" | tee screenshots/duo-status.txt
+
+          # Record state as proof of the display being captured.
+          duoctl close
+          duoctl state | tee screenshots/duo-folded-state.json
+          sleep 4
+          duoctl screenshot screenshots/duo-folded.png
+
+          duoctl open
+          duoctl state | tee screenshots/duo-unfolded-wide-state.json
+          sleep 4
+          duoctl screenshot screenshots/duo-unfolded-wide.png
+
+          duoctl rotate portrait
+          duoctl state | tee screenshots/duo-unfolded-portrait-state.json
+          sleep 4
+          duoctl screenshot screenshots/duo-unfolded-portrait.png
+          echo "Captured:"
+          ls -lah screenshots/
+      - name: Capture iPad mini comparison
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="build/ios/iphonesimulator/Runner.app"
+          IPAD="$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name == "iPad mini (A17 Pro)" and .isAvailable == true)][0].udid')"
+          if [[ "$IPAD" == "null" || -z "$IPAD" ]]; then
+            echo "No iPad mini (A17 Pro) simulator on this runner; skipping comparison"
+            exit 0
+          fi
+          xcrun simctl boot "$IPAD"
+          xcrun simctl bootstatus "$IPAD" -b
+          xcrun simctl install "$IPAD" "$APP"
+          xcrun simctl launch "$IPAD" "$BUNDLE_ID"
+          DATA="$(xcrun simctl get_app_container "$IPAD" "$BUNDLE_ID" data)"
+          for n in $(seq 1 50); do
+            COUNT=$(find "$DATA/Documents/indopak_tajweed" -type f -name '*.webp' 2>/dev/null | wc -l | tr -d ' ')
+            echo "iPad pages: $COUNT / 851"
+            if [[ "$COUNT" -ge 851 ]]; then break; fi
+            sleep 8
+          done
+          xcrun simctl io "$IPAD" screenshot screenshots/ipad-mini-portrait.png
+      - name: Upload genuine simulator screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-duo-and-ipad-mini-screenshots
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 14
