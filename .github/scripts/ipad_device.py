@@ -41,6 +41,16 @@ for attempt in range(1, 4):
             json.JSONDecodeError) as error:
         last_error = str(error)
         print(f'CoreSimulator device discovery attempt {attempt}/3: {error}', flush=True)
+        if attempt == 1 and isinstance(error, subprocess.TimeoutExpired):
+            # A second list call cannot fix a wedged host-wide service.
+            # Preflight has already allowed the slow first runtime mount.
+            try:
+                subprocess.run(
+                    ['bash', '.github/scripts/simulator_host_health.sh',
+                     'recover', '.ci/ipad-discovery-recovery'],
+                    check=False, timeout=330)
+            except subprocess.TimeoutExpired:
+                print('Simulator recovery also timed out; last discovery retry remains', flush=True)
         if attempt < 3:
             time.sleep(5)
 else:
