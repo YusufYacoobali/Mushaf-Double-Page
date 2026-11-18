@@ -57,8 +57,8 @@ for n in $(seq 1 45); do
   sleep 7
 done
 [[ "$ready" -eq 1 ]] || { echo "::error::iPad did not load real Quran pages"; exit 1; }
-# A new iPad can present the same delayed notification alert as Duo. Dismiss
-# it before terminating/relaunching the reader or trying to rotate the device.
+# Reject a system alert before terminating/relaunching or rotating. Reminder
+# initialization is disabled only in the disposable QA copies of both versions.
 for attempt in 1 2 3 4 5; do
   xcrun simctl io "$UDID" screenshot screenshots-ipad/first-launch.png
   if python3 .github/scripts/check_reader_frame.py screenshots-ipad/first-launch.png > screenshots-ipad/first-launch-pixels.json; then
@@ -67,7 +67,8 @@ for attempt in 1 2 3 4 5; do
     status=$?
     if [[ "$status" == 2 ]]; then
       cp screenshots-ipad/first-launch.png screenshots-ipad/notification-alert.png
-      python3 .github/scripts/dismiss_ipad_notification.py "$UDID" screenshots-ipad/first-launch.png
+      echo "::error::Unexpected permission alert in QA build"
+      exit 1
     fi
   fi
   sleep 4

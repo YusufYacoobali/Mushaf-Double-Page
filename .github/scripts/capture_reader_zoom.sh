@@ -20,7 +20,8 @@ for percent in $(seq "$MIN" 5 "$MAX"); do
   SIMCTL_CHILD_MUSHAF_QA_TEST=1 SIMCTL_CHILD_MUSHAF_QA_ZOOM="$value" \
     SIMCTL_CHILD_MUSHAF_QA_ORIENTATION="${READER_ORIENTATION:-}" \
     xcrun simctl launch "$UDID" "$BUNDLE_ID" > "$name-app.log" 2>&1
-  sleep 12
+  # Let the existing ten-second toolbar timer settle before comparison.
+  sleep 20
   ready=0
   for attempt in 1 2 3 4 5 6; do
     if [[ "${CAPTURE_DEVICE:-ipad}" == duo ]]; then
@@ -34,11 +35,8 @@ for percent in $(seq "$MIN" 5 "$MAX"); do
       status=$?
       if [[ "$status" == 2 ]]; then
         cp "$name.png" "$OUT/notification-alert.png"
-        if [[ "${CAPTURE_DEVICE:-ipad}" == ipad ]]; then
-          python3 .github/scripts/dismiss_ipad_notification.py "$UDID" "$name.png"
-        else
-          duoctl tap 120 385
-        fi
+        echo "::error::Unexpected system alert in the reader QA build"
+        exit 1
       fi
     fi
     sleep 4

@@ -69,4 +69,13 @@ orientation = '''    // CI-only orientation stimulus; the real reader handles th
     }
 '''
 scene.write_text(text.replace(marker, marker + orientation, 1))
-print('Prepared CI-only native zoom and orientation inputs; reader code unchanged.')
+
+# Reminder setup is unrelated to reader layout. A delayed system permission
+# alert covered otherwise valid screenshots, including identical v5/v6 frames.
+# Disable that optional startup service only in these disposable QA copies.
+main = Path('lib/main.dart')
+text = main.read_text()
+marker = '  scheduleDeferredReminders(ReminderNotifications.initialize);'
+assert marker in text
+main.write_text(text.replace(marker, '  // CI reader QA: optional reminder setup omitted.', 1))
+print('Prepared CI-only zoom/orientation inputs and omitted optional reminder setup; reader layout code unchanged.')

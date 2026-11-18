@@ -119,9 +119,9 @@ export DUOCTL_UDID="$UDID"
 # the system alert using a real active-display touch before any captures.
 # The "Don't Allow" button is centred at (120, 385) logical points on the
 # 466 x 678 cover display; this changes ONLY the disposable simulator.
-duoctl screenshot screenshots/duo-first-launch-permission.png || true
-echo "Dismissing first-run iOS notification permission alert"
-duoctl tap 120 385
+duoctl screenshot screenshots/duo-first-launch.png || true
+# Optional reminder initialization is omitted in the disposable QA builds, so
+# no permission dialog needs a blind tap on the Quran reader.
 sleep 3
 duoctl screenshot screenshots/duo-after-permission.png || true
 # AXe's describe-ui times out on GitHub's iOS 27 Duo simulator even

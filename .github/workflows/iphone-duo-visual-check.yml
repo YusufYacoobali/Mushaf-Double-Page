@@ -188,7 +188,7 @@ jobs:
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
       - name: Install verified simulator orientation controls
-        run: brew install skarol/tap/duoctl cameroncooke/axe/axe
+        run: brew install skarol/tap/duoctl
       - name: Install screenshot validation tools
         run: |
           python3 -m venv .qa-venv
