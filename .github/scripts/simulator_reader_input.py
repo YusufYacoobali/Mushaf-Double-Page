@@ -42,10 +42,34 @@ assert executable, 'Install skarol/tap/duoctl first'
 native = runpy.run_path(str(Path(executable).resolve()), run_name='reader_simulator_input')
 
 
+def display_info():
+    displays = native['displays'](args.udid)
+    active = [display for display in displays if display.get('active')]
+    if len(active) == 1:
+        return active[0]
+    # A conventional iPad exposes one LCD without the Duo active-panel flag.
+    # Select that actual LCD; never guess between multiple inactive panels.
+    if 'iPad' in target[0]['deviceTypeIdentifier'] and len(displays) == 1:
+        return displays[0]
+    raise RuntimeError(f'Cannot select a unique display: {displays!r}')
+
+
+def capture_png(path):
+    display = display_info()
+    run(['xcrun', 'simctl', 'io', args.udid, 'screenshot',
+         f"--display={display['displayId']}", str(path)])
+    return display
+
+
+def tap(x, y, display):
+    nx, ny = native['to_native'](display, x, y)
+    native['helper'](args.udid, 'tap', display['uniqueId'], f'{nx:.5f}', f'{ny:.5f}', 0.08)
+
+
 def rendered_landscape():
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / 'rotation-check.png'
-        native['screenshot'](args.udid, str(path))
+        capture_png(path)
         width, height = struct.unpack('>II', path.read_bytes()[16:24])
         print(f'Rotation rendered PNG: {width}x{height}', flush=True)
         return width > height
@@ -53,11 +77,14 @@ def rendered_landscape():
 
 if args.action == 'landscape':
     try:
-        native['rotate'](args.udid, 'landscape')
-        print('Sent native simulator orientation event')
-        time.sleep(1)
-        if not rendered_landscape():
-            raise RuntimeError('Native display flags changed without a landscape render')
+        for orientation in ['landscape-left', 'landscape-right']:
+            native['helper'](args.udid, 'orientation', orientation)
+            time.sleep(1)
+            if rendered_landscape():
+                break
+        else:
+            raise RuntimeError('Native orientation events did not render landscape')
+        print('Verified native simulator landscape render')
     except Exception as error:
         print(f'Native rotation unavailable: {error}; using Simulator action')
         developer = run(['xcode-select', '-p']).strip()
@@ -73,25 +100,26 @@ if args.action == 'landscape':
                 break
         else:
             raise RuntimeError('Simulator action did not render landscape')
-    print(json.dumps(native['active_display'](args.udid), sort_keys=True))
+    print(json.dumps(display_info(), sort_keys=True))
 else:
     assert args.output, 'Capture needs an output PNG path'
     for attempt in range(24 if args.zoom else 4):
-        display = native['active_display'](args.udid)
-        native['screenshot'](args.udid, args.output)
+        display = capture_png(args.output)
         state = inspect_frame(args.output, args.dock, display.get('pointScale') or 1)
         print(f'Original frame inspection {attempt + 1}: {json.dumps(state)}', flush=True)
+        if attempt == 0:
+            print(f'Native display metadata: {json.dumps(display, sort_keys=True)}', flush=True)
         width, height = native['ui_size'](display)
         assert (width > height) == (state['width'] > state['height']), 'Display and rendered PNG orientations disagree'
         if 'denyNotification' in state:
             button = state['denyNotification']
-            native['tap'](args.udid, button['x'] * width, button['y'] * height, 0.08)
+            tap(button['x'] * width, button['y'] * height, display)
             time.sleep(1)
         elif (args.require_zoom or args.zoom) and 'zoom' not in state:
             # The collapsed side pull-tab occupies the physical right edge.
             # Capture again after a real touch; do not alter saved PNG pixels.
             x, y = (width / 2, height - args.bottom_tab_from_edge) if args.dock == 'bottom' else (width - 15, height / 2)
-            native['tap'](args.udid, x, y, 0.08)
+            tap(x, y, display)
             time.sleep(0.4)
         elif args.zoom:
             current = int(re.sub(r'\D', '', state['zoom']))
@@ -106,7 +134,7 @@ else:
             else:
                 x = label['x'] * width
                 y = label['y'] * height + (-29 if increase else 29)
-            native['tap'](args.udid, x, y, 0.08)
+            tap(x, y, display)
             time.sleep(0.15)
         else:
             break

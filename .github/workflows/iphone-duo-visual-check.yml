@@ -38,6 +38,7 @@ jobs:
           # This verified build remains reusable for QA-only changes. A cache
           # miss or any application change falls back to the original build.
           source_sha=7e3b7119e47f80b77a3a0fb5b38279426aa689b3
+          git cat-file -e "$source_sha^{commit}" 2>/dev/null || git fetch --depth=1 origin "$source_sha"
           if git cat-file -e "$source_sha^{commit}" 2>/dev/null && git diff --quiet "$source_sha" HEAD -- . ':(exclude).github/**' ':(exclude)test/**'; then
             echo 'unchanged=true' >> "$GITHUB_OUTPUT"
           fi
@@ -205,14 +206,6 @@ jobs:
           IPAD_DEVICE: ${{ matrix.device }}
           IPAD_VERSION: v6
         run: bash .github/scripts/run_ipad_simulator_qa.sh
-      - name: Capture v5 iPad portrait and landscape
-        if: ${{ !cancelled() }}
-        shell: bash
-        env:
-          IPAD_DEVICE: ${{ matrix.device }}
-          IPAD_VERSION: v5
-          IPAD_APP: ci-app-v5/Runner.app
-        run: bash .github/scripts/run_ipad_simulator_qa.sh
       - name: Upload v6 iPad screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -221,6 +214,14 @@ jobs:
           path: screenshots-ipad/${{ matrix.device }}-v6/
           if-no-files-found: warn
           retention-days: 14
+      - name: Capture v5 iPad portrait and landscape
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v5
+          IPAD_APP: ci-app-v5/Runner.app
+        run: bash .github/scripts/run_ipad_simulator_qa.sh
       - name: Upload v5 iPad screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4

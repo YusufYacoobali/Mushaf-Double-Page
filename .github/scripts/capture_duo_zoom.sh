@@ -75,6 +75,21 @@ PY
     echo "::warning::defaults write unavailable; invalidating cfprefsd cache"
     xcrun simctl spawn "$UDID" killall cfprefsd >/dev/null 2>&1 || true
   fi
+  # The guest defaults command can address a different user domain from the
+  # sandboxed app. Discard both preference daemons, then reapply the container
+  # value after their pending writes stop. The visible OCR label is still the
+  # acceptance check; daemon readback alone is not sufficient evidence.
+  xcrun simctl spawn "$UDID" killall cfprefsd >/dev/null 2>&1 || true
+  sleep 1
+  python3 - "$PREFS" "$key" "$value" <<'PY'
+import plistlib, sys
+path, key, value = sys.argv[1:]
+with open(path, 'rb') as f:
+    data = plistlib.load(f)
+data[key] = float(value)
+with open(path, 'wb') as f:
+    plistlib.dump(data, f, fmt=plistlib.FMT_BINARY)
+PY
   for n in 1 2 3; do
     if xcrun simctl launch "$UDID" "$BUNDLE_ID"; then break; fi
     sleep 5
