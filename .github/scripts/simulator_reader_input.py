@@ -11,6 +11,8 @@ import subprocess
 import tempfile
 import time
 
+from inspect_reader_frame import inspect_frame
+
 
 def run(args):
     result = subprocess.run(args, text=True, capture_output=True)
@@ -26,6 +28,7 @@ parser.add_argument('output', nargs='?')
 parser.add_argument('--require-zoom', action='store_true')
 parser.add_argument('--zoom', type=int)
 parser.add_argument('--dock', choices=['bottom', 'side'], default='side')
+parser.add_argument('--bottom-tab-from-edge', type=float, default=60)
 args = parser.parse_args()
 devices = json.loads(run(['xcrun', 'simctl', 'list', 'devices', 'booted', '-j']))
 target = [d for group in devices['devices'].values() for d in group if d['udid'] == args.udid]
@@ -42,7 +45,7 @@ native = runpy.run_path(str(Path(executable).resolve()), run_name='reader_simula
 def rendered_landscape():
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / 'rotation-check.png'
-        run(['xcrun', 'simctl', 'io', args.udid, 'screenshot', str(path)])
+        native['screenshot'](args.udid, str(path))
         width, height = struct.unpack('>II', path.read_bytes()[16:24])
         print(f'Rotation rendered PNG: {width}x{height}', flush=True)
         return width > height
@@ -73,14 +76,11 @@ if args.action == 'landscape':
     print(json.dumps(native['active_display'](args.udid), sort_keys=True))
 else:
     assert args.output, 'Capture needs an output PNG path'
-    ocr = Path(__file__).with_name('simulator_reader_ocr.swift')
-    compiled_ocr = Path('.qa-reader-ocr').resolve()
     for attempt in range(24 if args.zoom else 4):
-        run(['xcrun', 'simctl', 'io', args.udid, 'screenshot', args.output])
-        command = [str(compiled_ocr)] if compiled_ocr.exists() else ['xcrun', 'swift', str(ocr)]
-        state = json.loads(run(command + [args.output]))
-        print(f'Original frame inspection {attempt + 1}: {json.dumps(state)}', flush=True)
         display = native['active_display'](args.udid)
+        native['screenshot'](args.udid, args.output)
+        state = inspect_frame(args.output, args.dock, display.get('pointScale') or 1)
+        print(f'Original frame inspection {attempt + 1}: {json.dumps(state)}', flush=True)
         width, height = native['ui_size'](display)
         assert (width > height) == (state['width'] > state['height']), 'Display and rendered PNG orientations disagree'
         if 'denyNotification' in state:
@@ -90,7 +90,7 @@ else:
         elif (args.require_zoom or args.zoom) and 'zoom' not in state:
             # The collapsed side pull-tab occupies the physical right edge.
             # Capture again after a real touch; do not alter saved PNG pixels.
-            x, y = (width / 2, height - 38) if args.dock == 'bottom' else (width - 15, height / 2)
+            x, y = (width / 2, height - args.bottom_tab_from_edge) if args.dock == 'bottom' else (width - 15, height / 2)
             native['tap'](args.udid, x, y, 0.08)
             time.sleep(0.4)
         elif args.zoom:

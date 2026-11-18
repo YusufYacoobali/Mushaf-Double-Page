@@ -29,18 +29,42 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check whether application inputs changed
+        id: source_check
+        shell: bash
+        run: |
+          # This verified build remains reusable for QA-only changes. A cache
+          # miss or any application change falls back to the original build.
+          source_sha=7e3b7119e47f80b77a3a0fb5b38279426aa689b3
+          if git cat-file -e "$source_sha^{commit}" 2>/dev/null && git diff --quiet "$source_sha" HEAD -- . ':(exclude).github/**' ':(exclude)test/**'; then
+            echo 'unchanged=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Reuse verified unchanged simulator application
+        id: prior_build
+        if: steps.source_check.outputs.unchanged == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          run-id: '44333730110'
+          github-token: ${{ github.token }}
       - uses: subosito/flutter-action@v2
+        if: steps.prior_build.outcome != 'success'
         with:
           channel: stable
           flutter-version: '3.38.1'
           cache: true
       - name: Install Flutter dependencies
+        if: steps.prior_build.outcome != 'success'
         run: flutter pub get
       - name: Verify UIScene migration
         run: |
           /usr/libexec/PlistBuddy -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' ios/Runner/Info.plist | grep SceneDelegate
           grep -q 'FlutterImplicitEngineDelegate' ios/Runner/AppDelegate.swift
       - name: Set Xcode 27-only simulator minimum targets
+        if: steps.prior_build.outcome != 'success'
         shell: bash
         run: |
           set -euo pipefail
@@ -58,8 +82,10 @@ jobs:
           File.write(path, text.sub(marker, marker + override.lines.map { |line| '    ' + line }.join))
           RUBY
       - name: Build Flutter simulator app (arm64)
+        if: steps.prior_build.outcome != 'success'
         run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub
       - name: Archive simulator application with permissions preserved
+        if: steps.prior_build.outcome != 'success'
         run: |
           test -d build/ios/iphonesimulator/Runner.app
           tar -czf ios-simulator-runner.tgz -C build/ios/iphonesimulator Runner.app
@@ -88,8 +114,10 @@ jobs:
           test -d ci-app/Runner.app
       - name: Install Duo controls (no accessibility dependency)
         run: |
-          brew install skarol/tap/duoctl
-          xcrun swiftc -O .github/scripts/simulator_reader_ocr.swift -o .qa-reader-ocr
+          brew install skarol/tap/duoctl tesseract
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
       - name: Run folded, unfolded, and half-open reader screenshots
         shell: bash
         run: bash .github/scripts/run_duo_simulator_qa.sh
@@ -167,8 +195,10 @@ jobs:
           tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
       - name: Install native simulator input controls
         run: |
-          brew install skarol/tap/duoctl
-          xcrun swiftc -O .github/scripts/simulator_reader_ocr.swift -o .qa-reader-ocr
+          brew install skarol/tap/duoctl tesseract
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
       - name: Capture v6 iPad portrait and landscape
         shell: bash
         env:
