@@ -605,12 +605,12 @@ void main() {
     follow(f, 1);
     await tester.pumpAndSettle();
     final controllers = scrolls(tester);
-    expect(controllers[0].offset, 0);
-    expect(controllers[1].offset, greaterThan(0));
+    expect(controllers[0].offset, greaterThan(0));
+    expect(controllers[1].offset, 0);
     final frame = tester.getRect(find.byKey(const ValueKey('quran-page-4')));
     expect(
       frame.top + frame.height * .93,
-      closeTo(layout.pageRegions[1].bottom - 16, .02),
+      closeTo(layout.pageRegions[0].bottom - 16, .02),
     );
     await tester.pumpWidget(const SizedBox());
     f.dispose();

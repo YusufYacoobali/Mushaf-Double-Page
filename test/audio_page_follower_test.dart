@@ -6,6 +6,35 @@ import 'package:mushaf_two_page/utils/page_mapper.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(PageAyahIndex.load);
+  test('book audio follows actual odd-start pairs without parity snapping', () {
+    final follower = AudioPageFollower();
+    int? follow(int surah, int ayah) => follower.targetPage(
+      playing: true,
+      session: 1,
+      cycle: 1,
+      surah: surah,
+      ayah: ayah,
+      currentPage: 5,
+      portrait: false,
+      mushaf: 'indopak_tajweed',
+      visiblePages: [5, 6],
+      sequentialBook: true,
+    );
+    final visible = PageAyahIndex.ayahsForPage(
+      6,
+      mushaf: 'indopak_tajweed',
+    ).last;
+    expect(follow(visible.surah, visible.ayah), isNull);
+    final next = PageAyahIndex.ayahsForPage(7, mushaf: 'indopak_tajweed').last;
+    expect(
+      follow(next.surah, next.ayah),
+      PageAyahIndex.pageOfAyah(
+        next.surah,
+        next.ayah,
+        mushaf: 'indopak_tajweed',
+      ),
+    );
+  });
   for (final mushaf in ['indopak_tajweed', 'madani']) {
     for (final portrait in [true, false]) {
       test(
