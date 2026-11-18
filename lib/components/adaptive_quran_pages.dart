@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import '../pages/page_view.dart';
 import '../utils/reader_layout.dart';
 import '../utils/reader_paging.dart';
@@ -42,19 +41,6 @@ class AdaptiveQuranPages extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     paging.configure(layout.pageMode);
-    assert(() {
-      debugPrint(
-        'MUSHAF_READER ${jsonEncode({
-          'mode': layout.pageMode.name,
-          'pages': paging.visiblePages,
-          'zoom': ((layout.singlePage ? singleScale : spreadScale) * 100).round(),
-          'regions': [
-            for (final r in layout.pageRegions) [r.left, r.top, r.width, r.height],
-          ],
-        })}',
-      );
-      return true;
-    }());
     final generation = paging.generation;
     verticalFollower?.configureView(
       layoutIdentity: (

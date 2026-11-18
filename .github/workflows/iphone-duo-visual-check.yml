@@ -122,6 +122,11 @@ jobs:
           test -d ci-app/Runner.app
       - name: Install Duo controls (no accessibility dependency)
         run: brew install skarol/tap/duoctl
+      - name: Install screenshot validation tools
+        run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install --quiet Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
       - name: Capture every zoom in folded, unfolded, and half-open modes
         shell: bash
         run: bash .github/scripts/run_duo_simulator_qa.sh
@@ -136,6 +141,7 @@ jobs:
             screenshots/*.log
             screenshots/book-*
             screenshots/last-duo-screen.png
+            screenshots/notification-alert.png
           if-no-files-found: warn
           retention-days: 14
       - uses: actions/upload-artifact@v4
@@ -197,6 +203,11 @@ jobs:
           test -d ci-app/Runner.app
       - name: Install verified simulator orientation controls
         run: brew install skarol/tap/duoctl
+      - name: Install screenshot validation tools
+        run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install --quiet Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
       - name: Capture iPad portrait and landscape at every zoom
         shell: bash
         env:
@@ -213,6 +224,7 @@ jobs:
             screenshots-ipad/*.txt
             screenshots-ipad/*.log
             screenshots-ipad/screenshot-on-error.png
+            screenshots-ipad/notification-alert.png
           if-no-files-found: warn
           retention-days: 14
       - uses: actions/upload-artifact@v4

@@ -7,7 +7,10 @@ import sys
 log, mode, percent, output = sys.argv[1:5]
 first = int(sys.argv[5]) if len(sys.argv) > 5 else 4
 renders = []
-for line in pathlib.Path(log).read_text(errors='replace').splitlines():
+content = pathlib.Path(log).read_text(errors='replace')
+if content.lstrip().startswith('{'):
+    renders.append(json.loads(content))
+for line in content.splitlines():
     if 'MUSHAF_READER ' in line:
         renders.append(json.loads(line.split('MUSHAF_READER ', 1)[1]))
 assert renders, f'No actual reader geometry found in {log}'
