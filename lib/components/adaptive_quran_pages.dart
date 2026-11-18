@@ -90,6 +90,7 @@ class AdaptiveQuranPages extends StatelessWidget {
         onBackgroundTap: onBackgroundTap,
         pageRegions: centered ? null : layout.pageRegions,
         bookFirstPage: paging.book ? paging.firstPageAt(index) : null,
+        fitToViewport: layout.fitPagesToViewport,
         verticalFollower: verticalFollower,
       );
       return centered
@@ -155,6 +156,7 @@ class AdaptiveQuranPages extends StatelessWidget {
                       onFocus: focus,
                       onBackgroundTap: onBackgroundTap,
                       fullWidthPortrait: layout.fullWidthPortrait,
+                      fitToViewport: layout.fitPagesToViewport,
                       verticalFollower: verticalFollower,
                     ),
                   ),

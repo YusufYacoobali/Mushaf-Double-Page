@@ -16,7 +16,7 @@ def words(image, numeric=False):
     command = ['tesseract', 'stdin', 'stdout', '-l', 'eng', '--psm', '11']
     if numeric:
         command += ['-c', 'tessedit_char_whitelist=0123456789%']
-    result = subprocess.run(command + ['tsv'], input=stream.getvalue(), capture_output=True)
+    result = subprocess.run(command + ['tsv'], input=stream.getvalue(), capture_output=True, timeout=20)
     if result.returncode:
         raise RuntimeError(result.stderr.decode(errors='replace'))
     return [row for row in csv.DictReader(io.StringIO(result.stdout.decode()), delimiter='\t', quoting=csv.QUOTE_NONE)
@@ -29,14 +29,15 @@ def inspect_frame(path, dock='side', scale=3):
     state = {'width': width, 'height': height}
     # System permission alerts are centred. Only an observed "Don't Allow"
     # button is touched; page text and application state are never changed.
-    box = (round(width * .2), round(height * .3), round(width * .8), round(height * .7))
+    box = (round(width * .05), round(height * .25), round(width * .95), round(height * .78))
     rows = words(image.crop(box))
     for index, row in enumerate(rows):
         normalized = re.sub(r'\W', '', row['text']).lower()
         group = [row]
         if normalized == 'dont' and index + 1 < len(rows):
             following = rows[index + 1]
-            same_line = all(row[key] == following[key] for key in ['block_num', 'par_num', 'line_num'])
+            same_line = abs((int(row['top']) + int(row['height']) / 2) -
+                            (int(following['top']) + int(following['height']) / 2)) < max(int(row['height']), int(following['height']))
             if same_line and following['text'].lower() == 'allow':
                 normalized = 'dontallow'
                 group.append(following)

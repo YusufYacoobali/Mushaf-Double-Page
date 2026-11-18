@@ -2,97 +2,178 @@ name: iPad native UI visual check
 on:
   workflow_dispatch:
     inputs:
-      source_run_id:
-        description: Verified reader simulator build run
-        type: string
-        default: '44363169872'
+      device:
+        type: choice
+        options: [mini, pro11, pro13]
+        default: mini
+      test_case:
+        type: choice
+        options: [layout, navigation, zoom, all]
+        default: layout
   workflow_call:
     inputs:
-      source_run_id:
+      devices:
         type: string
-        required: false
-        default: '44363169872'
+        default: '["mini"]'
+      test_case:
+        type: string
+        default: layout
+      artifact_name:
+        type: string
+        default: ''
+      reference_artifact:
+        type: string
+        default: ''
+    outputs:
+      geometry_passed:
+        value: ${{ jobs.native.outputs.geometry_passed }}
 permissions:
-  actions: read
   contents: read
+  actions: read
 jobs:
-  ipad-native:
-    name: Native iPad ${{ matrix.device }} v5/v6 screenshots
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      devices: ${{ steps.plan.outputs.devices }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: inputs.artifact_name == ''
+        run: python3 .github/scripts/require_fast_checks.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - id: plan
+        env:
+          DEVICES: ${{ inputs.devices || format('["{0}"]', inputs.device) }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          devices=json.loads(os.environ['DEVICES'])
+          assert devices and all(d in ['mini','pro11','pro13'] for d in devices)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('devices='+json.dumps(devices)+'\n')
+          PY
+  reader:
+    needs: plan
+    if: inputs.artifact_name == ''
+    uses: ./.github/workflows/ios-simulator-build.yml
+  reference:
+    needs: plan
+    if: inputs.reference_artifact == ''
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      source_ref: v5
+      role: v5
+  native:
+    name: iPad ${{ matrix.device }} — ${{ inputs.test_case }}
+    needs: [plan, reader, reference]
+    if: >-
+      always() && !cancelled() && needs.plan.result == 'success' &&
+      (inputs.artifact_name != '' || needs.reader.result == 'success') &&
+      (inputs.reference_artifact != '' || needs.reference.result == 'success')
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 30
     concurrency:
-      group: reader-ipad-${{ github.ref }}-${{ matrix.device }}
+      group: reader-ipad-device-${{ github.ref }}-${{ matrix.device }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix:
-        device: [mini, pro11, pro13]
+        device: ${{ fromJSON(needs.plan.outputs.devices) }}
+    outputs:
+      geometry_passed: ${{ steps.geometry.outputs.geometry_passed }}
+    env:
+      READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
     steps:
       - uses: actions/checkout@v4
+      - id: device
+        env:
+          DEVICE: ${{ matrix.device }}
+          REFERENCE: ${{ inputs.reference_artifact || needs.reference.outputs.artifact_name }}
+        run: python3 .github/scripts/ipad_device.py --device "$DEVICE" --reference "$REFERENCE"
+      - uses: actions/cache/restore@v4
+        id: baseline
+        with:
+          path: .ci/v5-baseline
+          key: ${{ steps.device.outputs.baseline_key }}
+      - uses: actions/cache/restore@v4
+        id: pages
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - uses: actions/download-artifact@v4
         with:
-          name: quran-ios-duo-simulator-build
-          run-id: ${{ inputs.source_run_id || '44363169872' }}
-          github-token: ${{ github.token }}
+          name: ${{ inputs.artifact_name || needs.reader.outputs.artifact_name }}
+          path: reader-build
       - uses: actions/download-artifact@v4
+        if: steps.baseline.outputs.cache-hit != 'true'
         with:
-          name: quran-ios-duo-simulator-build
-          run-id: '44183372666'
-          github-token: ${{ github.token }}
-          path: v5-build
-      - name: Prepare original reader applications and separate XCTest host
-        id: prepare
+          name: ${{ inputs.reference_artifact || needs.reference.outputs.artifact_name }}
+          path: reference-build
+      - name: Prepare the existing XCTest harness once
         run: |
           mkdir -p ci-app ci-app-v5
-          tar -xzf ios-simulator-runner.tgz -C ci-app
-          tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
+          tar -xzf reader-build/ios-simulator-runner.tgz -C ci-app
+          if [[ -f reference-build/ios-simulator-runner.tgz ]]; then tar -xzf reference-build/ios-simulator-runner.tgz -C ci-app-v5; fi
           brew install xcodegen
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install Pillow
           echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
           python3 - <<'PY'
-          import json, plistlib
+          import json,plistlib
           from pathlib import Path
-          with open('ci-app/Runner.app/Info.plist', 'rb') as f:
-              identifier = plistlib.load(f)['CFBundleIdentifier']
-          Path('tools/ios_ui_qa/ReaderAppIdentity.swift').write_text('enum ReaderAppIdentity { static let bundleID = ' + json.dumps(identifier) + ' }\n')
+          identifier=plistlib.load(open('ci-app/Runner.app/Info.plist','rb'))['CFBundleIdentifier']
+          Path('tools/ios_ui_qa/ReaderAppIdentity.swift').write_text('enum ReaderAppIdentity { static let bundleID = '+json.dumps(identifier)+' }\n')
           PY
           xcodegen generate --spec tools/ios_ui_qa/project.yml
-          xcodebuild build-for-testing -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj -scheme ReaderVisualTests -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ui-build CODE_SIGNING_ALLOWED=NO
-      - name: Capture original v6 app through Apple UI testing
-        env:
-          IPAD_DEVICE: ${{ matrix.device }}
-          IPAD_VERSION: v6
-        run: bash tools/ios_ui_qa/capture_ipad.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.device }}-v6
-          path: screenshots-native/${{ matrix.device }}-v6/
-          retention-days: 14
-      - name: Capture original v5 app through Apple UI testing
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+          python3 .github/scripts/ci_run.py --operation harness-build --timeout 240 --output screenshots-native/setup -- xcodebuild build-for-testing -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj -scheme ReaderVisualTests -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ui-build CODE_SIGNING_ALLOWED=NO
+      - name: Capture v5 layout once for this exact device/runtime
+        id: baseline_capture
+        if: steps.baseline.outputs.cache-hit != 'true'
         env:
           IPAD_DEVICE: ${{ matrix.device }}
           IPAD_VERSION: v5
+          IPAD_CASE: layout
           IPAD_APP: ci-app-v5/Runner.app
-        run: bash tools/ios_ui_qa/capture_ipad.sh
+        run: |
+          bash tools/ios_ui_qa/capture_ipad.sh
+          python3 .github/scripts/ipad_geometry.py "screenshots-native/$IPAD_DEVICE-v5" --device "$IPAD_DEVICE"
+          mkdir -p .ci/v5-baseline
+          cp screenshots-native/"$IPAD_DEVICE"-v5/*.png* .ci/v5-baseline/
+          cp reference-build/build.json .ci/v5-baseline/source-build.json
+      - uses: actions/cache/save@v4
+        if: steps.baseline_capture.outcome == 'success'
+        with:
+          path: .ci/v5-baseline
+          key: ${{ steps.device.outputs.baseline_key }}
+      - name: Validate cached baseline and run only requested current cases
+        id: capture
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v6
+          IPAD_CASE: ${{ inputs.test_case }}
+        run: |
+          python3 .github/scripts/ipad_geometry.py .ci/v5-baseline --device "$IPAD_DEVICE"
+          bash tools/ios_ui_qa/capture_ipad.sh
+      - name: Compare actual page geometry independently of control-test results
+        id: geometry
+        if: always() && (inputs.test_case == 'layout' || inputs.test_case == 'all')
+        env:
+          DEVICE: ${{ matrix.device }}
+        run: |
+          python3 .github/scripts/ipad_geometry.py "screenshots-native/$DEVICE-v6" --device "$DEVICE" --reference .ci/v5-baseline
+          echo 'geometry_passed=true' >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/save@v4
+        if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: quran-ipad-${{ matrix.device }}-v5
-          path: screenshots-native/${{ matrix.device }}-v5/
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.device }}-portrait-endpoints
-          path: screenshots-native/${{ matrix.device }}-*/ipad-*-portrait*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.device }}-landscape-endpoints
-          path: screenshots-native/${{ matrix.device }}-*/ipad-*-landscape*.png
-          retention-days: 14
+          name: ipad-${{ matrix.device }}-${{ inputs.test_case }}
+          path: |
+            screenshots-native/
+            .ci/v5-baseline/
+            .ci/ipad-template.json
+          include-hidden-files: true
+          retention-days: 30

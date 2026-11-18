@@ -1,9 +1,6 @@
 name: Diagnose Duo Flutter startup
 
 on:
-  push:
-    paths:
-      - '.github/workflows/duo-startup-diagnostic.yml'
   workflow_dispatch:
 
 permissions:

@@ -76,6 +76,7 @@ class ReaderDock extends StatelessWidget {
     required this.zoom,
     required this.actions,
     this.contextControls,
+    this.geometryKey,
   }) : placement =
            placement ??
            (portrait == false ? DockPlacement.side : DockPlacement.bottom);
@@ -87,6 +88,9 @@ class ReaderDock extends StatelessWidget {
   final Widget zoom;
   final List<Widget> actions;
   final Widget? contextControls;
+
+  /// Measures the compact contents, rather than the full-height overlay.
+  final GlobalKey? geometryKey;
 
   Widget _action(Widget child, int index, double reveal) {
     final t = Interval(
@@ -138,7 +142,10 @@ class ReaderDock extends StatelessWidget {
           duration: AppMotion.duration(context, contextControls != null),
           curve: AppMotion.curve,
           builder: (context, extra, _) {
-            final contents = _contents(context, reveal, extra, centerSide);
+            final contents = KeyedSubtree(
+              key: geometryKey,
+              child: _contents(context, reveal, extra, centerSide),
+            );
             return centerSide
                 ? Align(
                     alignment: Alignment.centerRight,

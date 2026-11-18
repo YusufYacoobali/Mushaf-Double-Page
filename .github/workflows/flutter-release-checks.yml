@@ -30,6 +30,11 @@ jobs:
         run: flutter analyze --no-pub
       - name: Flutter tests
         run: flutter test --no-pub --reporter expanded
+      - name: Build-cache compatibility tests and script syntax
+        run: |
+          python3 -m unittest discover -s .github/scripts/tests
+          python3 -m py_compile .github/scripts/*.py
+          bash -n .github/scripts/run_duo_simulator_qa.sh .github/scripts/capture_duo_zoom.sh tools/ios_ui_qa/capture_ipad.sh
 
   ios-no-codesign-build:
     if: github.event_name == 'workflow_dispatch' && inputs.build_ios_release

@@ -46,3 +46,5 @@ app.*.map.json
 /.claude/worktrees/mystifying-jackson-a11f8d/
 tool/cv_work/pages/
 /verification/
+/.ci/
+**/__pycache__/

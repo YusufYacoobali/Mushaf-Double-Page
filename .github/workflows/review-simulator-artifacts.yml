@@ -1,15 +1,11 @@
 name: Review existing simulator artifacts
 
 on:
-  push:
-    branches: [v6]
-    paths: ['.github/workflows/review-simulator-artifacts.yml']
   workflow_dispatch:
     inputs:
       source_run_id:
         description: Completed iPhone Duo visual check run to review
         required: true
-        default: '44304125390'
 
 permissions:
   actions: read
@@ -24,7 +20,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: quran-duo-visual-qa
-          run-id: ${{ inputs.source_run_id || '44304125390' }}
+          run-id: ${{ inputs.source_run_id }}
           github-token: ${{ github.token }}
           path: original
       - name: Group original PNGs without modifying images

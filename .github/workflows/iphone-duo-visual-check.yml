@@ -1,247 +1,142 @@
 name: iPhone Duo visual check
-run-name: Duo and iPad visual verification (${{ github.ref_name }})
-
+run-name: ${{ inputs.level }} reader verification — ${{ inputs.target }} / ${{ inputs.test_case }}
 on:
   workflow_dispatch:
-
+    inputs:
+      level:
+        description: Targeted development check or final full verification
+        type: choice
+        options: [targeted, full]
+        default: targeted
+      target:
+        description: Device/posture (ignored for full verification)
+        type: choice
+        options: [duo-smoke, duo-book, duo-folded, duo-portrait, duo-landscape, ipad-mini, ipad-pro11, ipad-pro13]
+        default: duo-smoke
+      test_case:
+        description: Verify layout independently of control interactions
+        type: choice
+        options: [layout, navigation, zoom, all]
+        default: layout
+      build_policy:
+        description: Compatible cache, cache required, or explicit rebuild
+        type: choice
+        options: [auto, reuse-only, rebuild]
+        default: auto
 permissions:
   contents: read
   actions: read
-
-concurrency:
-  group: quran-duo-visual-qa-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  build-simulator:
-    name: Build iOS simulator application
-    runs-on: xcode-27
-    timeout-minutes: 35
+  fast-checks:
+    if: github.ref == 'refs/heads/v6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Check whether application inputs changed
-        id: source_check
-        shell: bash
-        run: |
-          # This verified build remains reusable for QA-only changes. A cache
-          # miss or any application change falls back to the original build.
-          source_sha=03d3cd5667140475e3f2f8c905cf829eaa2f1350
-          git cat-file -e "$source_sha^{commit}" 2>/dev/null || git fetch --depth=1 origin "$source_sha"
-          if git cat-file -e "$source_sha^{commit}" 2>/dev/null && git diff --quiet "$source_sha" HEAD -- . ':(exclude).github/**' ':(exclude)test/**' ':(exclude)tools/ios_ui_qa/**'; then
-            echo 'unchanged=true' >> "$GITHUB_OUTPUT"
-          fi
-      - name: Reuse verified unchanged simulator application
-        id: prior_build
-        if: steps.source_check.outputs.unchanged == 'true'
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: quran-ios-duo-simulator-build
-          run-id: '44363169872'
-          github-token: ${{ github.token }}
-      - uses: subosito/flutter-action@v2
-        if: steps.prior_build.outcome != 'success'
-        with:
-          channel: stable
-          flutter-version: '3.38.1'
-          cache: true
-      - name: Install Flutter dependencies
-        if: steps.prior_build.outcome != 'success'
-        run: flutter pub get
-      - name: Verify UIScene migration
-        run: |
-          /usr/libexec/PlistBuddy -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' ios/Runner/Info.plist | grep SceneDelegate
-          grep -q 'FlutterImplicitEngineDelegate' ios/Runner/AppDelegate.swift
-      - name: Set Xcode 27-only simulator minimum targets
-        if: steps.prior_build.outcome != 'success'
-        shell: bash
-        run: |
-          set -euo pipefail
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
-          ruby - <<'RUBY'
-          path = 'ios/Podfile'
-          text = File.read(path)
-          marker = "    flutter_additional_ios_build_settings(target)\n"
-          abort 'Podfile marker not found' unless text.include?(marker)
-          override = <<~CFG
-            target.build_configurations.each do |config|
-              config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-            end
-          CFG
-          File.write(path, text.sub(marker, marker + override.lines.map { |line| '    ' + line }.join))
-          RUBY
-      - name: Build Flutter simulator app (arm64)
-        if: steps.prior_build.outcome != 'success'
-        run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub
-      - name: Archive simulator application with permissions preserved
-        if: steps.prior_build.outcome != 'success'
-        run: |
-          test -d build/ios/iphonesimulator/Runner.app
-          tar -czf ios-simulator-runner.tgz -C build/ios/iphonesimulator Runner.app
-          ls -lh ios-simulator-runner.tgz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: quran-ios-duo-simulator-build
-          path: ios-simulator-runner.tgz
-          retention-days: 14
-          if-no-files-found: error
-
-  iphone-duo:
-    name: Test clean iPhone Duo (all zooms)
-    needs: build-simulator
+      - run: python3 .github/scripts/require_fast_checks.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+  reader:
+    needs: fast-checks
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      policy: ${{ inputs.build_policy }}
+      role: reader
+  reference:
+    needs: fast-checks
+    if: inputs.level == 'full' || startsWith(inputs.target, 'ipad-')
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      source_ref: v5
+      role: v5
+      policy: auto
+  duo:
+    name: Focused Duo verification
+    needs: reader
+    if: inputs.level == 'full' || startsWith(inputs.target, 'duo-')
     runs-on: xcode-27
-    timeout-minutes: 48
+    timeout-minutes: 25
+    concurrency:
+      group: reader-duo-device-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: quran-ios-duo-simulator-build
-      - name: Extract app
-        run: |
+          name: ${{ needs.reader.outputs.artifact_name }}
+          path: reader-build
+      - run: |
           mkdir -p ci-app
-          tar -xzf ios-simulator-runner.tgz -C ci-app
-          test -d ci-app/Runner.app
-      - name: Install Duo controls (no accessibility dependency)
-        run: |
+          tar -xzf reader-build/ios-simulator-runner.tgz -C ci-app
           brew install skarol/tap/duoctl tesseract
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install Pillow
           echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
-      - name: Run folded, unfolded, and half-open reader screenshots
-        shell: bash
+      - uses: actions/cache/restore@v4
+        id: pages
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - name: Capture only requested Duo cases
+        env:
+          DUO_TARGET: ${{ inputs.level == 'full' && 'duo-smoke' || inputs.target }}
+          READER_TEST_CASE: ${{ inputs.level == 'full' && 'all' || inputs.test_case }}
+          READER_CAPTURE_PROFILE: ${{ inputs.level == 'full' && 'endpoints' || 'smoke' }}
+          READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
         run: bash .github/scripts/run_duo_simulator_qa.sh
-      - name: Upload actual Duo screenshots and diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
+      - uses: actions/cache/save@v4
+        if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
         with:
-          name: quran-duo-visual-qa
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: duo-${{ inputs.target }}-${{ inputs.test_case }}
           path: screenshots/
-          if-no-files-found: warn
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-folded-endpoints
-          path: |
-            screenshots/duo-folded-min-*.png
-            screenshots/duo-folded-max-*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-unfolded-portrait-endpoints
-          path: |
-            screenshots/duo-unfolded-portrait-min-*.png
-            screenshots/duo-unfolded-portrait-max-*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-unfolded-wide-endpoints
-          path: |
-            screenshots/duo-unfolded-wide-min-*.png
-            screenshots/duo-unfolded-wide-max-*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-half-open-book-endpoints
-          path: |
-            screenshots/duo-half-open-book-min-*.png
-            screenshots/duo-half-open-book-max-*.png
-            screenshots/duo-half-open-book-after-swipe.png
-            screenshots/duo-book-swipe-result.json
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-book-video
-          path: |
-            screenshots/duo-half-open-book.mov
-            screenshots/duo-video.log
-          retention-days: 14
-
-  ipad-native:
-    needs: build-simulator
-    name: Native iPad ${{ matrix.device }} v5/v6 screenshots
+          retention-days: 30
+  mini:
+    needs: [reader, reference, duo]
+    if: >-
+      always() && !cancelled() && needs.reader.result == 'success' &&
+      needs.reference.result == 'success' &&
+      ((inputs.level == 'full' && needs.duo.result == 'success') || inputs.target == 'ipad-mini')
+    uses: ./.github/workflows/ipad-native-visual-check.yml
+    with:
+      devices: '["mini"]'
+      test_case: ${{ inputs.level == 'full' && 'all' || inputs.test_case }}
+      artifact_name: ${{ needs.reader.outputs.artifact_name }}
+      reference_artifact: ${{ needs.reference.outputs.artifact_name }}
+  ios-release:
+    name: Final unsigned iOS release build
+    needs: [duo, mini, larger-ipads]
+    if: inputs.level == 'full'
     runs-on: macos-15
-    timeout-minutes: 40
-    concurrency:
-      group: reader-ipad-${{ github.ref }}-${{ matrix.device }}
-      cancel-in-progress: false
-    strategy:
-      fail-fast: false
-      matrix:
-        device: [mini, pro11, pro13]
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: subosito/flutter-action@v2
         with:
-          name: quran-ios-duo-simulator-build
-          run-id: ${{ github.run_id }}
-          github-token: ${{ github.token }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: quran-ios-duo-simulator-build
-          run-id: '44183372666'
-          github-token: ${{ github.token }}
-          path: v5-build
-      - name: Prepare original reader applications and separate XCTest host
-        id: prepare
-        run: |
-          mkdir -p ci-app ci-app-v5
-          tar -xzf ios-simulator-runner.tgz -C ci-app
-          tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
-          brew install xcodegen
-          python3 -m venv .qa-venv
-          .qa-venv/bin/pip install Pillow
-          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
-          python3 - <<'PY'
-          import json, plistlib
-          from pathlib import Path
-          with open('ci-app/Runner.app/Info.plist', 'rb') as f:
-              identifier = plistlib.load(f)['CFBundleIdentifier']
-          Path('tools/ios_ui_qa/ReaderAppIdentity.swift').write_text('enum ReaderAppIdentity { static let bundleID = ' + json.dumps(identifier) + ' }\n')
-          PY
-          xcodegen generate --spec tools/ios_ui_qa/project.yml
-          xcodebuild build-for-testing -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj -scheme ReaderVisualTests -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ui-build CODE_SIGNING_ALLOWED=NO
-      - name: Capture original v6 app through Apple UI testing
-        env:
-          IPAD_DEVICE: ${{ matrix.device }}
-          IPAD_VERSION: v6
-        run: bash tools/ios_ui_qa/capture_ipad.sh
+          flutter-version: '3.38.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: python3 .github/scripts/ci_run.py --operation release-build --timeout 1800 --output release-diagnostics -- flutter build ios --release --no-codesign --no-pub
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: quran-ipad-${{ matrix.device }}-v6
-          path: screenshots-native/${{ matrix.device }}-v6/
-          retention-days: 14
-      - name: Capture original v5 app through Apple UI testing
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
-        env:
-          IPAD_DEVICE: ${{ matrix.device }}
-          IPAD_VERSION: v5
-          IPAD_APP: ci-app-v5/Runner.app
-        run: bash tools/ios_ui_qa/capture_ipad.sh
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.device }}-v5
-          path: screenshots-native/${{ matrix.device }}-v5/
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.device }}-portrait-endpoints
-          path: screenshots-native/${{ matrix.device }}-*/ipad-*-portrait*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.device }}-landscape-endpoints
-          path: screenshots-native/${{ matrix.device }}-*/ipad-*-landscape*.png
-          retention-days: 14
+          name: release-build-diagnostics
+          path: release-diagnostics/
+  larger-ipads:
+    needs: [reader, reference, mini]
+    if: >-
+      always() && !cancelled() && needs.reader.result == 'success' &&
+      needs.reference.result == 'success' &&
+      ((inputs.level == 'full' && needs.mini.outputs.geometry_passed == 'true') ||
+       inputs.target == 'ipad-pro11' || inputs.target == 'ipad-pro13')
+    uses: ./.github/workflows/ipad-native-visual-check.yml
+    with:
+      devices: ${{ inputs.level == 'full' && '["pro11","pro13"]' || inputs.target == 'ipad-pro11' && '["pro11"]' || '["pro13"]' }}
+      test_case: ${{ inputs.level == 'full' && 'all' || inputs.test_case }}
+      artifact_name: ${{ needs.reader.outputs.artifact_name }}
+      reference_artifact: ${{ needs.reference.outputs.artifact_name }}

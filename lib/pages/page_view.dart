@@ -56,6 +56,7 @@ class QuranPageView {
     AudioVerticalFollower? verticalFollower,
     ValueChanged<int>? onFocus,
     bool fullWidthPortrait = true,
+    bool fitToViewport = false,
   }) {
     final clamped = pageScale.clamp(minPageScalePortrait, maxPageScalePortrait);
     final path = imagePath(logicalPage);
@@ -78,7 +79,13 @@ class QuranPageView {
           builder: (context, constraints) {
             // v4 portrait zoom changes height only; phone pages always fill the
             // viewport width. Adaptive single-page regions keep their native ratio.
-            final width = fullWidthPortrait
+            final width = fitToViewport
+                ? math.min(
+                        constraints.maxWidth,
+                        constraints.maxHeight * aspectRatio,
+                      ) *
+                      clamped
+                : fullWidthPortrait
                 ? constraints.maxWidth
                 : math.min(
                     constraints.maxWidth,
@@ -145,6 +152,7 @@ class QuranPageView {
     ValueChanged<int>? onFocus,
     List<Rect>? pageRegions,
     int? bookFirstPage,
+    bool fitToViewport = false,
     AudioVerticalFollower? verticalFollower,
   }) {
     final leftIndex = spreadIndex * 2;
@@ -196,7 +204,7 @@ class QuranPageView {
             // hinge-safe panel. Use the smaller fitted panel for BOTH pages so
             // navigation clearance or an off-centre hinge cannot change their
             // relative text size. Legacy/iPad spreads retain their width zoom.
-            final bookWidth = bookFirstPage == null
+            final bookWidth = bookFirstPage == null && !fitToViewport
                 ? null
                 : pageRegions
                           .map(
@@ -246,6 +254,42 @@ class QuranPageView {
                       ),
                     ),
               ],
+            );
+          }
+          if (fitToViewport) {
+            final width =
+                math.min(
+                  (constraints.maxWidth - 1) / 2,
+                  constraints.maxHeight * aspectRatio,
+                ) *
+                clamped;
+            return AudioVerticalViewport(
+              pages: [
+                if (rightIndex >= 1 && rightIndex < totalPages) rightIndex,
+                if (leftIndex >= 1 && leftIndex < totalPages) leftIndex,
+              ],
+              follower: verticalFollower,
+              transformIdentity: (width, aspectRatio, constraints.biggest),
+              builder: (viewport) => Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: rightIndex >= 1 && rightIndex < totalPages
+                          ? framedPage(rightIndex, viewport)
+                          : null,
+                    ),
+                    const SizedBox(width: 1),
+                    SizedBox(
+                      width: width,
+                      child: leftIndex >= 1 && leftIndex < totalPages
+                          ? framedPage(leftIndex, viewport)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
             );
           }
           // Landscape toolbar zoom changes only the spread width. At minimum

@@ -90,10 +90,8 @@ data[key] = float(value)
 with open(path, 'wb') as f:
     plistlib.dump(data, f, fmt=plistlib.FMT_BINARY)
 PY
-  for n in 1 2 3; do
-    if xcrun simctl launch "$UDID" "$BUNDLE_ID"; then break; fi
-    sleep 5
-  done
+  rm -f "$DATA/Documents/reader-geometry.json"
+  python3 .github/scripts/ci_run.py --operation launch --timeout 40 --output screenshots/operations -- xcrun simctl launch "$UDID" "$BUNDLE_ID"
   sleep 5
   duoctl state > "$name-state.json"
   python3 - "$name-state.json" "$LABEL" <<'PY'
@@ -120,12 +118,19 @@ PY
   local bottom_tab=60
   if [[ "$LABEL" == "duo-folded" || "$LABEL" == "duo-unfolded-portrait" ]]; then dock=bottom; fi
   if [[ "$LABEL" == "duo-folded" ]]; then bottom_tab=28; fi
-  python3 .github/scripts/simulator_reader_input.py capture "$UDID" "$name.png" --zoom "$percent" --dock "$dock" --bottom-tab-from-edge "$bottom_tab"
+  local mode=spread
+  if [[ "$dock" == bottom ]]; then mode=single; fi
+  if [[ "$LABEL" == duo-half-open-book ]]; then mode=dualScreenBook; fi
+  python3 .github/scripts/ci_run.py --operation screenshot --timeout 90 --output screenshots/operations -- python3 .github/scripts/simulator_reader_input.py capture "$UDID" "$name.png" --zoom "$percent" --dock "$dock" --bottom-tab-from-edge "$bottom_tab" --layout-metadata "$DATA/Documents/reader-geometry.json" --expected-mode "$mode"
   [[ -s "$name.png" ]] || { echo "::error::No screenshot created: $name.png"; return 1; }
   sips -g pixelWidth -g pixelHeight "$name.png"
   echo "PASS: real $LABEL reader at $percent% ($name.png)" | tee -a "screenshots/$LABEL-result.txt"
 }
 echo "Running $LABEL at min=$MIN and max=$MAX"
+if [[ "$MIN" == "$MAX" ]]; then
+  capture_at "$MAX" max
+  exit 0
+fi
 capture_at "$MIN" min
 capture_at "$MAX" max
 

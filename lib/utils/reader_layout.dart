@@ -21,6 +21,7 @@ class ReaderLayout {
     required this.safeRegions,
     this.fullWidthPortrait = false,
     this.centerSideDock = false,
+    this.fitPagesToViewport = false,
   });
   final ReaderPageMode pageMode;
   final ReaderSpreadLayout spreadLayout;
@@ -37,6 +38,9 @@ class ReaderLayout {
   /// Insets belong to the controls themselves, not their enclosing viewport.
   final bool fullWidthPortrait;
   final bool centerSideDock;
+
+  /// Foldable pages use a proportional fit; iPads retain their v5 geometry.
+  final bool fitPagesToViewport;
   bool get singlePage => pageMode == ReaderPageMode.single;
   bool get bottomDock => dockPlacement == DockPlacement.bottom;
 
@@ -48,6 +52,7 @@ class ReaderLayout {
     bool preserveLegacyIPadPortrait = false,
     bool iosPhoneWidePortrait = false,
     bool foldedCover = false,
+    Rect? navigationBounds,
   }) {
     final regions = safeDisplayRegions(size, padding, displayFeatures);
     final largest = regions.reduce(
@@ -70,6 +75,15 @@ class ReaderLayout {
           ..sort((a, b) => a.left.compareTo(b.left));
     final controls = sameRow.length >= 2 ? sameRow.last : largest;
     final landscape = size.width > size.height;
+    final fitPages =
+        !preserveLegacyIPadPortrait &&
+        (foldedCover ||
+            (iosPhoneWidePortrait && size.shortestSide >= 600) ||
+            displayFeatures.any(
+              (f) =>
+                  f.type == DisplayFeatureType.fold ||
+                  f.type == DisplayFeatureType.hinge,
+            ));
     // iPad compatibility takes precedence over every foldable hint. A fold or
     // hinge (including a flat fold) identifies segmented Android devices;
     // iOS supplies its real division regions through the native bridge.
@@ -123,16 +137,31 @@ class ReaderLayout {
     for (final region in candidates) {
       // Keep spread planning stable as controls appear and disappear. A single
       // page with a bottom dock uses the full safe region below, with overlays.
-      final right = !bottom && region == controls && !centeredLandscape
+      final right =
+          !fitPages && !bottom && region == controls && !centeredLandscape
           ? 140.0
           : 0.0;
-      final bottomGutter = bottom ? 142.0 : 0.0;
+      final bottomGutter = !fitPages && bottom ? 142.0 : 0.0;
+      // The rendered dock supplies its actual bounds. A small visual gap is
+      // spacing, not an assumed toolbar size or page scale.
+      final nav = navigationBounds;
+      final reserve = fitPages && nav != null && region.overlaps(nav);
       pageBounds.add(
         Rect.fromLTRB(
           region.left,
           region.top,
-          math.max(region.left + 1, region.right - right),
-          math.max(region.top + 1, region.bottom - bottomGutter),
+          math.max(
+            region.left + 1,
+            reserve && !bottom
+                ? math.min(region.right, nav.left - 8)
+                : region.right - right,
+          ),
+          math.max(
+            region.top + 1,
+            reserve && bottom
+                ? math.min(region.bottom, nav.top - 8)
+                : region.bottom - bottomGutter,
+          ),
         ),
       );
     }
@@ -175,7 +204,7 @@ class ReaderLayout {
               math.min(r.width, r.height * pageAspectRatio) >=
                   (landscape ? 180 : 240),
         );
-    final single = (bottom ? candidates : pageBounds).reduce(
+    final single = (bottom && !fitPages ? candidates : pageBounds).reduce(
       (a, b) => a.width * a.height >= b.width * b.height ? a : b,
     );
     // v4 placed the centred landscape Row across the full viewport, with the
@@ -183,10 +212,12 @@ class ReaderLayout {
     // obstruction further partitions that viewport, keep the spread inside its
     // unobstructed region instead.
     final originalLandscapeBounds =
+        !fitPages &&
         centeredLandscape &&
         regions.length == 1 &&
         largest == safeDisplayRegions(size, padding, const []).single;
     final originalPortraitBounds =
+        !fitPages &&
         !landscape &&
         (size.width < 600 || legacyIPadPortrait) &&
         regions.length == 1 &&
@@ -208,6 +239,7 @@ class ReaderLayout {
       controlsRegion: controls,
       safeRegions: List.unmodifiable(regions),
       fullWidthPortrait: originalPortraitBounds,
+      fitPagesToViewport: fitPages,
       centerSideDock:
           landscape &&
           (preserveLegacyIPadPortrait ||

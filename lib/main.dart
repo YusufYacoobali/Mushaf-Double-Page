@@ -1,6 +1,7 @@
 import 'utils/ios_device_idiom.dart';
 import 'utils/ios_display_regions.dart';
 import 'utils/reader_layout.dart';
+import 'utils/reader_geometry_probe.dart';
 import 'utils/reader_paging.dart';
 import 'utils/deferred_reminders.dart';
 import 'utils/audio_vertical_follower.dart';
@@ -178,6 +179,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   final _audioPageFollower = AudioPageFollower();
   late final AudioVerticalFollower _audioVerticalFollower;
   final _readerDockKey = GlobalKey();
+  final _readerDockGeometryKey = GlobalKey();
+  Rect? _fittedNavigationBounds;
+  Object? _fittedNavigationIdentity;
+  bool _fittedNavigationWasExpanded = false;
   bool get _readerVisible =>
       mounted &&
       _ready &&
@@ -1134,7 +1139,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       backgroundColor: _readerWhite ? Colors.white : Colors.black,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final layout = ReaderLayout.resolve(
+          ReaderLayout resolveLayout({
+            Rect? navigationBounds,
+          }) => ReaderLayout.resolve(
             size: constraints.biggest,
             padding: MediaQuery.paddingOf(context),
             displayFeatures: [
@@ -1146,12 +1153,57 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             foldedCover: !_isIPad && _iosDisplayRegions.closed,
             iosPhoneWidePortrait:
                 Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
+            navigationBounds: navigationBounds,
           );
-          _paging!.configure(layout.pageMode);
+          var layout = resolveLayout();
           _singlePage = layout.singlePage;
           _bottomDock = layout.bottomDock;
           _logicalPage = _paging!.focusedPage;
           final audioControls = _readerAudioControls(palette);
+          if (layout.fitPagesToViewport) {
+            final identity = (
+              constraints.biggest,
+              layout.dockPlacement,
+              audioControls != null || _selPage != null,
+            );
+            if (_fittedNavigationIdentity == identity) {
+              layout = resolveLayout(navigationBounds: _fittedNavigationBounds);
+            }
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              final box = _readerDockGeometryKey.currentContext
+                  ?.findRenderObject();
+              if (box is! RenderBox || !box.hasSize || !box.attached) return;
+              var bounds = MatrixUtils.transformRect(
+                box.getTransformTo(null),
+                Offset.zero & box.size,
+              );
+              // Retain the known expanded footprint when controls auto-hide,
+              // keeping page size stable while permitting safe reopening.
+              if (_fittedNavigationIdentity == identity &&
+                  _fittedNavigationWasExpanded &&
+                  !_isScrollbarVisible) {
+                return;
+              }
+              if (_fittedNavigationIdentity == identity &&
+                  _fittedNavigationWasExpanded &&
+                  _fittedNavigationBounds != null) {
+                bounds = _fittedNavigationBounds!.expandToInclude(bounds);
+              }
+              if (_fittedNavigationIdentity != identity ||
+                  _fittedNavigationBounds != bounds) {
+                setState(() {
+                  _fittedNavigationIdentity = identity;
+                  _fittedNavigationBounds = bounds;
+                  _fittedNavigationWasExpanded = _isScrollbarVisible;
+                });
+              }
+            });
+          }
+          _paging!.configure(layout.pageMode);
+          _singlePage = layout.singlePage;
+          _bottomDock = layout.bottomDock;
+          _logicalPage = _paging!.focusedPage;
           final overlay = layout.controlsRegion;
           return ReaderActivity(
             layoutIdentity: layout.pageMode,
@@ -1160,101 +1212,117 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                 if (PageAyahIndex.surahsOnPage(p, mushaf: _mushaf).isNotEmpty)
                   '$_mushaf:$p',
             ],
-            child: Stack(
-              children: [
-                AdaptiveQuranPages(
-                  verticalFollower: _audioVerticalFollower,
-                  mushaf: _mushaf,
-                  paging: _paging!,
-                  layout: layout,
-                  singleScale: _pageScalePortrait,
-                  spreadScale: _pageScaleLandscape,
-                  imagePath: imagePath,
-                  isDarkMode: darkMode,
-                  aspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
-                  highlightFor: _highlightFor,
-                  highlightColor: palette.accent.withValues(alpha: .26),
-                  onTap: _onPageTap,
-                  onBackgroundTap: _onScreenTap,
-                  onFocus: (page) {
-                    setState(() {
-                      _logicalPage = page;
-                      _recordSurahVisit(
-                        surah: PageAyahIndex.surahsOnPage(
+            child: ReaderGeometryProbe(
+              layout: layout,
+              zoom: layout.singlePage
+                  ? _pageScalePortrait
+                  : _pageScaleLandscape,
+              focusedPage: _paging!.focusedPage,
+              visiblePages: _paging!.visiblePages,
+              edition: _mushaf,
+              navigationBounds: _fittedNavigationBounds,
+              settled: () =>
+                  _paging!.controller.hasClients &&
+                  !_paging!.controller.position.isScrollingNotifier.value,
+              child: Stack(
+                children: [
+                  AdaptiveQuranPages(
+                    verticalFollower: _audioVerticalFollower,
+                    mushaf: _mushaf,
+                    paging: _paging!,
+                    layout: layout,
+                    singleScale: _pageScalePortrait,
+                    spreadScale: _pageScaleLandscape,
+                    imagePath: imagePath,
+                    isDarkMode: darkMode,
+                    aspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
+                    highlightFor: _highlightFor,
+                    highlightColor: palette.accent.withValues(alpha: .26),
+                    onTap: _onPageTap,
+                    onBackgroundTap: _onScreenTap,
+                    onFocus: (page) {
+                      setState(() {
+                        _logicalPage = page;
+                        _recordSurahVisit(
+                          surah: PageAyahIndex.surahsOnPage(
+                            page,
+                            mushaf: _mushaf,
+                          ).firstOrNull,
+                        );
+                      });
+                      unawaited(
+                        StorageManager.saveCurrentPage(
                           page,
-                          mushaf: _mushaf,
-                        ).firstOrNull,
+                          maxPage: maxFilePage,
+                        ),
                       );
-                    });
-                    unawaited(
-                      StorageManager.saveCurrentPage(
-                        page,
-                        maxPage: maxFilePage,
-                      ),
-                    );
-                  },
-                  onPageChanged: (page) {
-                    setState(() {
-                      _logicalPage = page;
-                      _recordSurahVisit();
-                    });
-                    unawaited(
-                      StorageManager.saveCurrentPage(
-                        page,
-                        maxPage: maxFilePage,
-                      ),
-                    );
-                    unawaited(_recordProgress());
-                  },
-                ),
-                Positioned.fromRect(
-                  rect: overlay.deflate(16),
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: 480,
-                        maxHeight: overlay.height * .5,
-                      ),
-                      child: MotionSwitcher(
-                        alignment: Alignment.topCenter,
-                        offset: const Offset(0, -.12),
-                        child: _dailyWelcome == null
-                            ? const SizedBox.shrink(key: ValueKey('no-welcome'))
-                            : DailyReadingCard(
-                                key: const ValueKey('daily-welcome'),
-                                streak: _dailyWelcome!.streak,
-                                compact: true,
-                                onClose: () =>
-                                    setState(() => _dailyWelcome = null),
-                              ),
+                    },
+                    onPageChanged: (page) {
+                      setState(() {
+                        _logicalPage = page;
+                        _recordSurahVisit();
+                      });
+                      unawaited(
+                        StorageManager.saveCurrentPage(
+                          page,
+                          maxPage: maxFilePage,
+                        ),
+                      );
+                      unawaited(_recordProgress());
+                    },
+                  ),
+                  Positioned.fromRect(
+                    rect: overlay.deflate(16),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: 480,
+                          maxHeight: overlay.height * .5,
+                        ),
+                        child: MotionSwitcher(
+                          alignment: Alignment.topCenter,
+                          offset: const Offset(0, -.12),
+                          child: _dailyWelcome == null
+                              ? const SizedBox.shrink(
+                                  key: ValueKey('no-welcome'),
+                                )
+                              : DailyReadingCard(
+                                  key: const ValueKey('daily-welcome'),
+                                  streak: _dailyWelcome!.streak,
+                                  compact: true,
+                                  onClose: () =>
+                                      setState(() => _dailyWelcome = null),
+                                ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                ReaderDockOverlay(
-                  layout: layout,
-                  child: ReaderDock(
-                    key: _readerDockKey,
-                    contextControls:
-                        audioControls ??
-                        (_selPage == null
-                            ? null
-                            : _buildAyahContextRow(palette)),
-                    placement: layout.dockPlacement,
-                    expanded: _isScrollbarVisible,
-                    onToggle: () {
-                      setState(
-                        () => _isScrollbarVisible = !_isScrollbarVisible,
-                      );
-                      if (_isScrollbarVisible) _startHideScrollbarTimer();
-                    },
-                    palette: palette,
-                    zoom: _readerZoom(palette),
-                    actions: _readerActions(palette),
+                  ReaderDockOverlay(
+                    layout: layout,
+                    child: ReaderDock(
+                      key: _readerDockKey,
+                      geometryKey: _readerDockGeometryKey,
+                      contextControls:
+                          audioControls ??
+                          (_selPage == null
+                              ? null
+                              : _buildAyahContextRow(palette)),
+                      placement: layout.dockPlacement,
+                      expanded: _isScrollbarVisible,
+                      onToggle: () {
+                        setState(
+                          () => _isScrollbarVisible = !_isScrollbarVisible,
+                        );
+                        if (_isScrollbarVisible) _startHideScrollbarTimer();
+                      },
+                      palette: palette,
+                      zoom: _readerZoom(palette),
+                      actions: _readerActions(palette),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },

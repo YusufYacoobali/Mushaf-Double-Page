@@ -326,6 +326,144 @@ void main() {
     }
   }
 
+  for (final scenario in [
+    ('folded portrait', const Size(466, 678), true),
+    ('folded landscape', const Size(678, 466), true),
+    ('open portrait', const Size(669, 951), false),
+    ('open landscape', const Size(951, 669), false),
+  ]) {
+    testWidgets('${scenario.$1} fits proportionally at every toolbar zoom', (
+      tester,
+    ) async {
+      final size = scenario.$2;
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final portrait = size.height > size.width;
+      final dock = portrait
+          ? Rect.fromLTWH(10, size.height - 114, size.width - 20, 78)
+          : Rect.fromLTWH(size.width - 78, 80, 72, size.height - 160);
+      final layout = ReaderLayout.resolve(
+        size: size,
+        padding: insets,
+        foldedCover: scenario.$3,
+        iosPhoneWidePortrait: true,
+        navigationBounds: dock,
+      );
+      expect(layout.fitPagesToViewport, isTrue);
+      final paging = ReaderPaging(initialPage: 4, lastPage: 851);
+      Future<Rect> render(double zoom) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: AdaptiveQuranPages(
+                paging: paging,
+                layout: layout,
+                singleScale: zoom,
+                spreadScale: zoom,
+                imagePath: (_) => image,
+                isDarkMode: false,
+                aspectRatio: QuranPageView.pageAspectRatio,
+                highlightFor: (_) => const [],
+                highlightColor: Colors.amber,
+                onPageChanged: (_) {},
+                onFocus: (_) {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        return tester.getRect(find.byKey(const ValueKey('quran-page-4')));
+      }
+
+      final maximum = await render(1);
+      expect(
+        maximum.width / maximum.height,
+        closeTo(QuranPageView.pageAspectRatio, .001),
+      );
+      expect(maximum.overlaps(dock), isFalse);
+      final reading = layout.usableContentBounds;
+      expect(reading.contains(maximum.topLeft), isTrue);
+      expect(maximum.right, lessThanOrEqualTo(reading.right + .001));
+      expect(maximum.bottom, lessThanOrEqualTo(reading.bottom + .001));
+      final maxGroup = layout.singlePage
+          ? maximum
+          : maximum.expandToInclude(
+              tester.getRect(find.byKey(const ValueKey('quran-page-5'))),
+            );
+      expect(
+        (maxGroup.width - reading.width).abs() < .001 ||
+            (maxGroup.height - reading.height).abs() < .001,
+        isTrue,
+        reason:
+            '100% must reach the limiting dimension, without excess margins',
+      );
+      for (final zoom in [.7, .85, .95]) {
+        final page = await render(zoom);
+        expect(page.width, closeTo(maximum.width * zoom, .001));
+        expect(page.height, closeTo(maximum.height * zoom, .001));
+      }
+      expect(find.byType(SingleChildScrollView), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      paging.dispose();
+    });
+  }
+
+  testWidgets('folded fit uses the actual rendered dock footprint', (
+    tester,
+  ) async {
+    const size = Size(466, 678);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = size;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final key = GlobalKey();
+    final initial = ReaderLayout.resolve(
+      size: size,
+      padding: insets,
+      foldedCover: true,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              ReaderDockOverlay(
+                layout: initial,
+                child: ReaderDock(
+                  geometryKey: key,
+                  placement: initial.dockPlacement,
+                  expanded: true,
+                  onToggle: () {},
+                  palette: AppPalette.emerald,
+                  zoom: const SizedBox(width: 100, height: 32),
+                  actions: [
+                    for (var i = 0; i < 5; i++)
+                      IconButton(
+                        icon: const Icon(Icons.book),
+                        onPressed: () {},
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final dock = tester.getRect(find.byKey(key));
+    expect(dock.height, lessThan(150));
+    final fitted = ReaderLayout.resolve(
+      size: size,
+      padding: insets,
+      foldedCover: true,
+      navigationBounds: dock,
+    );
+    expect(fitted.usableContentBounds.bottom, closeTo(dock.top - 8, .001));
+  });
+
   for (final edition in ['indopak_tajweed', 'madani']) {
     for (final scale in [.6, 1.0]) {
       testWidgets(

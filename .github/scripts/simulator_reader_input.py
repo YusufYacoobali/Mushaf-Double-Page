@@ -15,7 +15,7 @@ from inspect_reader_frame import inspect_frame
 
 
 def run(args):
-    result = subprocess.run(args, text=True, capture_output=True)
+    result = subprocess.run(args, text=True, capture_output=True, timeout=30)
     if result.returncode:
         raise RuntimeError(f'{args!r}: {result.stdout}\n{result.stderr}')
     return result.stdout
@@ -27,6 +27,8 @@ parser.add_argument('udid')
 parser.add_argument('output', nargs='?')
 parser.add_argument('--require-zoom', action='store_true')
 parser.add_argument('--zoom', type=int)
+parser.add_argument('--layout-metadata', type=Path)
+parser.add_argument('--expected-mode')
 parser.add_argument('--dock', choices=['bottom', 'side'], default='side')
 parser.add_argument('--bottom-tab-from-edge', type=float, default=60)
 args = parser.parse_args()
@@ -103,7 +105,7 @@ if args.action == 'landscape':
     print(json.dumps(display_info(), sort_keys=True))
 else:
     assert args.output, 'Capture needs an output PNG path'
-    for attempt in range(24 if args.zoom else 4):
+    for attempt in range(12 if args.zoom and not args.layout_metadata else 4):
         display = capture_png(args.output)
         state = inspect_frame(args.output, args.dock, display.get('pointScale') or 1)
         print(f'Original frame inspection {attempt + 1}: {json.dumps(state)}', flush=True)
@@ -115,6 +117,18 @@ else:
             button = state['denyNotification']
             tap(button['x'] * width, button['y'] * height, display)
             time.sleep(1)
+        elif args.layout_metadata:
+            if not args.layout_metadata.exists():
+                raise RuntimeError('layout: rendered geometry missing; acquire a compatible QA build')
+            snapshot = json.loads(args.layout_metadata.read_text())
+            assert snapshot['mode'] == args.expected_mode, 'layout: wrong reading mode for requested posture'
+            if args.zoom is not None:
+                assert abs(snapshot['zoom'] * 100 - args.zoom) < .1, 'layout: app did not apply requested zoom'
+            destination = Path(args.output).with_suffix('.layout.json')
+            destination.write_text(json.dumps(snapshot, indent=2) + '\n')
+            from verify_fitted_capture import verify
+            verify(args.output, destination, args.zoom)
+            break
         elif (args.require_zoom or args.zoom) and 'zoom' not in state:
             # The collapsed side pull-tab occupies the physical right edge.
             # Capture again after a real touch; do not alter saved PNG pixels.

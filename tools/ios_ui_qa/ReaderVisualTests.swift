@@ -2,7 +2,7 @@ import XCTest
 
 final class ReaderVisualTests: XCTestCase {
   @MainActor
-  func testReaderOrientations() throws {
+  func testLayout() throws {
     continueAfterFailure = false
     let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
     reader.activate()
@@ -14,7 +14,6 @@ final class ReaderVisualTests: XCTestCase {
     Thread.sleep(forTimeInterval: 18)
     dismissNotification()
     try capture("portrait.png")
-    try captureZooms(reader, orientation: "portrait", minimum: 70)
 
     XCUIDevice.shared.orientation = .landscapeLeft
     waitForOrientation(reader, landscape: true)
@@ -31,7 +30,37 @@ final class ReaderVisualTests: XCTestCase {
     }
     Thread.sleep(forTimeInterval: 0.5)
     try capture("landscape.png")
-    XCTAssertTrue(zoom.waitForExistence(timeout: 3), "Landscape reader must expose its original 70% zoom")
+  }
+
+  @MainActor
+  func testNavigation() throws {
+    let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
+    reader.activate()
+    dismissNotification()
+    XCTAssertTrue(reader.wait(for: .runningForeground, timeout: 20), "launch: reader not foreground")
+    XCUIDevice.shared.orientation = .landscapeLeft
+    waitForOrientation(reader, landscape: true)
+    let collapse = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Collapse navigation")).firstMatch
+    if collapse.exists { touch(collapse, in: reader) }
+    try capture("navigation-closed.png")
+    let open = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
+    XCTAssertTrue(open.waitForExistence(timeout: 3), "navigation: missing collapsed tab")
+    touch(open, in: reader)
+    XCTAssertTrue(collapse.waitForExistence(timeout: 3), "navigation: controls did not open")
+    try capture("navigation-open.png")
+  }
+
+  @MainActor
+  func testZoom() throws {
+    let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
+    reader.activate()
+    dismissNotification()
+    XCTAssertTrue(reader.wait(for: .runningForeground, timeout: 20), "launch: reader not foreground")
+    XCUIDevice.shared.orientation = .portrait
+    waitForOrientation(reader, landscape: false)
+    try captureZooms(reader, orientation: "portrait", minimum: 70)
+    XCUIDevice.shared.orientation = .landscapeLeft
+    waitForOrientation(reader, landscape: true)
     try captureZooms(reader, orientation: "landscape", minimum: 60)
   }
 
@@ -108,6 +137,11 @@ final class ReaderVisualTests: XCTestCase {
   private func capture(_ filename: String) throws {
     let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("reader-qa")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
+    let frame = reader.frame
+    let dimensions: [String: Double] = ["width": Double(frame.width), "height": Double(frame.height)]
+    let metadata = try JSONSerialization.data(withJSONObject: dimensions, options: [.sortedKeys])
+    try metadata.write(to: directory.appendingPathComponent(filename + ".json"), options: .atomic)
     let shot = XCUIScreen.main.screenshot()
     try shot.pngRepresentation.write(to: directory.appendingPathComponent(filename), options: .atomic)
     let attachment = XCTAttachment(screenshot: shot)

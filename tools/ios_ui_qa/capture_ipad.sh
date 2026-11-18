@@ -1,81 +1,73 @@
 #!/usr/bin/env bash
-# Keep the proven clean-device/download setup; use XCTest for conventional iPads.
+# One fresh device, bounded operations, independent layout/navigation/zoom cases.
 set -Eeuo pipefail
 DEVICE="$IPAD_DEVICE"
 VERSION="$IPAD_VERSION"
+CASE="${IPAD_CASE:-layout}"
 OUTPUT="screenshots-native/$DEVICE-$VERSION"
-mkdir -p "$OUTPUT"
 APP="${IPAD_APP:-ci-app/Runner.app}"
+mkdir -p "$OUTPUT"
+cp .ci/ipad-template.json "$OUTPUT/template.json"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
 UDID=""
+op() { local stage="$1" seconds="$2"; shift 2; python3 .github/scripts/ci_run.py --operation "$stage" --timeout "$seconds" --output "$OUTPUT/operations" -- "$@"; }
 cleanup() {
   local status=$?
   if [[ -n "$UDID" ]]; then
-    xcrun simctl io "$UDID" screenshot "$OUTPUT/final-frame.png" || true
-    xcrun simctl shutdown "$UDID" || true
-    xcrun simctl delete "$UDID" || true
+    op screenshot 30 xcrun simctl io "$UDID" screenshot "$OUTPUT/final-frame.png" || true
+    op shutdown 30 xcrun simctl shutdown "$UDID" || true
+    op delete 30 xcrun simctl delete "$UDID" || true
   fi
   return "$status"
 }
 trap cleanup EXIT
-xcrun simctl list devices available -j > "$OUTPUT/devices.json"
-python3 - "$OUTPUT/devices.json" "$DEVICE" "$OUTPUT/template.json" <<'PY'
-import json, re, sys
-source, device, destination = sys.argv[1:]
-needle = {'mini': 'iPad mini', 'pro11': 'iPad Pro 11-inch', 'pro13': 'iPad Pro 13-inch'}[device]
-options = [(tuple(map(int, re.findall(r'\d+', runtime))), runtime, item)
-           for runtime, devices in json.load(open(source))['devices'].items() if '.iOS-' in runtime
-           for item in devices if item.get('isAvailable') and needle in item['name']]
-assert options, f'No available simulator matching {needle}'
-_, runtime, template = max(options, key=lambda item: item[0])
-json.dump({'runtime': runtime, 'device': template}, open(destination, 'w'), indent=2)
-print(f"Using {template['name']} on {runtime}")
-PY
-RUNTIME=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["runtime"])' "$OUTPUT/template.json")
-TYPE=$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]))["device"];print(d.get("deviceTypeIdentifier", d["name"]))' "$OUTPUT/template.json")
-UDID=$(xcrun simctl create "reader-ui-$GITHUB_RUN_ID-$DEVICE-$VERSION" "$TYPE" "$RUNTIME")
-xcrun simctl boot "$UDID"
-xcrun simctl bootstatus "$UDID" -b
-xcrun simctl install "$UDID" "$APP"
-bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
-sleep 5
-xcrun simctl launch "$UDID" "$BUNDLE_ID"
-DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
-ready=0
-for n in $(seq 1 60); do
-  count=0
-  if [[ -d "$DATA/Documents/indopak_tajweed" ]]; then
-    count=$(find "$DATA/Documents/indopak_tajweed" -type f -name '*.webp' | wc -l | tr -d ' ')
-  fi
-  echo "$DEVICE $VERSION: Quran images $count/851"
-  if [[ "$count" -ge 851 ]]; then ready=1; break; fi
-  sleep 7
-done
-[[ "$ready" == 1 ]] || { echo 'Reader did not load its real Quran pages' >&2; exit 1; }
-
+RUNTIME=$(python3 -c 'import json;print(json.load(open(".ci/ipad-template.json"))["runtime"])')
+TYPE=$(python3 -c 'import json;print(json.load(open(".ci/ipad-template.json"))["device"]["deviceTypeIdentifier"])')
+python3 .github/scripts/ci_run.py --operation create --timeout 30 --output "$OUTPUT/operations" --value-file "$OUTPUT/udid.txt" -- xcrun simctl create "reader-$GITHUB_RUN_ID-$DEVICE-$VERSION" "$TYPE" "$RUNTIME"
+UDID=$(tail -n 1 "$OUTPUT/udid.txt")
+op boot 30 xcrun simctl boot "$UDID"
+op boot 150 xcrun simctl bootstatus "$UDID" -b
+op install 90 xcrun simctl install "$UDID" "$APP"
+op seed 30 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
+python3 .github/scripts/ci_run.py --operation container --timeout 30 --output "$OUTPUT/operations" --value-file "$OUTPUT/container.txt" -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data
+DATA=$(tail -n 1 "$OUTPUT/container.txt")
+PREFS="$DATA/Library/Preferences/$BUNDLE_ID.plist"
+CACHE="${READER_ASSET_CACHE:-$PWD/.ci/quran-pages}"
+op asset-cache 90 python3 .github/scripts/reader_asset_cache.py import --data "$DATA" --prefs "$PREFS" --cache "$CACHE"
+op launch 40 xcrun simctl launch "$UDID" "$BUNDLE_ID"
+op download 420 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
 result=0
-xcodebuild test-without-building -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj \
-  -scheme ReaderVisualTests -derivedDataPath ui-build -destination "id=$UDID" \
-  -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO > "$OUTPUT/xctest.log" 2>&1 || result=$?
-TEST_DATA=$(xcrun simctl get_app_container "$UDID" org.mushaf.visualqa.tests.xctrunner data 2>/dev/null || true)
-if [[ -n "$TEST_DATA" ]]; then
-  cp "$TEST_DATA/Documents/reader-qa/portrait.png" "$OUTPUT/ipad-$DEVICE-portrait-after-18s.png" || true
-  cp "$TEST_DATA/Documents/reader-qa/landscape.png" "$OUTPUT/ipad-$DEVICE-landscape.png" || true
-  for frame in portrait-70 portrait-100 landscape-60 landscape-100; do
-    cp "$TEST_DATA/Documents/reader-qa/$frame.png" "$OUTPUT/ipad-$DEVICE-$frame.png" || true
-  done
-fi
-python3 - "$OUTPUT" "$DEVICE" <<'PY'
+phase() {
+  local name="$1" method="$2"
+  local status=0
+  op "$name" 210 xcodebuild test-without-building -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj -scheme ReaderVisualTests -derivedDataPath ui-build -destination "id=$UDID" -parallel-testing-enabled NO "-only-testing:ReaderVisualTests/ReaderVisualTests/$method" CODE_SIGNING_ALLOWED=NO || status=$?
+  if [[ "$status" != 0 ]]; then result=1; fi
+  python3 - "$OUTPUT/cases.json" "$name" "$status" <<'PY'
+import json,sys
 from pathlib import Path
-from PIL import Image, ImageOps
-import sys
-root, device = Path(sys.argv[1]), sys.argv[2]
-for mode in ['portrait-after-18s', 'landscape']:
-    path = root / f'ipad-{device}-{mode}.png'
-    # XCTest stores landscape pixels in sensor orientation with EXIF rotation.
-    # Validate the displayed image, keeping the original screenshot untouched.
-    width, height = ImageOps.exif_transpose(Image.open(path)).size
-    assert (width > height) == (mode == 'landscape'), (mode, width, height)
-    print(f'Actual {mode} PNG: {width}x{height}')
+p=Path(sys.argv[1]);cases=json.loads(p.read_text()) if p.exists() else {};cases[sys.argv[2]]={'passed':sys.argv[3]=='0'};p.write_text(json.dumps(cases,indent=2)+'\n')
 PY
+  TEST_DATA=$(python3 - "$UDID" <<'PY2'
+import subprocess,sys
+p=subprocess.run(['xcrun','simctl','get_app_container',sys.argv[1],'org.mushaf.visualqa.tests.xctrunner','data'],text=True,capture_output=True,timeout=30)
+print(p.stdout.strip() if p.returncode==0 else '')
+PY2
+)
+  if [[ -n "$TEST_DATA" ]]; then
+    python3 - "$TEST_DATA/Documents/reader-qa" "$OUTPUT" "$DEVICE" <<'PY'
+from pathlib import Path
+import shutil,sys
+source,destination,device=Path(sys.argv[1]),Path(sys.argv[2]),sys.argv[3]
+for f in source.glob('*'):
+ name=f.name
+ if name.startswith('portrait.png'):name=name.replace('portrait.png','portrait-after-18s.png',1)
+ shutil.copy2(f,destination/f'ipad-{device}-{name}')
+PY
+  fi
+}
+if [[ "$CASE" == layout || "$CASE" == all ]]; then phase rotation testLayout; fi
+if [[ "$CASE" == navigation || "$CASE" == all ]]; then phase navigation testNavigation; fi
+if [[ "$CASE" == zoom || "$CASE" == all ]]; then phase zoom testZoom; fi
+op asset-cache 90 python3 .github/scripts/reader_asset_cache.py export --data "$DATA" --prefs "$PREFS" --cache "$CACHE" || true
+if [[ -f "$DATA/Documents/reader-geometry.json" ]]; then cp "$DATA/Documents/reader-geometry.json" "$OUTPUT/rendered-geometry.json"; fi
 exit "$result"
