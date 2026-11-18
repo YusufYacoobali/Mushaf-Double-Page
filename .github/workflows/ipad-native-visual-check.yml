@@ -1,5 +1,10 @@
 name: iPad native UI visual check
 on:
+  push:
+    branches: [v6]
+    paths:
+      - '.github/workflows/ipad-native-visual-check.yml'
+      - 'tools/ios_ui_qa/**'
   workflow_dispatch:
     inputs:
       source_run_id:
