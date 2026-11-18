@@ -49,7 +49,7 @@ void main() {
       expect(layout.dockPlacement, DockPlacement.side);
     });
 
-    test('$edition unfolded Duo 669x951 portrait shows a true spread', () {
+    test('$edition unfolded Duo 669x951 portrait shows one centered page', () {
       // Measured from the iPhone Duo Xcode 27 simulator, not an assumed size.
       final layout = ReaderLayout.resolve(
         size: const Size(669, 951),
@@ -57,10 +57,10 @@ void main() {
         iosPhoneWidePortrait: true,
         pageAspectRatio: QuranPageView.aspectRatioForMushaf(edition),
       );
-      expect(layout.pageMode, ReaderPageMode.spread);
+      expect(layout.pageMode, ReaderPageMode.single);
       expect(layout.spreadLayout, ReaderSpreadLayout.widePortrait);
-      expect(layout.pageRegions.length, 2);
-      expect(layout.pageRegions.first.right, lessThan(layout.pageRegions.last.left));
+      expect(layout.pageRegions.length, 1);
+      expect(layout.fullWidthPortrait, isFalse);
       expect(layout.dockPlacement, DockPlacement.bottom);
     });
 
@@ -136,8 +136,9 @@ void main() {
                       padding: MediaQuery.paddingOf(context),
                       displayFeatures: MediaQuery.displayFeaturesOf(context),
                       preserveLegacyIPadPortrait: true,
-                      pageAspectRatio:
-                          QuranPageView.aspectRatioForMushaf(edition),
+                      pageAspectRatio: QuranPageView.aspectRatioForMushaf(
+                        edition,
+                      ),
                     );
                     return Stack(
                       children: [
@@ -148,8 +149,9 @@ void main() {
                           spreadScale: .7,
                           imagePath: (_) => imagePath,
                           isDarkMode: false,
-                          aspectRatio:
-                              QuranPageView.aspectRatioForMushaf(edition),
+                          aspectRatio: QuranPageView.aspectRatioForMushaf(
+                            edition,
+                          ),
                           highlightFor: (_) => const [],
                           highlightColor: Colors.amber,
                           onPageChanged: visits.add,
@@ -160,8 +162,7 @@ void main() {
                           child: ReaderDock(
                             placement: layout.dockPlacement,
                             expanded: expanded,
-                            onToggle: () =>
-                                refresh(() => expanded = !expanded),
+                            onToggle: () => refresh(() => expanded = !expanded),
                             palette: AppPalette.emerald,
                             zoom: ReaderZoom(
                               portrait: layout.bottomDock,

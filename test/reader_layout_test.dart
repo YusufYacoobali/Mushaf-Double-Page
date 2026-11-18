@@ -88,7 +88,7 @@ void main() {
             ),
           ],
         );
-        expect(layout.pageMode, ReaderPageMode.spread);
+        expect(layout.pageMode, ReaderPageMode.dualScreenBook);
         expect(layout.spreadLayout, ReaderSpreadLayout.separateRegions);
         expect(layout.bottomDock, isTrue);
         expect(layout.pageRegions[0].right, lessThanOrEqualTo(460));
@@ -128,7 +128,7 @@ void main() {
         ],
       );
       expect(seamless.safeRegions.length, 1);
-      expect(seamless.pageMode, ReaderPageMode.spread);
+      expect(seamless.pageMode, ReaderPageMode.single);
       expect(seamless.spreadLayout, ReaderSpreadLayout.widePortrait);
     },
   );

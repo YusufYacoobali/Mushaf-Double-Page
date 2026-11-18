@@ -15,6 +15,10 @@ import UIKit
       name: "mushaf_two_page/device",
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
+    FlutterEventChannel(
+      name: "mushaf_two_page/display_regions",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    ).setStreamHandler(ReaderDisplayRegions.shared)
     deviceChannel.setMethodCallHandler { call, result in
       if call.method == "isIPad" {
         result(UIDevice.current.userInterfaceIdiom == .pad)

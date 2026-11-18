@@ -1,4 +1,5 @@
 import 'utils/ios_device_idiom.dart';
+import 'utils/ios_display_regions.dart';
 import 'utils/reader_layout.dart';
 import 'utils/reader_paging.dart';
 import 'utils/deferred_reminders.dart';
@@ -164,6 +165,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   bool _ready = false;
   bool _isIPad = false;
+  StreamSubscription<dynamic>? _displayRegionSubscription;
+  IosDisplayRegions _iosDisplayRegions = IosDisplayRegions.fromEvent(null);
   bool get _hasPageController => _paging != null;
   bool _singlePage = true;
   bool _bottomDock = true;
@@ -238,6 +241,18 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     // Resolve the native device family before exposing the reader, avoiding
     // a brief two-page iPad layout or a page-mode change after first paint.
     _isIPad = await IosDeviceIdiom.isIPad();
+    if (Platform.isIOS && !_isIPad) {
+      _displayRegionSubscription =
+          const EventChannel(
+            'mushaf_two_page/display_regions',
+          ).receiveBroadcastStream().listen((event) {
+            if (mounted) {
+              setState(
+                () => _iosDisplayRegions = IosDisplayRegions.fromEvent(event),
+              );
+            }
+          }, onError: (Object _) {});
+    }
     _docDir = await getApplicationDocumentsDirectory();
     _mushaf = await StorageManager.getMushaf();
     _surahHistory = RecentSurahHistory(_mushaf);
@@ -290,6 +305,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   @override
   void dispose() {
     _welcomeTimer?.cancel();
+    _displayRegionSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     QuranAudioController.instance.removeListener(_audioChanged);
     _audioVerticalFollower.dispose();
@@ -476,6 +492,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
         currentPage: _logicalPage,
         portrait: _singlePage,
         mushaf: _mushaf,
+        visiblePages: _paging!.visiblePages,
+        sequentialBook: _paging!.book,
       );
       final vertical = _audioVerticalFollower.beginAyah(
         playing: audio.audible,
@@ -830,7 +848,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     int? focusAyah,
   }) {
     final requestedPage = logicalPage ?? _logicalPage;
-    final viewStartPage = _singlePage
+    final viewStartPage = _singlePage || (_paging?.book ?? false)
         ? requestedPage
         : PageMapper.logicalFromPageIndex(
             PageMapper.pageIndexFromLogical(requestedPage, false),
@@ -1017,10 +1035,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             _mushaf = mushaf;
             _paging!.lastPage = maxFilePage;
             _paging!.focusedPage = _logicalPage.clamp(1, maxFilePage);
-            _paging!.configure(
-              _singlePage ? ReaderPageMode.single : ReaderPageMode.spread,
-              force: true,
-            );
+            _paging!.configure(_paging!.mode, force: true);
             _forgetAyahSelection();
           });
           _surahHistory = RecentSurahHistory(_mushaf);
@@ -1127,9 +1142,13 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
           final layout = ReaderLayout.resolve(
             size: constraints.biggest,
             padding: MediaQuery.paddingOf(context),
-            displayFeatures: MediaQuery.displayFeaturesOf(context),
+            displayFeatures: [
+              ...MediaQuery.displayFeaturesOf(context),
+              if (!_isIPad) ..._iosDisplayRegions.forSize(constraints.biggest),
+            ],
             pageAspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
             preserveLegacyIPadPortrait: _isIPad,
+            foldedCover: !_isIPad && _iosDisplayRegions.closed,
             iosPhoneWidePortrait:
                 Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
           );

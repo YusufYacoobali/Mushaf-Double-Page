@@ -2,7 +2,7 @@ import 'dart:ui' show DisplayFeature, DisplayFeatureType, DisplayFeatureState;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-enum ReaderPageMode { single, spread }
+enum ReaderPageMode { single, spread, dualScreenBook }
 
 enum DockPlacement { bottom, side }
 
@@ -45,6 +45,7 @@ class ReaderLayout {
     double pageAspectRatio = 721 / 1058,
     bool preserveLegacyIPadPortrait = false,
     bool iosPhoneWidePortrait = false,
+    bool foldedCover = false,
   }) {
     final regions = safeDisplayRegions(size, padding, displayFeatures);
     final largest = regions.reduce(
@@ -67,6 +68,27 @@ class ReaderLayout {
           ..sort((a, b) => a.left.compareTo(b.left));
     final controls = sameRow.length >= 2 ? sameRow.last : largest;
     final landscape = size.width > size.height;
+    // iPad compatibility takes precedence over every foldable hint. A fold or
+    // hinge (including a flat fold) identifies segmented Android devices;
+    // iOS supplies its real division regions through the native bridge.
+    final foldable =
+        !preserveLegacyIPadPortrait &&
+        (iosPhoneWidePortrait ||
+            displayFeatures.any(
+              (f) =>
+                  f.type == DisplayFeatureType.fold ||
+                  f.type == DisplayFeatureType.hinge,
+            ));
+    final book =
+        foldable &&
+        sameRow.length >= 2 &&
+        displayFeatures.any(
+          (f) =>
+              (f.type == DisplayFeatureType.fold ||
+                  f.type == DisplayFeatureType.hinge) &&
+              f.state != DisplayFeatureState.postureFlat,
+        );
+    final foldablePortrait = foldable && !landscape && !book;
     // Original iPad reading was always one full-width page in portrait.
     // Do not apply the unfolded-phone width threshold to an iPad window.
     final legacyIPadPortrait = preserveLegacyIPadPortrait && !landscape;
@@ -117,15 +139,11 @@ class ReaderLayout {
               combined.bottom,
             ),
           ];
-    // The unfolded iPhone Duo's inner screen is 669 logical px wide in
-    // portrait, below the generic 720 px threshold. Its two readable leaves
-    // fit at this width, while iPads still retain their legacy portrait mode.
-    // Do not lower the breakpoint for Android tablets or split-screen windows.
-    final minimumWidth = landscape
-        ? 600.0
-        : (iosPhoneWidePortrait && !preserveLegacyIPadPortrait ? 640.0 : 720.0);
+    final minimumWidth = landscape ? 600.0 : 720.0;
     final canSpread =
         !legacyIPadPortrait &&
+        !(foldedCover && !preserveLegacyIPadPortrait) &&
+        !foldablePortrait &&
         (physicalPair || largest.width >= minimumWidth) &&
         spreadRegions.every(
           (r) =>
@@ -155,7 +173,9 @@ class ReaderLayout {
         ? Offset.zero & size
         : combined;
     return ReaderLayout(
-      pageMode: canSpread ? ReaderPageMode.spread : ReaderPageMode.single,
+      pageMode: canSpread
+          ? (book ? ReaderPageMode.dualScreenBook : ReaderPageMode.spread)
+          : ReaderPageMode.single,
       spreadLayout: spreadLayout,
       dockPlacement: bottom ? DockPlacement.bottom : DockPlacement.side,
       usableContentBounds: canSpread ? spreadBounds : singleBounds,

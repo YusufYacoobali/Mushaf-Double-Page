@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../pages/page_view.dart';
 import '../utils/reader_layout.dart';
 import '../utils/reader_paging.dart';
 import '../utils/audio_vertical_follower.dart';
-import '../utils/page_mapper.dart';
 
 /// Shared by the reader and resize regressions; old controller callbacks are
 /// rejected by generation before they can change/persist a Quran page.
@@ -42,6 +42,19 @@ class AdaptiveQuranPages extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     paging.configure(layout.pageMode);
+    assert(() {
+      debugPrint(
+        'MUSHAF_READER ${jsonEncode({
+          'mode': layout.pageMode.name,
+          'pages': paging.visiblePages,
+          'zoom': ((layout.singlePage ? singleScale : spreadScale) * 100).round(),
+          'regions': [
+            for (final r in layout.pageRegions) [r.left, r.top, r.width, r.height],
+          ],
+        })}',
+      );
+      return true;
+    }());
     final generation = paging.generation;
     verticalFollower?.configureView(
       layoutIdentity: (
@@ -63,10 +76,7 @@ class AdaptiveQuranPages extends StatelessWidget {
         }
         return !paging.controller.position.isScrollingNotifier.value &&
             ((paging.controller.page ?? -1) -
-                        PageMapper.pageIndexFromLogical(
-                          paging.focusedPage,
-                          paging.singlePage,
-                        ))
+                        paging.indexFor(paging.focusedPage))
                     .abs() <
                 .01;
       },
@@ -91,6 +101,7 @@ class AdaptiveQuranPages extends StatelessWidget {
         onFocus: focus,
         onBackgroundTap: onBackgroundTap,
         pageRegions: centered ? null : layout.pageRegions,
+        bookFirstPage: paging.book ? paging.firstPageAt(index) : null,
         verticalFollower: verticalFollower,
       );
       return centered

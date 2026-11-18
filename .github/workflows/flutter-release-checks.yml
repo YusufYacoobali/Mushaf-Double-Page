@@ -2,7 +2,7 @@ name: Flutter release checks
 
 on:
   push:
-    branches: [v5]
+    branches: [v5, v6]
   workflow_dispatch:
 
 permissions:

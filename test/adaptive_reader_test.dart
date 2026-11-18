@@ -243,7 +243,7 @@ void main() {
     );
   }
   testWidgets(
-    'hinge split preserves RTL pages, normalized tap coordinates and reachable controls',
+    'book hinge shows current then next page, with safe taps and controls',
     (tester) async {
       tester.view.physicalSize = const Size(950, 669);
       tester.view.devicePixelRatio = 1;
@@ -318,7 +318,17 @@ void main() {
         ),
         findsNWidgets(2),
       );
-      for (final page in [236, 237]) {
+      expect(layout.pageMode, ReaderPageMode.dualScreenBook);
+      expect(paging.visiblePages, [237, 238]);
+      expect(
+        tester.getRect(find.byKey(const ValueKey('quran-page-237'))).right,
+        lessThanOrEqualTo(hinge.left),
+      );
+      expect(
+        tester.getRect(find.byKey(const ValueKey('quran-page-238'))).left,
+        greaterThanOrEqualTo(hinge.right),
+      );
+      for (final page in [237, 238]) {
         final rect = tester.getRect(find.byKey(ValueKey('quran-page-$page')));
         expect(rect.overlaps(hinge), isFalse);
         expect(

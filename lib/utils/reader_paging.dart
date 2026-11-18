@@ -18,16 +18,41 @@ class ReaderPaging {
   final _retired = <PageController>{};
   PageController get controller => _controller!;
   bool get singlePage => mode == ReaderPageMode.single;
-  int get pageCount => singlePage ? lastPage : lastPage ~/ 2 + 1;
-  List<int> get visiblePages =>
-      PageMapper.visiblePages(focusedPage, singlePage, lastPage);
+  bool get book => mode == ReaderPageMode.dualScreenBook;
+  int _bookStart = 1;
+  int get pageCount => book
+      ? (lastPage - _bookStart) ~/ 2 + 1
+      : singlePage
+      ? lastPage
+      : lastPage ~/ 2 + 1;
+  int indexFor(int page) => book
+      ? (page - _bookStart) ~/ 2
+      : PageMapper.pageIndexFromLogical(page, singlePage);
+  int firstPageAt(int index) => book
+      ? _bookStart + index * 2
+      : PageMapper.logicalFromPageIndex(index, singlePage);
+  List<int> get visiblePages => book
+      ? [
+          for (
+            var p = firstPageAt(indexFor(focusedPage));
+            p < firstPageAt(indexFor(focusedPage)) + 2;
+            p++
+          )
+            if (p >= 1 && p <= lastPage) p,
+        ]
+      : PageMapper.visiblePages(focusedPage, singlePage, lastPage);
 
   void configure(ReaderPageMode next, {bool force = false}) {
     if (_controller != null && mode == next && !force) return;
+    // Enter with the exact focused page on the left, even when it is odd.
+    // Keep that pairing stable while navigating/focusing either screen.
+    if (next == ReaderPageMode.dualScreenBook && (mode != next || force)) {
+      _bookStart = focusedPage.isEven ? 0 : 1;
+    }
     mode = next;
     _commandTarget = null;
     final old = _controller;
-    _index = PageMapper.pageIndexFromLogical(focusedPage, singlePage);
+    _index = indexFor(focusedPage);
     _controller = PageController(initialPage: _index!, keepPage: false);
     generation++;
     if (old != null) {
@@ -46,10 +71,7 @@ class ReaderPaging {
       return false;
     }
     _index = index;
-    focusedPage = PageMapper.logicalFromPageIndex(
-      index,
-      singlePage,
-    ).clamp(1, lastPage);
+    focusedPage = firstPageAt(index).clamp(1, lastPage);
     return true;
   }
 
@@ -64,7 +86,7 @@ class ReaderPaging {
   Future<void> goTo(int page, {bool animate = false}) async {
     if (_disposed) return;
     focusedPage = page.clamp(1, lastPage);
-    final target = PageMapper.pageIndexFromLogical(focusedPage, singlePage);
+    final target = indexFor(focusedPage);
     _index = target;
     final native = _controller;
     if (native == null || !native.hasClients) return;

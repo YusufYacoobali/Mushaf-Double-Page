@@ -144,10 +144,14 @@ class QuranPageView {
     VoidCallback? onBackgroundTap,
     ValueChanged<int>? onFocus,
     List<Rect>? pageRegions,
+    int? bookFirstPage,
     AudioVerticalFollower? verticalFollower,
   }) {
     final leftIndex = spreadIndex * 2;
     final rightIndex = leftIndex + 1;
+    int pageAt(int physical) => bookFirstPage == null
+        ? (physical == 0 ? rightIndex : leftIndex)
+        : bookFirstPage + physical;
 
     Widget buildPage(int index, GlobalKey surfaceKey) {
       final path = imagePath(index);
@@ -191,12 +195,11 @@ class QuranPageView {
             return Stack(
               children: [
                 for (var physical = 0; physical < 2; physical++)
-                  if ((physical == 0 ? rightIndex : leftIndex) >= 1 &&
-                      (physical == 0 ? rightIndex : leftIndex) < totalPages)
+                  if (pageAt(physical) >= 1 && pageAt(physical) < totalPages)
                     Positioned.fromRect(
                       rect: pageRegions[physical],
                       child: AudioVerticalViewport(
-                        pages: [physical == 0 ? rightIndex : leftIndex],
+                        pages: [pageAt(physical)],
                         follower: verticalFollower,
                         transformIdentity: (
                           clamped,
@@ -209,10 +212,7 @@ class QuranPageView {
                             alignment: Alignment.topCenter,
                             child: SizedBox(
                               width: pageRegions[physical].width * clamped,
-                              child: framedPage(
-                                physical == 0 ? rightIndex : leftIndex,
-                                viewport,
-                              ),
+                              child: framedPage(pageAt(physical), viewport),
                             ),
                           ),
                         ),

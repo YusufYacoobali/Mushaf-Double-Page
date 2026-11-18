@@ -116,6 +116,7 @@ duoctl screenshot screenshots/duo-after-permission.png || true
 # that unrelated accessibility service.
 sleep 2
 duoctl state > screenshots/duo-initial-state.json
+duoctl --help > screenshots/duoctl-version-and-commands.txt
 echo "App launched; 851 Quran images exist. Capturing actual reader renders."
 
 failures=0
@@ -131,24 +132,47 @@ if duoctl close; then
   sleep 2
   duoctl screenshot screenshots/duo-folded-base.png || true
   run_case duo-folded 70 100
+  if duoctl rotate landscape; then
+    run_case duo-folded-landscape 70 100
+  else
+    failures=$((failures+1))
+  fi
 else
   echo "::error::Unable to fold the Duo"
   failures=$((failures+1))
 fi
 if duoctl open; then
   sleep 2
+  duoctl rotate landscape
   duoctl screenshot screenshots/duo-open-base.png || true
   run_case duo-unfolded-wide 60 100
   if duoctl rotate portrait; then
     sleep 2
     duoctl screenshot screenshots/duo-open-portrait-base.png || true
-    run_case duo-unfolded-portrait 60 100
+    run_case duo-unfolded-portrait 70 100
   else
     echo "::error::Unable to rotate unfolded Duo to portrait"
     failures=$((failures+1))
   fi
 else
   echo "::error::Unable to unfold the Duo"
+  failures=$((failures+1))
+fi
+# Book posture must be tested independently from the fully open display.
+if duoctl half && duoctl rotate landscape; then
+  sleep 2
+  run_case duo-half-open-book 60 100
+  if ! bash .github/scripts/record_book_navigation.sh; then
+    echo "::error::Book-mode page navigation failed"
+    failures=$((failures+1))
+  fi
+  if duoctl rotate portrait; then
+    run_case duo-half-open-tabletop 70 100
+  else
+    failures=$((failures+1))
+  fi
+else
+  echo "::error::Unable to enter genuine half-open posture"
   failures=$((failures+1))
 fi
 echo "Duo failed cases: $failures" | tee screenshots/qa-result.txt

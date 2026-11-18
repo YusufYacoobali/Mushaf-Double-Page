@@ -16,10 +16,24 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
-UDID="$(xcrun simctl create "quran-ci-ipad-$GITHUB_RUN_ID" 'iPad mini (A17 Pro)' com.apple.CoreSimulator.SimRuntime.iOS-27-0)"
-echo "Fresh iPad mini: $UDID"
+FAMILY="${IPAD_FAMILY:-mini}"
+xcrun simctl list devicetypes -j > screenshots-ipad/device-types.json
+TYPE="$(python3 - screenshots-ipad/device-types.json "$FAMILY" <<'PY'
+import json, re, sys
+patterns = {'mini': r'^iPad mini', 'ipad': r'^iPad \(',
+            'air11': r'^iPad Air 11', 'air13': r'^iPad Air 13',
+            'pro11': r'^iPad Pro 11', 'pro13': r'^iPad Pro 13'}
+devices = [d for d in json.load(open(sys.argv[1]))['devicetypes']
+           if re.search(patterns[sys.argv[2]], d['name'])]
+assert devices, f'No simulator device for {sys.argv[2]}'
+print(devices[-1]['identifier'])
+PY
+)"
+UDID="$(xcrun simctl create "quran-ci-ipad-$FAMILY-$GITHUB_RUN_ID" "$TYPE" com.apple.CoreSimulator.SimRuntime.iOS-27-0)"
+echo "Fresh iPad $FAMILY ($TYPE): $UDID"
 xcrun simctl boot "$UDID"
 xcrun simctl bootstatus "$UDID" -b
+xcrun simctl status_bar "$UDID" override --time '9:41' --batteryState charged --batteryLevel 100
 xcrun simctl install "$UDID" "$APP"
 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
 sleep 5
@@ -39,11 +53,21 @@ for n in $(seq 1 45); do
   sleep 7
 done
 [[ "$ready" -eq 1 ]] || { echo "::error::iPad did not load real Quran pages"; exit 1; }
-sleep 3
-xcrun simctl io "$UDID" screenshot screenshots-ipad/ipad-mini-portrait.png
-# The initial intercession tip overlays Quran text. Capture a later state too
-# without altering application code, so reviewers can distinguish an
-# auto-dismissing overlay from a persistent layout issue.
-sleep 18
-xcrun simctl io "$UDID" screenshot screenshots-ipad/ipad-mini-portrait-after-18s.png
-echo "iPad mini portrait: Quran images loaded, app screenshot captured" | tee screenshots-ipad/status.txt
+export SIMULATOR_UDID="$UDID" CAPTURE_DEVICE=ipad SCREENSHOTS_DIR=screenshots-ipad
+failures=0
+for orientation in portrait landscape; do
+  if python3 .github/scripts/simulator_orientation.py "$UDID" "$orientation" > "screenshots-ipad/$FAMILY-$orientation-state.json"; then
+    if [[ "$orientation" == portrait ]]; then
+      minimum=70; key=quran_single_page_scale; mode=single
+    else
+      minimum=60; key=quran_landscape_page_scale; mode=spread
+    fi
+    if ! bash .github/scripts/capture_reader_zoom.sh "ipad-$FAMILY-$orientation" "$minimum" 100 "$key" "$mode"; then
+      failures=$((failures+1))
+    fi
+  else
+    failures=$((failures+1))
+  fi
+done
+echo "iPad $FAMILY failed cases: $failures" | tee screenshots-ipad/status.txt
+[[ "$failures" -eq 0 ]]
