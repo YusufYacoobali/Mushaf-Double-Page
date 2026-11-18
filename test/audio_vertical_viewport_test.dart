@@ -565,55 +565,55 @@ void main() {
       transform.dispose();
     },
   );
-  testWidgets('foldable follower uses the page region above its dock gutter', (
-    tester,
-  ) async {
-    size(tester, const Size(950, 669));
-    final f = follower(4);
-    final paging = ReaderPaging(initialPage: 4, lastPage: 30);
-    final layout = ReaderLayout.resolve(
-      size: const Size(950, 669),
-      displayFeatures: const [
-        ui.DisplayFeature(
-          bounds: Rect.fromLTWH(460, 0, 30, 669),
-          type: ui.DisplayFeatureType.hinge,
-          state: ui.DisplayFeatureState.postureHalfOpened,
-        ),
-      ],
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: AdaptiveQuranPages(
-            paging: paging,
-            layout: layout,
-            singleScale: .8,
-            spreadScale: 1,
-            imagePath: (_) => image,
-            isDarkMode: false,
-            aspectRatio: QuranPageView.pageAspectRatio,
-            highlightFor: (_) => [],
-            highlightColor: Colors.amber,
-            verticalFollower: f,
-            onPageChanged: (_) {},
-            onFocus: (_) {},
+  testWidgets(
+    'fitted book pages stay visible and registered while audio follows',
+    (tester) async {
+      size(tester, const Size(950, 669));
+      final f = follower(4);
+      final paging = ReaderPaging(initialPage: 4, lastPage: 30);
+      final layout = ReaderLayout.resolve(
+        size: const Size(950, 669),
+        displayFeatures: const [
+          ui.DisplayFeature(
+            bounds: Rect.fromLTWH(460, 0, 30, 669),
+            type: ui.DisplayFeatureType.hinge,
+            state: ui.DisplayFeatureState.postureHalfOpened,
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AdaptiveQuranPages(
+              paging: paging,
+              layout: layout,
+              singleScale: .8,
+              spreadScale: 1,
+              imagePath: (_) => image,
+              isDarkMode: false,
+              aspectRatio: QuranPageView.pageAspectRatio,
+              highlightFor: (_) => [],
+              highlightColor: Colors.amber,
+              verticalFollower: f,
+              onPageChanged: (_) {},
+              onFocus: (_) {},
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    follow(f, 1);
-    await tester.pumpAndSettle();
-    final controllers = scrolls(tester);
-    expect(controllers[0].offset, greaterThan(0));
-    expect(controllers[1].offset, 0);
-    final frame = tester.getRect(find.byKey(const ValueKey('quran-page-4')));
-    expect(
-      frame.top + frame.height * .93,
-      closeTo(layout.pageRegions[0].bottom - 16, .02),
-    );
-    await tester.pumpWidget(const SizedBox());
-    f.dispose();
-    paging.dispose();
-  });
+      );
+      await tester.pumpAndSettle();
+      final before = tester.getRect(find.byKey(const ValueKey('quran-page-4')));
+      follow(f, 1);
+      await tester.pumpAndSettle();
+      expect(scrolls(tester), isEmpty);
+      final frame = tester.getRect(find.byKey(const ValueKey('quran-page-4')));
+      expect(frame, before);
+      expect(layout.pageRegions[1].contains(frame.topLeft), isTrue);
+      expect(frame.bottom, lessThanOrEqualTo(layout.pageRegions[1].bottom));
+      expect(frame.left, greaterThanOrEqualTo(490));
+      await tester.pumpWidget(const SizedBox());
+      f.dispose();
+      paging.dispose();
+    },
+  );
 }

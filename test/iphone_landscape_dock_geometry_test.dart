@@ -190,8 +190,13 @@ void main() {
         expect(panel.overlaps(sample.$4.single.bounds), isFalse);
       } else {
         expect(panel.right, region.right - 6);
-        expect(panel.top, region.top + 12);
-        expect(panel.bottom, region.bottom - 12);
+        if (layout.centerSideDock) {
+          expect(panel.center.dy, region.center.dy);
+          expect(panel.height, lessThan(region.height - 24));
+        } else {
+          expect(panel.top, region.top + 12);
+          expect(panel.bottom, region.bottom - 12);
+        }
       }
       expect(tester.takeException(), isNull);
     });
@@ -247,6 +252,9 @@ class _DockSceneState extends State<_DockScene> {
             size: constraints.biggest,
             padding: MediaQuery.paddingOf(context),
             displayFeatures: widget.features,
+            preserveLegacyIPadPortrait:
+                widget.platform == TargetPlatform.iOS &&
+                constraints.biggest.shortestSide >= 600,
           );
           widget.onLayout?.call(layout);
           return Stack(

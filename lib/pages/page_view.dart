@@ -151,7 +151,7 @@ class QuranPageView {
     final rightIndex = leftIndex + 1;
     int pageAt(int physical) => bookFirstPage == null
         ? (physical == 0 ? rightIndex : leftIndex)
-        : bookFirstPage + physical;
+        : bookFirstPage + (1 - physical);
 
     Widget buildPage(int index, GlobalKey surfaceKey) {
       final path = imagePath(index);
@@ -192,6 +192,8 @@ class QuranPageView {
             maxPageScaleLandscape,
           );
           if (pageRegions != null) {
+            // Book zoom is relative to a complete page fitted inside each
+            // hinge-safe panel. Legacy regional/iPad spreads keep width zoom.
             return Stack(
               children: [
                 for (var physical = 0; physical < 2; physical++)
@@ -206,16 +208,33 @@ class QuranPageView {
                           aspectRatio,
                           pageRegions[physical],
                         ),
-                        builder: (viewport) => SingleChildScrollView(
-                          controller: viewport.scroll,
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              width: pageRegions[physical].width * clamped,
-                              child: framedPage(pageAt(physical), viewport),
-                            ),
-                          ),
-                        ),
+                        builder: (viewport) => bookFirstPage != null
+                            ? Center(
+                                child: SizedBox(
+                                  width:
+                                      math.min(
+                                        pageRegions[physical].width,
+                                        pageRegions[physical].height *
+                                            aspectRatio,
+                                      ) *
+                                      clamped,
+                                  child: framedPage(pageAt(physical), viewport),
+                                ),
+                              )
+                            : SingleChildScrollView(
+                                controller: viewport.scroll,
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    width:
+                                        pageRegions[physical].width * clamped,
+                                    child: framedPage(
+                                      pageAt(physical),
+                                      viewport,
+                                    ),
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
               ],

@@ -291,7 +291,7 @@ void main() {
                         expanded: true,
                         onToggle: () {},
                         palette: AppPalette.emerald,
-                        zoom: const SizedBox(width: 96),
+                        zoom: const SizedBox(width: 40, height: 80),
                         actions: [
                           for (var i = 0; i < 5; i++)
                             IconButton(
@@ -316,17 +316,17 @@ void main() {
           of: find.byType(AdaptiveQuranPages),
           matching: find.byType(SingleChildScrollView),
         ),
-        findsNWidgets(2),
+        findsNothing,
       );
       expect(layout.pageMode, ReaderPageMode.dualScreenBook);
       expect(paging.visiblePages, [237, 238]);
       expect(
-        tester.getRect(find.byKey(const ValueKey('quran-page-237'))).right,
-        lessThanOrEqualTo(hinge.left),
+        tester.getRect(find.byKey(const ValueKey('quran-page-237'))).left,
+        greaterThanOrEqualTo(hinge.right),
       );
       expect(
-        tester.getRect(find.byKey(const ValueKey('quran-page-238'))).left,
-        greaterThanOrEqualTo(hinge.right),
+        tester.getRect(find.byKey(const ValueKey('quran-page-238'))).right,
+        lessThanOrEqualTo(hinge.left),
       );
       for (final page in [237, 238]) {
         final rect = tester.getRect(find.byKey(ValueKey('quran-page-$page')));

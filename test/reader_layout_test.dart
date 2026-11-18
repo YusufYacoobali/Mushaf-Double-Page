@@ -90,7 +90,7 @@ void main() {
         );
         expect(layout.pageMode, ReaderPageMode.dualScreenBook);
         expect(layout.spreadLayout, ReaderSpreadLayout.separateRegions);
-        expect(layout.bottomDock, isTrue);
+        expect(layout.bottomDock, isFalse);
         expect(layout.pageRegions[0].right, lessThanOrEqualTo(460));
         expect(layout.pageRegions[1].left, greaterThanOrEqualTo(490));
         for (final r in [...layout.pageRegions, layout.controlsRegion]) {
@@ -132,7 +132,7 @@ void main() {
       expect(seamless.spreadLayout, ReaderSpreadLayout.widePortrait);
     },
   );
-  test('interior cutouts cannot cover page text or controls', () {
+  test('small camera cutouts do not divide the viewport', () {
     const cutout = Rect.fromLTWH(430, 0, 40, 80);
     final layout = ReaderLayout.resolve(
       size: const Size(900, 900),
@@ -144,9 +144,8 @@ void main() {
         ),
       ],
     );
-    for (final r in [...layout.pageRegions, layout.controlsRegion]) {
-      expect(r.overlaps(cutout), isFalse);
-    }
+    expect(layout.safeRegions, [const Rect.fromLTWH(0, 0, 900, 900)]);
+    expect(layout.pageMode, ReaderPageMode.spread);
   });
   test(
     'spread mapping includes every file once, with blank book boundaries',

@@ -45,7 +45,7 @@ class ReaderPaging {
 
   void configure(ReaderPageMode next, {bool force = false}) {
     if (_controller != null && mode == next && !force) return;
-    // Enter with the exact focused page on the left, even when it is odd.
+    // Enter with the exact focused page on the right, even when it is odd.
     // Keep that pairing stable while navigating/focusing either screen.
     if (next == ReaderPageMode.dualScreenBook && (mode != next || force)) {
       _bookStart = focusedPage.isEven ? 0 : 1;

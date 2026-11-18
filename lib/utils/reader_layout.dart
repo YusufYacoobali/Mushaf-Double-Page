@@ -20,6 +20,7 @@ class ReaderLayout {
     required this.controlsRegion,
     required this.safeRegions,
     this.fullWidthPortrait = false,
+    this.centerSideDock = false,
   });
   final ReaderPageMode pageMode;
   final ReaderSpreadLayout spreadLayout;
@@ -35,6 +36,7 @@ class ReaderLayout {
   /// Conventional portrait phones retain v4's edge-to-edge page and dock.
   /// Insets belong to the controls themselves, not their enclosing viewport.
   final bool fullWidthPortrait;
+  final bool centerSideDock;
   bool get singlePage => pageMode == ReaderPageMode.single;
   bool get bottomDock => dockPlacement == DockPlacement.bottom;
 
@@ -79,20 +81,40 @@ class ReaderLayout {
                   f.type == DisplayFeatureType.fold ||
                   f.type == DisplayFeatureType.hinge,
             ));
+    final halfOpened = displayFeatures.where(
+      (f) =>
+          (f.type == DisplayFeatureType.fold ||
+              f.type == DisplayFeatureType.hinge) &&
+          f.state == DisplayFeatureState.postureHalfOpened,
+    );
+    final safeBounds = safeDisplayRegions(size, padding, const []).single;
     final book =
         foldable &&
         sameRow.length >= 2 &&
-        displayFeatures.any(
+        halfOpened.any(
           (f) =>
-              (f.type == DisplayFeatureType.fold ||
-                  f.type == DisplayFeatureType.hinge) &&
-              f.state != DisplayFeatureState.postureFlat,
+              f.bounds.height > f.bounds.width &&
+              f.bounds.top <= safeBounds.top &&
+              f.bounds.bottom >= safeBounds.bottom &&
+              f.bounds.left > safeBounds.left &&
+              f.bounds.right < safeBounds.right,
+        );
+    final tabletop =
+        foldable &&
+        halfOpened.any(
+          (f) =>
+              f.bounds.width > f.bounds.height &&
+              f.bounds.left <= safeBounds.left &&
+              f.bounds.right >= safeBounds.right &&
+              f.bounds.top > safeBounds.top &&
+              f.bounds.bottom < safeBounds.bottom,
         );
     final foldablePortrait = foldable && !landscape && !book;
     // Original iPad reading was always one full-width page in portrait.
     // Do not apply the unfolded-phone width threshold to an iPad window.
     final legacyIPadPortrait = preserveLegacyIPadPortrait && !landscape;
-    final bottom = (!landscape || sameRow.length >= 2) && controls.width >= 300;
+    final bottom =
+        (!landscape || (sameRow.length >= 2 && !book)) && controls.width >= 300;
     final pageBounds = <Rect>[];
     final candidates = sameRow.length >= 2
         ? [sameRow.first, sameRow.last]
@@ -142,6 +164,7 @@ class ReaderLayout {
     final minimumWidth = landscape ? 600.0 : 720.0;
     final canSpread =
         !legacyIPadPortrait &&
+        !tabletop &&
         !(foldedCover && !preserveLegacyIPadPortrait) &&
         !foldablePortrait &&
         (physicalPair || largest.width >= minimumWidth) &&
@@ -185,13 +208,24 @@ class ReaderLayout {
       controlsRegion: controls,
       safeRegions: List.unmodifiable(regions),
       fullWidthPortrait: originalPortraitBounds,
+      centerSideDock:
+          landscape &&
+          (preserveLegacyIPadPortrait ||
+              foldedCover ||
+              (iosPhoneWidePortrait && size.shortestSide >= 600) ||
+              displayFeatures.any(
+                (f) =>
+                    f.type == DisplayFeatureType.fold ||
+                    f.type == DisplayFeatureType.hinge,
+              )),
     );
   }
 }
 
 /// Trim safe edges, then partition around obstructing/separating display
 /// features. A flat, zero-width fold is seamless; a half-open fold separates.
-/// Interior cutouts conservatively split a region rather than cover Quran text.
+/// Small camera cutouts are covered by safe insets, not projected into a
+/// full-height/width obstruction. Only a feature spanning a region divides it.
 List<Rect> safeDisplayRegions(
   Size size,
   EdgeInsets padding,
@@ -224,20 +258,26 @@ List<Rect> safeDisplayRegions(
         next.add(r);
         continue;
       }
-      if (b.height >= b.width && b.height > 0) {
+      final vertical =
+          b.height > b.width && b.top <= r.top && b.bottom >= r.bottom;
+      final horizontal =
+          b.width > b.height && b.left <= r.left && b.right >= r.right;
+      if (vertical) {
         if (b.left > r.left) {
           next.add(Rect.fromLTRB(r.left, r.top, b.left, r.bottom));
         }
         if (b.right < r.right) {
           next.add(Rect.fromLTRB(b.right, r.top, r.right, r.bottom));
         }
-      } else {
+      } else if (horizontal) {
         if (b.top > r.top) {
           next.add(Rect.fromLTRB(r.left, r.top, r.right, b.top));
         }
         if (b.bottom < r.bottom) {
           next.add(Rect.fromLTRB(r.left, b.bottom, r.right, r.bottom));
         }
+      } else {
+        next.add(r);
       }
     }
     if (next.isNotEmpty) regions = next;

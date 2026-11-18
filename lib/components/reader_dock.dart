@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show DisplayFeatureType;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import '../utils/app_palette.dart';
 import '../utils/app_motion.dart';
 import '../utils/reader_layout.dart';
@@ -34,7 +35,11 @@ class ReaderDockOverlay extends StatelessWidget {
     // v4 positioned the iPhone side dock against the screen. ReaderDock itself
     // owns the notch/home-indicator offsets; wrapping it in a safe region would
     // shift the collapsed edge tab and apply different expanded coordinates.
-    if (layout.fullWidthPortrait || iPhoneLandscape) return child;
+    final scoped = _ReaderDockRegion(
+      centerSideDock: layout.centerSideDock,
+      child: child,
+    );
+    if (layout.fullWidthPortrait || iPhoneLandscape) return scoped;
     return Positioned.fromRect(
       rect: layout.controlsRegion,
       child: MediaQuery.removePadding(
@@ -43,10 +48,18 @@ class ReaderDockOverlay extends StatelessWidget {
         removeRight: true,
         removeTop: true,
         removeBottom: true,
-        child: Stack(children: [child]),
+        child: Stack(children: [scoped]),
       ),
     );
   }
+}
+
+class _ReaderDockRegion extends InheritedWidget {
+  const _ReaderDockRegion({required this.centerSideDock, required super.child});
+  final bool centerSideDock;
+  @override
+  bool updateShouldNotify(_ReaderDockRegion oldWidget) =>
+      oldWidget.centerSideDock != centerSideDock;
 }
 
 class ReaderDock extends StatelessWidget {
@@ -90,6 +103,12 @@ class ReaderDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safe = MediaQuery.paddingOf(context);
+    final centerSide =
+        !portrait &&
+        (context
+                .dependOnInheritedWidgetOfExactType<_ReaderDockRegion>()
+                ?.centerSideDock ??
+            false);
     // iOS keeps the pull tab near the physical edge. Android's system navigation
     // bar can occupy the bottom or right edge, so the collapsed tab must clear it
     // as well as the expanded controls. Avoid adding the inset and margin twice.
@@ -115,13 +134,27 @@ class ReaderDock extends StatelessWidget {
           tween: Tween(end: contextControls == null ? 0 : (portrait ? 56 : 58)),
           duration: AppMotion.duration(context, contextControls != null),
           curve: AppMotion.curve,
-          builder: (context, extra, _) => _contents(context, reveal, extra),
+          builder: (context, extra, _) {
+            final contents = _contents(context, reveal, extra, centerSide);
+            return centerSide
+                ? Align(
+                    alignment: Alignment.centerRight,
+                    widthFactor: 1,
+                    child: contents,
+                  )
+                : contents;
+          },
         ),
       ),
     );
   }
 
-  Widget _contents(BuildContext context, double reveal, double extra) {
+  Widget _contents(
+    BuildContext context,
+    double reveal,
+    double extra,
+    bool centerSide,
+  ) {
     final decoration = BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
@@ -255,6 +288,39 @@ class ReaderDock extends StatelessWidget {
                 tab,
               ],
             ),
+          ),
+        ),
+      );
+    }
+    if (centerSide) {
+      return SizedBox(
+        width: 22 + (50 + extra) * reveal,
+        child: OverflowBox(
+          alignment: Alignment.centerLeft,
+          minWidth: 72 + extra,
+          maxWidth: 72 + extra,
+          fit: OverflowBoxFit.deferToChild,
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            clipBehavior: Clip.none,
+            children: [
+              if (reveal > 0) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 20),
+                  child: fading(panel),
+                ),
+                Positioned(
+                  left: 78,
+                  width: 52,
+                  top: 0,
+                  bottom: 0,
+                  child: fading(
+                    Center(child: SingleChildScrollView(child: contextPanel)),
+                  ),
+                ),
+              ],
+              tab,
+            ],
           ),
         ),
       );

@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: quran-duo-visual-qa-${{ github.ref }}
@@ -98,12 +99,49 @@ jobs:
           path: screenshots/
           if-no-files-found: warn
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-duo-folded-endpoints
+          path: |
+            screenshots/duo-folded-min-*.png
+            screenshots/duo-folded-max-*.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-duo-unfolded-portrait-endpoints
+          path: |
+            screenshots/duo-unfolded-portrait-min-*.png
+            screenshots/duo-unfolded-portrait-max-*.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-duo-unfolded-wide-endpoints
+          path: |
+            screenshots/duo-unfolded-wide-min-*.png
+            screenshots/duo-unfolded-wide-max-*.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-duo-half-open-book-endpoints
+          path: |
+            screenshots/duo-half-open-book-min-*.png
+            screenshots/duo-half-open-book-max-*.png
+            screenshots/duo-half-open-book-after-swipe.png
+          retention-days: 14
 
   ipad-mini:
-    name: Test clean iPad mini portrait
+    name: Compare iPad ${{ matrix.device }} with v5
     needs: build-simulator
     runs-on: xcode-27
-    timeout-minutes: 35
+    timeout-minutes: 48
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mini, pro11, pro13]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -114,14 +152,44 @@ jobs:
           mkdir -p ci-app
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
-      - name: Capture iPad mini reader screenshot
+      - name: Download original v5 simulator build
+        uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          run-id: '44183372666'
+          github-token: ${{ github.token }}
+          path: v5-build
+      - name: Extract original v5 application
+        run: |
+          mkdir -p ci-app-v5
+          tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
+      - name: Capture v6 iPad portrait and landscape
         shell: bash
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v6
         run: bash .github/scripts/run_ipad_simulator_qa.sh
-      - name: Upload iPad mini screenshot and diagnostics
+      - name: Capture v5 iPad portrait and landscape
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v5
+          IPAD_APP: ci-app-v5/Runner.app
+        run: bash .github/scripts/run_ipad_simulator_qa.sh
+      - name: Upload v6 iPad screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quran-ipad-mini-visual-qa
-          path: screenshots-ipad/
+          name: quran-ipad-${{ matrix.device }}-v6
+          path: screenshots-ipad/${{ matrix.device }}-v6/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload v5 iPad screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quran-ipad-${{ matrix.device }}-v5
+          path: screenshots-ipad/${{ matrix.device }}-v5/
           if-no-files-found: warn
           retention-days: 14

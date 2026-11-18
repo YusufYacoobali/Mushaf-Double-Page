@@ -157,6 +157,10 @@ if duoctl half && duoctl rotate landscape; then
   sleep 2
   duoctl screenshot screenshots/duo-half-open-book-base.png || true
   run_case duo-half-open-book 60 100
+  # A real horizontal swipe should move the RTL book from 4/5 to 6/7.
+  duoctl swipe 540 300 900 300 --duration 0.3
+  sleep 2
+  duoctl screenshot screenshots/duo-half-open-book-after-swipe.png
 else
   echo "::error::Unable to enter half-open book posture"
   failures=$((failures+1))

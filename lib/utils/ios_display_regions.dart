@@ -9,9 +9,10 @@ class IosDisplayRegions {
     closed = event['closed'] == true;
     final divisions = event['divisions'];
     if (divisions is! List) return;
+    if (!size.width.isFinite || !size.height.isFinite || size.isEmpty) return;
     features = [
       for (final region in divisions)
-        if (region is Map)
+        if (region is Map && _validRegion(region))
           DisplayFeature(
             bounds: Rect.fromLTWH(
               _number(region['left']),
@@ -29,6 +30,14 @@ class IosDisplayRegions {
   Size size = Size.zero;
   bool closed = false;
   List<DisplayFeature> features = const [];
+  static bool _validRegion(Map region) {
+    final values = ['left', 'top', 'width', 'height'].map((key) => region[key]);
+    return values.every((v) => v is num && v.isFinite) &&
+        (region['width'] as num) >= 0 &&
+        (region['height'] as num) >= 0 &&
+        ((region['width'] as num) > 0 || (region['height'] as num) > 0);
+  }
+
   static double _number(dynamic value) => value is num ? value.toDouble() : 0;
   List<DisplayFeature> forSize(Size viewport) =>
       (size.width - viewport.width).abs() < 1 &&
