@@ -82,6 +82,9 @@ jobs:
     outputs:
       geometry_passed: ${{ steps.geometry.outputs.geometry_passed }}
     env:
+      # macos-15 defaults to Xcode 16.4, but these devices use iOS 26.2.
+      # Test with the matching iOS 26.2 SDK and Simulator.app, not Xcode 16.
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
       READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
     steps:
       - uses: actions/checkout@v4
