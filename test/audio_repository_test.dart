@@ -183,8 +183,14 @@ void main() {
         token,
         urgent: urgent,
       );
-      final first = get(2), second = get(3, urgent: true), future = get(4);
+      // Explicitly wait for the two active downloads before enqueuing the
+      // third. Creating three async Futures in one expression lets the host's
+      // file-system scheduling reorder which two actually start first.
+      final first = get(2);
+      await waitFor(() => transport.started.contains('112002.mp3'));
+      final second = get(3, urgent: true);
       await waitFor(() => transport.started.length == 2);
+      final future = get(4);
       final needed = get(1, urgent: true);
       transport.gates['112002.mp3']!.complete();
       await first;
