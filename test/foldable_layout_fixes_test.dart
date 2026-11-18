@@ -26,6 +26,65 @@ void main() {
   );
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('ordinary phones and tablets retain legacy page sizing', () {
+    for (final (size, ipad, iosPhone, mode) in [
+      (const Size(390, 844), false, true, ReaderPageMode.single),
+      (const Size(844, 390), false, true, ReaderPageMode.spread),
+      (const Size(390, 844), false, false, ReaderPageMode.single),
+      (const Size(844, 390), false, false, ReaderPageMode.spread),
+      (const Size(744, 1133), true, false, ReaderPageMode.single),
+      (const Size(1133, 744), true, false, ReaderPageMode.spread),
+      (const Size(1024, 1366), true, false, ReaderPageMode.single),
+      (const Size(1366, 1024), true, false, ReaderPageMode.spread),
+    ]) {
+      final layout = ReaderLayout.resolve(
+        size: size,
+        preserveLegacyIPadPortrait: ipad,
+        iosPhoneWidePortrait: iosPhone,
+      );
+      expect(layout.fitPagesToViewport, isFalse,
+          reason: '$size must use its unchanged non-foldable sizing');
+      expect(layout.pageMode, mode, reason: '$size layout mode changed');
+    }
+    // The native iPad guard wins even if a device sends foldable hints.
+    final ipadWithHints = ReaderLayout.resolve(
+      size: const Size(744, 1133),
+      preserveLegacyIPadPortrait: true,
+      iosPhoneWidePortrait: true,
+      foldedCover: true,
+    );
+    expect(ipadWithHints.fitPagesToViewport, isFalse);
+    expect(ipadWithHints.pageMode, ReaderPageMode.single);
+  });
+
+  test('proportional fitting is enabled for identified foldable layouts only', () {
+    final folded = ReaderLayout.resolve(
+      size: const Size(466, 678),
+      foldedCover: true,
+      iosPhoneWidePortrait: true,
+    );
+    final openPortrait = ReaderLayout.resolve(
+      size: const Size(669, 951),
+      iosPhoneWidePortrait: true,
+    );
+    final openLandscape = ReaderLayout.resolve(
+      size: const Size(951, 669),
+      iosPhoneWidePortrait: true,
+    );
+    final androidBook = ReaderLayout.resolve(
+      size: window,
+      displayFeatures: const [hinge],
+    );
+    for (final layout in [folded, openPortrait, openLandscape, androidBook]) {
+      expect(layout.fitPagesToViewport, isTrue);
+    }
+    expect(folded.pageMode, ReaderPageMode.single);
+    expect(openPortrait.pageMode, ReaderPageMode.single);
+    expect(openLandscape.pageMode, ReaderPageMode.spread);
+    expect(androidBook.pageMode, ReaderPageMode.dualScreenBook);
+  });
+
+
   for (final state in [
     DisplayFeatureState.unknown,
     DisplayFeatureState.postureFlat,
