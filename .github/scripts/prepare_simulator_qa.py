@@ -36,9 +36,35 @@ orientation = '''    // CI-only orientation stimulus; the real reader handles th
        let desired = qa["MUSHAF_QA_ORIENTATION"], !desired.isEmpty,
        let windowScene = scene as? UIWindowScene {
       let mask: UIInterfaceOrientationMask = desired == "landscape" ? .landscapeLeft : .portrait
-      DispatchQueue.main.async {
-        self.window?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-        windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+      var qaGeometryError = ""
+      let writeState: (String) -> Void = { status in
+        let root = self.window?.rootViewController
+        let state: [String: Any] = [
+          "desired": desired, "status": status,
+          "error": qaGeometryError,
+          "interfaceOrientation": windowScene.interfaceOrientation.rawValue,
+          "supportedMask": root.map { Int($0.supportedInterfaceOrientations.rawValue) } ?? -1,
+          "sceneSize": [windowScene.coordinateSpace.bounds.width, windowScene.coordinateSpace.bounds.height],
+          "rootSize": root.map { [$0.view.bounds.width, $0.view.bounds.height] } ?? [],
+          "activation": windowScene.activationState.rawValue,
+          "rootType": root.map { String(describing: type(of: $0)) } ?? "nil"
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: state),
+           let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+          try? data.write(to: folder.appendingPathComponent("reader-qa-native.json"), options: .atomic)
+        }
+      }
+      for delay in [1.0, 3.0, 5.0, 10.0, 15.0] {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+          self.window?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+          windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
+            qaGeometryError = String(describing: error)
+            writeState("orientation request failed")
+          }
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            writeState("after orientation request at " + String(delay))
+          }
+        }
       }
     }
 '''

@@ -4,6 +4,7 @@
 # defaults/plist edits cannot reliably invalidate that sandbox's cached values.
 set -Eeuo pipefail
 LABEL="$1" MIN="$2" MAX="$3" KEY="flutter.$4" MODE="$5"
+if [[ "${QA_SMOKE:-0}" == 1 ]]; then MIN=80; MAX=80; fi
 UDID="$SIMULATOR_UDID"
 OUT="${SCREENSHOTS_DIR:-screenshots}"
 APP="ci-app/Runner.app"

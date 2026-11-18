@@ -24,6 +24,10 @@ environment = os.environ | {'SIMCTL_CHILD_MUSHAF_QA_TEST': '1',
 subprocess.run(['xcrun', 'simctl', 'launch', udid, bundle], env=environment, check=True,
                stdout=sys.stderr)
 attempts = []
+data = subprocess.check_output(['xcrun', 'simctl', 'get_app_container', udid, bundle, 'data'], text=True).strip()
+native_state = Path(data) / 'Documents/reader-qa-native.json'
+native = None
+passed = False
 with tempfile.TemporaryDirectory() as directory:
     screenshot = Path(directory) / 'orientation.png'
     for attempt in range(10):
@@ -33,9 +37,13 @@ with tempfile.TemporaryDirectory() as directory:
         data = screenshot.read_bytes()
         assert data[:8] == b'\x89PNG\r\n\x1a\n', 'Not a real PNG'
         width, height = struct.unpack('>II', data[16:24])
-        attempts.append({'width': width, 'height': height})
+        if native_state.exists():
+            try: native = json.loads(native_state.read_text())
+            except ValueError: pass
+        attempts.append({'width': width, 'height': height, 'native': native})
         if (width > height) == (desired == 'landscape'):
-            print(json.dumps({'orientation': desired, 'attempts': attempts}, indent=2))
+            passed = True
             break
-    else:
-        raise RuntimeError(f'iPad did not render {desired}: {attempts}')
+print(json.dumps({'orientation': desired, 'passed': passed, 'attempts': attempts}, indent=2))
+if not passed:
+    raise RuntimeError(f'iPad did not render {desired}; native state: {native}')

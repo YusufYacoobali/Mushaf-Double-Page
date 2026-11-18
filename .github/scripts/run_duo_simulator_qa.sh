@@ -135,6 +135,7 @@ echo "App launched; 851 Quran images exist. Capturing actual reader renders."
 failures=0
 run_case() {
   local label="$1" minimum="$2" maximum="$3"
+  if [[ "${QA_SMOKE:-0}" == 1 ]]; then minimum=80; maximum=80; fi
   echo "Capturing $label ($minimum% / $maximum%)"
   if ! bash .github/scripts/capture_duo_zoom.sh "$label" "$minimum" "$maximum"; then
     failures=$((failures+1))

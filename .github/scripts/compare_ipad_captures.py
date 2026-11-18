@@ -5,13 +5,14 @@ from pathlib import Path
 import sys
 from PIL import Image, ImageChops, ImageDraw
 
-root, output = map(Path, sys.argv[1:])
+root, output = map(Path, sys.argv[1:3])
+smoke = '--smoke' in sys.argv[3:]
 output.mkdir(parents=True, exist_ok=True)
 results = []
-for family in ['mini', 'ipad', 'air11', 'air13', 'pro11', 'pro13']:
+for family in (['mini'] if smoke else ['mini', 'ipad', 'air11', 'air13', 'pro11', 'pro13']):
     for orientation, minimum in [('portrait', 70), ('landscape', 60)]:
         rows = []
-        for percent in range(minimum, 101, 5):
+        for percent in ([80] if smoke else range(minimum, 101, 5)):
             name = f'ipad-{family}-{orientation}-{percent}.png'
             paths = []
             for version in ['v5', 'v6']:
