@@ -59,6 +59,8 @@ jobs:
           name: ${{ needs.reader.outputs.artifact_name }}
           path: reader-build
       - name: Extract verified build and install tools
+        id: duo_setup
+        continue-on-error: true
         run: |
           mkdir -p ci-app
           tar -xzf reader-build/ios-simulator-runner.tgz -C ci-app
@@ -74,6 +76,7 @@ jobs:
           key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - name: Capture every posture, min/max page fitting, all zoom steps and book gesture
         id: qa_capture
+        if: steps.duo_setup.outcome == 'success'
         continue-on-error: true
         env:
           DUO_TARGET: duo-smoke
@@ -81,22 +84,24 @@ jobs:
           READER_CAPTURE_PROFILE: endpoints
           READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
         run: bash .github/scripts/run_duo_simulator_qa.sh
-      - name: Record primary Duo evidence outcome for fresh-runner retry
-        if: always()
-        id: verdict
-        run: echo "visual_passed=${{ steps.qa_capture.outcome == 'success' }}" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/save@v4
         if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
         with:
           path: .ci/quran-pages
           key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - uses: actions/upload-artifact@v4
+        id: artifact_upload
         if: always()
+        continue-on-error: true
         with:
           name: all-v6-duo-layouts-and-zooms-primary
           path: screenshots/
           if-no-files-found: warn
           retention-days: 14
+      - name: Record actual primary Duo result (failed cases trigger clean Mac)
+        if: always()
+        id: verdict
+        run: echo "visual_passed=${{ steps.duo_setup.outcome == 'success' && steps.qa_capture.outcome == 'success' && steps.artifact_upload.outcome == 'success' }}" >> "$GITHUB_OUTPUT"
 
   duo-retry:
     name: Duo fresh-runner retry (only after an unsuccessful primary)
