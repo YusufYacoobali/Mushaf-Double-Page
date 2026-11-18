@@ -12,8 +12,16 @@ record() {
 echo "Simulator host $MODE: $(sw_vers -productVersion), Xcode=$(xcodebuild -version | head -1)"
 echo "Runner image: ${ImageOS:-unknown} / ${ImageVersion:-unknown}" > "$OUT/image.txt"
 { sw_vers; xcodebuild -version; df -h .; sysctl hw.memsize; vm_stat; } >> "$OUT/image.txt" 2>&1 || true
-record runtimes 50 xcrun simctl runtime list -j
-record devices 45 xcrun simctl list devices -j
+# On macos-15 the FIRST simctl call may spend up to 2.5 minutes mounting
+# runtimes (GitHub runner-images #15247). Killing it after 50s then repeating
+# only recreates the false "simulator unavailable" failure.
+if [[ "$MODE" == "preflight" ]]; then
+  record runtimes 200 xcrun simctl runtime list -j
+  record devices 105 xcrun simctl list devices -j
+else
+  record runtimes 75 xcrun simctl runtime list -j
+  record devices 75 xcrun simctl list devices -j
+fi
 if [[ "$MODE" == "diagnose" || "$MODE" == "recover" ]]; then
   record simulator-log 35 log show --last 7m --style compact --predicate 'process == "simdiskimaged" OR process == "cryptexd" OR process == "CoreSimulatorService"'
   { ps -axo pid,stat,command | grep -E 'CoreSimulator|SimLaunchHost|DeviceHub|Simulator\.app' || true; } > "$OUT/processes.txt"
