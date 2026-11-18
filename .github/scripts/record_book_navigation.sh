@@ -8,7 +8,8 @@ xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 bash .github/scripts/capture_duo_zoom.sh duo-half-open-book 80 80
 DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
 rm -f "$DATA/Documents/reader-qa.json"
-xcrun simctl launch "$UDID" "$BUNDLE_ID" > screenshots/book-navigation-app.log 2>&1
+SIMCTL_CHILD_MUSHAF_QA_TEST=1 SIMCTL_CHILD_MUSHAF_QA_ZOOM=0.8 \
+  xcrun simctl launch "$UDID" "$BUNDLE_ID" > screenshots/book-navigation-app.log 2>&1
 record_pid=""
 cleanup_recording() {
   if [[ -n "$record_pid" ]]; then

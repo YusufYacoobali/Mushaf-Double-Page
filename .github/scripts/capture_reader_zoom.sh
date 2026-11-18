@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Capture EVERY toolbar zoom step from the running reader. Set UserDefaults in
-# its daemon, then verify the rendered mode and zoom in the app's debug output.
-# v5 comparison builds predate that debug geometry marker.
+# Capture EVERY toolbar zoom step from the running reader. The CI-only native
+# launch input writes UserDefaults.standard in the actual app sandbox; external
+# defaults/plist edits cannot reliably invalidate that sandbox's cached values.
 set -Eeuo pipefail
 LABEL="$1" MIN="$2" MAX="$3" KEY="flutter.$4" MODE="$5"
 UDID="$SIMULATOR_UDID"
@@ -10,33 +10,15 @@ APP="ci-app/Runner.app"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
 mkdir -p "$OUT"
 DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
-PREFS="$DATA/Library/Preferences/$BUNDLE_ID.plist"
 for percent in $(seq "$MIN" 5 "$MAX"); do
   name="$OUT/$LABEL-$percent"
   xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
   value="$(python3 -c 'import sys;print(int(sys.argv[1])/100)' "$percent")"
-  # Preserve v5's proven two-part seeding: the app's real plist AND cfprefsd.
-  python3 - "$PREFS" "$KEY" "$value" <<'PY'
-import os, plistlib, sys
-path, key, value = sys.argv[1:]
-data = {}
-if os.path.exists(path):
-    with open(path, 'rb') as f: data = plistlib.load(f)
-data.update({key: float(value), 'flutter.CurrentPage1': 4,
-             'flutter.reader_controls_arrow_only': False,
-             'flutter.review_prompt_rate_chosen': True})
-with open(path, 'wb') as f: plistlib.dump(data, f, fmt=plistlib.FMT_BINARY)
-PY
-  xcrun simctl spawn "$UDID" defaults write "$BUNDLE_ID" "$KEY" -float "$value"
-  xcrun simctl spawn "$UDID" defaults write "$BUNDLE_ID" flutter.CurrentPage1 -int 4
-  live="$(xcrun simctl spawn "$UDID" defaults read "$BUNDLE_ID" "$KEY")"
-  python3 - "$live" "$value" > "$name-preference.txt" <<'PY'
-import math, sys
-assert math.isclose(float(sys.argv[1]), float(sys.argv[2]), abs_tol=.0001), sys.argv
-print(f"Verified live NSUserDefaults zoom={sys.argv[1]}; page=4")
-PY
+  echo "Native CI launch input: UserDefaults.standard $KEY=$value; page=4" > "$name-preference.txt"
   rm -f "$DATA/Documents/reader-qa.json"
-  xcrun simctl launch "$UDID" "$BUNDLE_ID" > "$name-app.log" 2>&1
+  SIMCTL_CHILD_MUSHAF_QA_TEST=1 SIMCTL_CHILD_MUSHAF_QA_ZOOM="$value" \
+    SIMCTL_CHILD_MUSHAF_QA_ORIENTATION="${READER_ORIENTATION:-}" \
+    xcrun simctl launch "$UDID" "$BUNDLE_ID" > "$name-app.log" 2>&1
   sleep 12
   ready=0
   for attempt in 1 2 3 4 5 6; do

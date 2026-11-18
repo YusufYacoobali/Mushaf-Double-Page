@@ -75,6 +75,7 @@ done
 export SIMULATOR_UDID="$UDID" CAPTURE_DEVICE=ipad SCREENSHOTS_DIR=screenshots-ipad
 failures=0
 for orientation in portrait landscape; do
+  export READER_ORIENTATION="$orientation"
   if python3 .github/scripts/simulator_orientation.py "$UDID" "$orientation" > "screenshots-ipad/$FAMILY-$orientation-state.json"; then
     if [[ "$orientation" == portrait ]]; then
       minimum=70; key=quran_single_page_scale; mode=single

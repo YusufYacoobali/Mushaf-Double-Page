@@ -88,9 +88,22 @@ wait_for_real_quran_pages() {
   return 1
 }
 ready=0
+wait_for_active_display() {
+  local n
+  for n in 1 2 3 4 5; do
+    if duoctl state > screenshots/duo-startup-state.json; then return 0; fi
+    echo "Duo display is not active yet ($n/5)"
+    if [[ "$n" == 2 ]]; then
+      duoctl open || true
+      duoctl close || true
+    fi
+    sleep 4
+  done
+  return 1
+}
 for attempt in 1 2; do
   echo "Starting isolated Duo attempt $attempt/2"
-  if new_device && start_app && wait_for_real_quran_pages; then
+  if new_device && start_app && wait_for_real_quran_pages && wait_for_active_display; then
     ready=1
     break
   fi

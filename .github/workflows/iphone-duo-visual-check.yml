@@ -36,43 +36,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ matrix.version == 'v5' && '1df8a49e646f61355feafc790431ee3209f61c6c' || github.sha }}
-      # Reuse the already compiled app when only QA scripts changed. Prove the
-      # application source matches that artifact; expired artifacts fall back
-      # to a normal build. Both build refs are pinned, not moving branch names.
-      - name: Check reusable simulator build provenance
-        id: source
-        env:
-          BUILD_REF: ${{ matrix.version == 'v5' && '1df8a49e646f61355feafc790431ee3209f61c6c' || 'c38d63d98cb25ab043aeb464ad2e28090bf6227b' }}
-        run: |
-          git fetch --depth=1 origin "$BUILD_REF"
-          if git diff --quiet "$BUILD_REF" HEAD -- lib ios pubspec.yaml pubspec.lock; then
-            echo 'reuse=true' >> "$GITHUB_OUTPUT"
-            echo "Application source matches verified build ref $BUILD_REF"
-          fi
-      - uses: actions/download-artifact@v4
-        id: reuse-app
-        if: steps.source.outputs.reuse == 'true'
-        continue-on-error: true
+      - uses: actions/checkout@v4
         with:
-          name: quran-ios-simulator-${{ matrix.version }}
-          run-id: 44285311302
-          github-token: ${{ github.token }}
+          ref: ${{ github.sha }}
+          path: qa-tools
+          sparse-checkout: .github/scripts/prepare_simulator_qa.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Prepare identical native test inputs for v5 and v6
+        run: python3 qa-tools/.github/scripts/prepare_simulator_qa.py
       - uses: subosito/flutter-action@v2
-        if: steps.reuse-app.outcome != 'success'
         with:
           channel: stable
           flutter-version: '3.38.1'
           cache: true
       - name: Install Flutter dependencies
-        if: steps.reuse-app.outcome != 'success'
         run: flutter pub get
       - name: Verify UIScene migration
-        if: steps.reuse-app.outcome != 'success'
         run: |
           /usr/libexec/PlistBuddy -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' ios/Runner/Info.plist | grep SceneDelegate
           grep -q 'FlutterImplicitEngineDelegate' ios/Runner/AppDelegate.swift
       - name: Set Xcode 27-only simulator minimum targets
-        if: steps.reuse-app.outcome != 'success'
         shell: bash
         run: |
           set -euo pipefail
@@ -90,10 +74,8 @@ jobs:
           File.write(path, text.sub(marker, marker + override.lines.map { |line| '    ' + line }.join))
           RUBY
       - name: Build Flutter simulator app (arm64)
-        if: steps.reuse-app.outcome != 'success'
         run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub
       - name: Archive simulator application with permissions preserved
-        if: steps.reuse-app.outcome != 'success'
         run: |
           test -d build/ios/iphonesimulator/Runner.app
           tar -czf ios-simulator-runner.tgz -C build/ios/iphonesimulator Runner.app
