@@ -38,16 +38,13 @@ for attempt in 1 2; do
   export DUOCTL_UDID="$UDID"
   booted=0
   if op boot 90 xcrun simctl boot "$UDID"; then
-    # Xcode 27 uses Device Hub, not the old Simulator.app. Attach its real
-    # display panel; a merely Booted CoreSimulator state is not sufficient.
-    op device-hub 35 open -b com.apple.dt.Devices "devices://manage/select?id=$UDID" || true
-    if ! op bootstatus 230 xcrun simctl bootstatus "$UDID" -b; then
-      echo "::warning::Duo bootstatus stalled; testing actual display readiness"
+    # Do not launch a GUI window or gate installation on duoctl here. The
+    # proven v5 pipeline launched the real app first, then queried the lit
+    # display. Device Hub startup competed for the same cold CoreSimulator.
+    if ! op bootstatus 235 xcrun simctl bootstatus "$UDID" -b; then
+      echo "::warning::Duo bootstatus slow; app installation will verify readiness"
     fi
-    if op display-ready 60 duoctl state &&
-       op display-capture 60 duoctl screenshot "screenshots/duo-startup-$attempt.png"; then
-      booted=1
-    fi
+    booted=1
   fi
   if [[ "$booted" == 1 ]]; then
     if op install 150 xcrun simctl install "$UDID" "$APP" &&
@@ -76,6 +73,16 @@ if [[ "$STARTUP_READY" != 1 ]]; then
   exit 1
 fi
 op download 540 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
+# The app is installed, started, and its 851 real page assets exist before
+# calling the slow duoctl guest helper. This is the previously proven order.
+op display-ready 135 bash -c 'duoctl state > screenshots/duo-reader-start-state.json'
+op display-capture 110 duoctl screenshot screenshots/duo-reader-start.png
+# Dismiss the actual first-run iOS permission prompt only if it is visible;
+# blindly tapping these coordinates on an already-ready reader is unsafe.
+if command -v tesseract >/dev/null && tesseract screenshots/duo-reader-start.png stdout 2>/dev/null | grep -Eiq 'Don.t Allow|Notifications'; then
+  op permission 75 duoctl tap 120 385 || true
+  op after-permission 100 duoctl screenshot screenshots/duo-after-permission.png || true
+fi
 CASE="${READER_TEST_CASE:-layout}"
 TARGET="${DUO_TARGET:-duo-smoke}"
 PROFILE="${READER_CAPTURE_PROFILE:-smoke}"
@@ -84,10 +91,19 @@ if [[ "$TARGET" != duo-smoke ]]; then MODES="${TARGET#duo-}"; fi
 for mode in $MODES; do
  export READER_CASE="$mode"
  case "$mode" in
-  folded) op posture 45 duoctl close; LABEL=duo-folded; MIN=70; EXPECT=single ;;
-  portrait) op posture 45 duoctl open; op rotation 45 duoctl rotate portrait; LABEL=duo-unfolded-portrait; MIN=70; EXPECT=single ;;
-  landscape) op posture 45 duoctl open; op rotation 45 duoctl rotate landscape; LABEL=duo-unfolded-wide; MIN=60; EXPECT=spread ;;
-  book) op posture 45 duoctl half; op rotation 45 duoctl rotate landscape; LABEL=duo-half-open-book; MIN=60; EXPECT=dualScreenBook ;;
+  folded)
+   # A fresh Duo is normally closed. Avoid an unnecessary hinge transition
+   # that previously hung the runner before the first actual screenshot.
+   if ! python3 - <<'PY'
+import json
+s=json.load(open('screenshots/duo-reader-start-state.json'))
+raise SystemExit(0 if s.get('activeScreen')=='cover' and float(s.get('hingeAngle',-1))<=15 else 1)
+PY
+   then op posture 110 duoctl close --duration 1.5; fi
+   LABEL=duo-folded; MIN=70; EXPECT=single ;;
+  portrait) op posture 110 duoctl open --duration 1.5; op rotation 90 duoctl rotate portrait; LABEL=duo-unfolded-portrait; MIN=70; EXPECT=single ;;
+  landscape) op posture 110 duoctl open --duration 1.5; op rotation 90 duoctl rotate landscape; LABEL=duo-unfolded-wide; MIN=60; EXPECT=spread ;;
+  book) op posture 110 duoctl half --duration 1.5; op rotation 90 duoctl rotate landscape; LABEL=duo-half-open-book; MIN=60; EXPECT=dualScreenBook ;;
   *) echo "Unknown Duo target $TARGET" >&2; exit 2 ;;
  esac
  sleep 1
