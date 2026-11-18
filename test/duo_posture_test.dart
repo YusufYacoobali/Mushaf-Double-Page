@@ -93,6 +93,7 @@ void main() {
         final oldGeneration = paging.generation;
         paging.configure(ReaderPageMode.dualScreenBook);
         expect(paging.visiblePages, [page, if (page < 851) page + 1]);
+        expect(paging.pagesFor(page), paging.visiblePages);
         final index = paging.indexFor(page);
         expect(paging.changed(index + 1, oldGeneration), isFalse);
         if (page + 2 <= 851) {

@@ -13,7 +13,10 @@ for family in ['mini', 'ipad', 'air11', 'air13', 'pro11', 'pro13']:
         rows = []
         for percent in range(minimum, 101, 5):
             name = f'ipad-{family}-{orientation}-{percent}.png'
-            paths = [root / f'quran-ipad-{family}-{version}' / name for version in ['v5', 'v6']]
+            paths = []
+            for version in ['v5', 'v6']:
+                matches = list(root.glob(f'quran-ipad-{family}-{version}*/{name}'))
+                paths.append(matches[0] if matches else root / 'missing' / name)
             if not all(p.exists() for p in paths):
                 results.append({'capture': name, 'error': 'Missing screenshot', 'pass': False})
                 continue

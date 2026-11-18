@@ -178,9 +178,40 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}
-          path: screenshots-ipad/
+          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-diagnostics
+          path: |
+            screenshots-ipad/*.json
+            screenshots-ipad/*.txt
+            screenshots-ipad/*.log
           if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-portrait-low
+          path: screenshots-ipad/ipad-*-portrait-[78]*.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-portrait-high
+          path: screenshots-ipad/ipad-*-portrait-[19]*.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-landscape-low
+          path: |
+            screenshots-ipad/ipad-*-landscape-[67]*.png
+            screenshots-ipad/ipad-*-landscape-80.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-landscape-high
+          path: |
+            screenshots-ipad/ipad-*-landscape-85.png
+            screenshots-ipad/ipad-*-landscape-[19]*.png
           retention-days: 14
 
   compare-ipads:

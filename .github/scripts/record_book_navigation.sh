@@ -4,6 +4,7 @@
 set -Eeuo pipefail
 UDID="$DUOCTL_UDID"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' ci-app/Runner.app/Info.plist)
+xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 xcrun simctl spawn "$UDID" defaults write "$BUNDLE_ID" flutter.CurrentPage1 -int 4
 xcrun simctl spawn "$UDID" defaults write "$BUNDLE_ID" flutter.quran_landscape_page_scale -float 0.8
 xcrun simctl launch --console-pty "$UDID" "$BUNDLE_ID" > screenshots/book-navigation-app.log 2>&1 &

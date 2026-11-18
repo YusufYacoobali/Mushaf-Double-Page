@@ -385,8 +385,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     return maxFilePage + 1;
   }
 
-  int get _firstVisiblePage =>
-      PageMapper.visiblePages(_logicalPage, _singlePage, maxFilePage).first;
+  int get _firstVisiblePage => _paging!.pagesFor(_logicalPage).first;
 
   String imagePath(int logicalPage) {
     final filePage = logicalPage.clamp(1, maxFilePage);
@@ -893,11 +892,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     // Pre-select the indexed current page's (or landscape spread's) dominant
     // surah and ayah range so playback defaults to "this page".
     if (PageAyahIndex.supportsMushaf(_mushaf)) {
-      final pages = PageMapper.visiblePages(
-        _logicalPage,
-        _singlePage,
-        maxFilePage,
-      );
+      final pages = _paging!.pagesFor(_logicalPage);
       final segments = PageAyahIndex.segmentsForPages(pages, mushaf: _mushaf);
       if (segments.isNotEmpty) {
         // The surah occupying the most ayahs on the page best represents it.

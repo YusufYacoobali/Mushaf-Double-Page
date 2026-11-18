@@ -31,16 +31,17 @@ class ReaderPaging {
   int firstPageAt(int index) => book
       ? _bookStart + index * 2
       : PageMapper.logicalFromPageIndex(index, singlePage);
-  List<int> get visiblePages => book
+  List<int> get visiblePages => pagesFor(focusedPage);
+  List<int> pagesFor(int page) => book
       ? [
           for (
-            var p = firstPageAt(indexFor(focusedPage));
-            p < firstPageAt(indexFor(focusedPage)) + 2;
+            var p = firstPageAt(indexFor(page));
+            p < firstPageAt(indexFor(page)) + 2;
             p++
           )
             if (p >= 1 && p <= lastPage) p,
         ]
-      : PageMapper.visiblePages(focusedPage, singlePage, lastPage);
+      : PageMapper.visiblePages(page, singlePage, lastPage);
 
   void configure(ReaderPageMode next, {bool force = false}) {
     if (_controller != null && mode == next && !force) return;
