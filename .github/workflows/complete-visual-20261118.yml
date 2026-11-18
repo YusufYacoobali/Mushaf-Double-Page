@@ -107,7 +107,7 @@ jobs:
   duo-retry:
     name: Duo fresh-runner retry (only after an unsuccessful primary)
     needs: [reader, duo]
-    if: !cancelled() && needs.reader.result == 'success' && needs.duo.outputs.visual_passed != 'true'
+    if: ${{ !cancelled() && needs.reader.result == 'success' && needs.duo.outputs.visual_passed != 'true' }}
     runs-on: xcode-27
     timeout-minutes: 65
     concurrency:
@@ -166,7 +166,7 @@ jobs:
 
   verify-visual-evidence:
     name: Accept only real Duo and iPad layout/zoom screenshots
-    if: !cancelled()
+    if: ${{ !cancelled() }}
     needs: [duo, duo-retry, ipad-mini-and-pro13]
     runs-on: ubuntu-latest
     timeout-minutes: 10
