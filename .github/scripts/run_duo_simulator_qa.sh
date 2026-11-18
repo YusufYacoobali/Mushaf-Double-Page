@@ -15,7 +15,7 @@ cleanup() {
  if [[ -n "$UDID" ]]; then
   # Do not waste time trying to capture an unresponsive simulator display.
   if [[ "$STARTUP_READY" == 1 ]]; then op screenshot 45 duoctl screenshot screenshots/final-frame.png || true; fi
-  if [[ "$status" -ne 0 ]]; then op diagnostics 45 xcrun simctl list devices -j || true; fi
+  if [[ "$status" -ne 0 ]]; then bash .github/scripts/simulator_host_health.sh diagnose screenshots/host-health || true; fi
   op shutdown 45 xcrun simctl shutdown "$UDID" || true
   op delete 45 xcrun simctl delete "$UDID" || true
  fi
@@ -26,6 +26,8 @@ trap cleanup EXIT
 # Require responsive physical display evidence, not merely a state flag.
 # Recover at most once with a NEW isolated Duo instead of restarting all QA.
 CACHE="${READER_ASSET_CACHE:-$PWD/.ci/quran-pages}"
+# Prime the host simulator services and record its actual runtime mount state.
+bash .github/scripts/simulator_host_health.sh preflight screenshots/host-preflight || true
 for attempt in 1 2; do
   echo "Starting Duo simulator attempt $attempt/2"
   DATA=""
@@ -36,6 +38,9 @@ for attempt in 1 2; do
   export DUOCTL_UDID="$UDID"
   booted=0
   if op boot 90 xcrun simctl boot "$UDID"; then
+    # Xcode 27 uses Device Hub, not the old Simulator.app. Attach its real
+    # display panel; a merely Booted CoreSimulator state is not sufficient.
+    op device-hub 35 open -b com.apple.dt.Devices "devices://manage/select?id=$UDID" || true
     if ! op bootstatus 230 xcrun simctl bootstatus "$UDID" -b; then
       echo "::warning::Duo bootstatus stalled; testing actual display readiness"
     fi
@@ -60,6 +65,11 @@ for attempt in 1 2; do
   op shutdown 60 xcrun simctl shutdown "$UDID" || true
   op delete 60 xcrun simctl delete "$UDID" || true
   UDID=""
+  if [[ "$attempt" == 1 ]]; then
+    # Discarding the simulated device alone left the *same* blocked host
+    # service in both previous attempts. Recover that service exactly once.
+    bash .github/scripts/simulator_host_health.sh recover screenshots/host-recovery || true
+  fi
 done
 if [[ "$STARTUP_READY" != 1 ]]; then
   echo "::error::Both isolated Duo startup attempts failed; see stage diagnostics"
