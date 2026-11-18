@@ -61,6 +61,9 @@ TEST_DATA=$(xcrun simctl get_app_container "$UDID" org.mushaf.visualqa.tests.xct
 if [[ -n "$TEST_DATA" ]]; then
   cp "$TEST_DATA/Documents/reader-qa/portrait.png" "$OUTPUT/ipad-$DEVICE-portrait-after-18s.png" || true
   cp "$TEST_DATA/Documents/reader-qa/landscape.png" "$OUTPUT/ipad-$DEVICE-landscape.png" || true
+  for frame in portrait-70 portrait-100 landscape-60 landscape-100; do
+    cp "$TEST_DATA/Documents/reader-qa/$frame.png" "$OUTPUT/ipad-$DEVICE-$frame.png" || true
+  done
 fi
 python3 - "$OUTPUT" "$DEVICE" <<'PY'
 from pathlib import Path

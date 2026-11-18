@@ -14,6 +14,7 @@ final class ReaderVisualTests: XCTestCase {
     Thread.sleep(forTimeInterval: 18)
     dismissNotification()
     try capture("portrait.png")
+    try captureZooms(reader, orientation: "portrait", minimum: 70)
 
     XCUIDevice.shared.orientation = .landscapeLeft
     waitForOrientation(reader, landscape: true)
@@ -31,6 +32,27 @@ final class ReaderVisualTests: XCTestCase {
     Thread.sleep(forTimeInterval: 0.5)
     try capture("landscape.png")
     XCTAssertTrue(zoom.waitForExistence(timeout: 3), "Landscape reader must expose its original 70% zoom")
+    try captureZooms(reader, orientation: "landscape", minimum: 60)
+  }
+
+  @MainActor
+  private func captureZooms(_ reader: XCUIApplication, orientation: String, minimum: Int) throws {
+    for target in [minimum, 100] {
+      for _ in 0..<24 {
+        let label = reader.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^(60|65|70|75|80|85|90|95|100)%$")).firstMatch
+        if !label.exists || !label.isHittable {
+          reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch.tap()
+          continue
+        }
+        let current = Int(label.label.replacingOccurrences(of: "%", with: ""))!
+        if current == target { break }
+        let action = current < target ? "Zoom in" : "Zoom out"
+        reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", action)).firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.2)
+      }
+      XCTAssertTrue(reader.staticTexts["\(target)%"].waitForExistence(timeout: 3))
+      try capture("\(orientation)-\(target).png")
+    }
   }
 
   @MainActor

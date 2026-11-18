@@ -5,13 +5,13 @@ on:
       source_run_id:
         description: Verified reader simulator build run
         type: string
-        default: '44333730110'
+        default: '44354643075'
   workflow_call:
     inputs:
       source_run_id:
         type: string
         required: false
-        default: '44333730110'
+        default: '44354643075'
 permissions:
   actions: read
   contents: read
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: quran-ios-duo-simulator-build
-          run-id: ${{ inputs.source_run_id || '44333730110' }}
+          run-id: ${{ inputs.source_run_id || '44354643075' }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
@@ -82,4 +82,17 @@ jobs:
         with:
           name: quran-ipad-${{ matrix.device }}-v5
           path: screenshots-native/${{ matrix.device }}-v5/
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-portrait-endpoints
+          path: screenshots-native/${{ matrix.device }}-*/ipad-*-portrait*.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-landscape-endpoints
+          path: screenshots-native/${{ matrix.device }}-*/ipad-*-landscape*.png
           retention-days: 14

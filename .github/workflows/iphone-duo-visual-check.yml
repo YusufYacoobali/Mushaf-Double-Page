@@ -39,9 +39,9 @@ jobs:
         run: |
           # This verified build remains reusable for QA-only changes. A cache
           # miss or any application change falls back to the original build.
-          source_sha=7e3b7119e47f80b77a3a0fb5b38279426aa689b3
+          source_sha=a6005823141733078ed02fe08b39c708a2480905
           git cat-file -e "$source_sha^{commit}" 2>/dev/null || git fetch --depth=1 origin "$source_sha"
-          if git cat-file -e "$source_sha^{commit}" 2>/dev/null && git diff --quiet "$source_sha" HEAD -- . ':(exclude).github/**' ':(exclude)test/**'; then
+          if git cat-file -e "$source_sha^{commit}" 2>/dev/null && git diff --quiet "$source_sha" HEAD -- . ':(exclude).github/**' ':(exclude)test/**' ':(exclude)tools/ios_ui_qa/**'; then
             echo 'unchanged=true' >> "$GITHUB_OUTPUT"
           fi
       - name: Reuse verified unchanged simulator application
@@ -51,7 +51,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: quran-ios-duo-simulator-build
-          run-id: '44333730110'
+          run-id: '44354643075'
           github-token: ${{ github.token }}
       - uses: subosito/flutter-action@v2
         if: steps.prior_build.outcome != 'success'
@@ -97,7 +97,7 @@ jobs:
         with:
           name: quran-ios-duo-simulator-build
           path: ios-simulator-runner.tgz
-          retention-days: 2
+          retention-days: 14
           if-no-files-found: error
 
   iphone-duo:
