@@ -1,4 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../pages/page_view.dart';
 import '../utils/reader_layout.dart';
 import '../utils/reader_paging.dart';
@@ -120,7 +123,15 @@ class AdaptiveQuranPages extends StatelessWidget {
         key: ValueKey('reader-pager-$generation'),
         controller: paging.controller,
         reverse: true,
-        physics: const ClampingScrollPhysics(),
+        pageSnapping: !paging.book,
+        physics: paging.book
+            ? _BookPagePhysics(
+                panelWidth: layout.pageRegions
+                    .map((r) => r.width)
+                    .reduce(math.min),
+                parent: const ClampingScrollPhysics(),
+              )
+            : const ClampingScrollPhysics(),
         itemCount: paging.pageCount,
         onPageChanged: (index) {
           if (paging.changed(index, generation)) {
@@ -153,5 +164,54 @@ class AdaptiveQuranPages extends StatelessWidget {
             : spread(index),
       ),
     );
+  }
+}
+
+/// A deliberate drag within one leaf must turn the two-page book. Flutter's
+/// default distance threshold is half the combined viewport, beyond one panel.
+/// Keep its fling handling and spring; change only the slow-drag threshold.
+class _BookPagePhysics extends PageScrollPhysics {
+  const _BookPagePhysics({required this.panelWidth, super.parent});
+  final double panelWidth;
+
+  @override
+  _BookPagePhysics applyTo(ScrollPhysics? ancestor) =>
+      _BookPagePhysics(panelWidth: panelWidth, parent: buildParent(ancestor));
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    final tolerance = toleranceFor(position);
+    if (position is! ScrollPosition ||
+        position.viewportDimension <= 0 ||
+        position.outOfRange ||
+        velocity.abs() > tolerance.velocity ||
+        position.userScrollDirection == ScrollDirection.idle) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+    final threshold = (panelWidth / 2 / position.viewportDimension).clamp(
+      0.0,
+      .5,
+    );
+    final shift =
+        (.5 - threshold) *
+        (position.userScrollDirection == ScrollDirection.reverse ? 1 : -1);
+    final target =
+        ((position.pixels / position.viewportDimension + shift)
+                    .roundToDouble() *
+                position.viewportDimension)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    return target == position.pixels
+        ? null
+        : ScrollSpringSimulation(
+            spring,
+            position.pixels,
+            target,
+            velocity,
+            tolerance: tolerance,
+          );
   }
 }

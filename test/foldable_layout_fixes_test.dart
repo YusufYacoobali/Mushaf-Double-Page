@@ -392,10 +392,27 @@ void main() {
           expect(next.width, closeTo(current.width, .001));
           expect(next.height, closeTo(current.height, .001));
           expect(find.byType(SingleChildScrollView), findsNothing);
-          await tester.drag(find.byType(PageView), const Offset(800, 0));
+          final short = await tester.startGesture(const Offset(540, 300));
+          await short.moveTo(const Offset(600, 300));
+          await tester.pump(const Duration(milliseconds: 250));
+          await short.up();
+          await tester.pumpAndSettle();
+          expect(paging.visiblePages, [4, 5]);
+          // One screen cannot provide a drag across half the combined window.
+          // Pause before releasing to check distance-based snapping, not fling.
+          final swipe = await tester.startGesture(const Offset(540, 300));
+          await swipe.moveTo(const Offset(900, 300));
+          await tester.pump(const Duration(milliseconds: 250));
+          await swipe.up();
           await tester.pumpAndSettle();
           expect(paging.visiblePages, [6, 7]);
           expect(paging.focusedPage, 6);
+          final back = await tester.startGesture(const Offset(780, 300));
+          await back.moveTo(const Offset(480, 300));
+          await tester.pump(const Duration(milliseconds: 250));
+          await back.up();
+          await tester.pumpAndSettle();
+          expect(paging.visiblePages, [4, 5]);
           await tester.pumpWidget(const SizedBox());
           paging.dispose();
         },

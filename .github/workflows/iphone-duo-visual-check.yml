@@ -162,6 +162,7 @@ jobs:
             screenshots/duo-half-open-book-min-*.png
             screenshots/duo-half-open-book-max-*.png
             screenshots/duo-half-open-book-after-swipe.png
+            screenshots/duo-book-swipe-result.json
           retention-days: 14
 
       - uses: actions/upload-artifact@v4
@@ -174,8 +175,83 @@ jobs:
           retention-days: 14
 
   ipad-native:
-    name: Compare iPads with v5
     needs: build-simulator
-    uses: ./.github/workflows/ipad-native-visual-check.yml
-    with:
-      source_run_id: ${{ github.run_id }}
+    name: Native iPad ${{ matrix.device }} v5/v6 screenshots
+    runs-on: macos-15
+    timeout-minutes: 40
+    concurrency:
+      group: reader-ipad-combined-${{ github.ref }}-${{ matrix.device }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mini, pro11, pro13]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          run-id: ${{ github.run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          run-id: '44183372666'
+          github-token: ${{ github.token }}
+          path: v5-build
+      - name: Prepare original reader applications and separate XCTest host
+        id: prepare
+        run: |
+          mkdir -p ci-app ci-app-v5
+          tar -xzf ios-simulator-runner.tgz -C ci-app
+          tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
+          brew install xcodegen
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+          python3 - <<'PY'
+          import json, plistlib
+          from pathlib import Path
+          with open('ci-app/Runner.app/Info.plist', 'rb') as f:
+              identifier = plistlib.load(f)['CFBundleIdentifier']
+          Path('tools/ios_ui_qa/ReaderAppIdentity.swift').write_text('enum ReaderAppIdentity { static let bundleID = ' + json.dumps(identifier) + ' }\n')
+          PY
+          xcodegen generate --spec tools/ios_ui_qa/project.yml
+          xcodebuild build-for-testing -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj -scheme ReaderVisualTests -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ui-build CODE_SIGNING_ALLOWED=NO
+      - name: Capture original v6 app through Apple UI testing
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v6
+        run: bash tools/ios_ui_qa/capture_ipad.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-v6
+          path: screenshots-native/${{ matrix.device }}-v6/
+          retention-days: 14
+      - name: Capture original v5 app through Apple UI testing
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v5
+          IPAD_APP: ci-app-v5/Runner.app
+        run: bash tools/ios_ui_qa/capture_ipad.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-v5
+          path: screenshots-native/${{ matrix.device }}-v5/
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-portrait-endpoints
+          path: screenshots-native/${{ matrix.device }}-*/ipad-*-portrait*.png
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-landscape-endpoints
+          path: screenshots-native/${{ matrix.device }}-*/ipad-*-landscape*.png
+          retention-days: 14

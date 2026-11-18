@@ -182,6 +182,22 @@ PY
     kill -INT "$video_pid" 2>/dev/null || true
     wait "$video_pid" || true
   fi
+  # An animation alone is not proof that the turn committed. Check the real
+  # reader's persisted focus, then inspect the captured page numbers visually.
+  DATA=$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)
+  python3 - "$DATA/Library/Preferences/$BUNDLE_ID.plist" <<'PY'
+import json, plistlib, sys, time
+page = None
+for _ in range(20):
+    with open(sys.argv[1], 'rb') as f:
+        page = plistlib.load(f).get('flutter.CurrentPage1')
+    if page == 6:
+        break
+    time.sleep(0.5)
+with open('screenshots/duo-book-swipe-result.json', 'w') as f:
+    json.dump({'expectedFocusedPage': 6, 'observedFocusedPage': page}, f)
+assert page == 6, f'Book swipe did not advance by two pages: focused page={page}'
+PY
 else
   echo "::error::Unable to enter half-open book posture"
   failures=$((failures+1))
