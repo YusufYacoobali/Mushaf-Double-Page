@@ -1,0 +1,95 @@
+name: One-off complete v6 layout and zoom QA
+run-name: Full v6 visual QA — Duo, iPad mini, 13-inch Pro (no 11-inch)
+on:
+  push:
+    branches: [v6]
+    paths:
+      - '.github/complete-visual-20261118.request'
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  fast-checks:
+    name: Gate on existing full Flutter checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse fast checks on this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/require_fast_checks.py
+
+  reader:
+    needs: fast-checks
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      role: reader
+      policy: auto
+
+  reference:
+    needs: fast-checks
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      source_ref: v5
+      role: v5
+      policy: auto
+
+  duo:
+    name: Duo — four postures / min and max zoom / all controls and book swipe
+    needs: reader
+    runs-on: xcode-27
+    timeout-minutes: 55
+    concurrency:
+      group: reader-duo-device-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.reader.outputs.artifact_name }}
+          path: reader-build
+      - name: Extract verified build and install tools
+        run: |
+          mkdir -p ci-app
+          tar -xzf reader-build/ios-simulator-runner.tgz -C ci-app
+          test -f ci-app/Runner.app/Info.plist
+          brew install skarol/tap/duoctl tesseract
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache/restore@v4
+        id: pages
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - name: Capture every posture, min/max page fitting, all zoom steps and book gesture
+        env:
+          DUO_TARGET: duo-smoke
+          READER_TEST_CASE: all
+          READER_CAPTURE_PROFILE: endpoints
+          READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
+        run: bash .github/scripts/run_duo_simulator_qa.sh
+      - uses: actions/cache/save@v4
+        if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: all-v6-duo-layouts-and-zooms
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+  ipad-mini-and-pro13:
+    name: iPads — mini and 13-inch, v5 comparison and all zooms
+    needs: [reader, reference]
+    uses: ./.github/workflows/ipad-native-visual-check.yml
+    with:
+      devices: '["mini","pro13"]'
+      test_case: all
+      artifact_name: ${{ needs.reader.outputs.artifact_name }}
+      reference_artifact: ${{ needs.reference.outputs.artifact_name }}
