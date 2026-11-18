@@ -1,22 +1,17 @@
 name: iPad native UI visual check
 on:
-  push:
-    branches: [v6]
-    paths:
-      - '.github/workflows/ipad-native-visual-check.yml'
-      - 'tools/ios_ui_qa/**'
   workflow_dispatch:
     inputs:
       source_run_id:
         description: Verified reader simulator build run
         type: string
-        default: '44354643075'
+        default: '44363169872'
   workflow_call:
     inputs:
       source_run_id:
         type: string
         required: false
-        default: '44354643075'
+        default: '44363169872'
 permissions:
   actions: read
   contents: read
@@ -37,7 +32,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: quran-ios-duo-simulator-build
-          run-id: ${{ inputs.source_run_id || '44354643075' }}
+          run-id: ${{ inputs.source_run_id || '44363169872' }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:

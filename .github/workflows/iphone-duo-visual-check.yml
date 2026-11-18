@@ -37,7 +37,7 @@ jobs:
         run: |
           # This verified build remains reusable for QA-only changes. A cache
           # miss or any application change falls back to the original build.
-          source_sha=a6005823141733078ed02fe08b39c708a2480905
+          source_sha=03d3cd5667140475e3f2f8c905cf829eaa2f1350
           git cat-file -e "$source_sha^{commit}" 2>/dev/null || git fetch --depth=1 origin "$source_sha"
           if git cat-file -e "$source_sha^{commit}" 2>/dev/null && git diff --quiet "$source_sha" HEAD -- . ':(exclude).github/**' ':(exclude)test/**' ':(exclude)tools/ios_ui_qa/**'; then
             echo 'unchanged=true' >> "$GITHUB_OUTPUT"
@@ -49,7 +49,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: quran-ios-duo-simulator-build
-          run-id: '44354643075'
+          run-id: '44363169872'
           github-token: ${{ github.token }}
       - uses: subosito/flutter-action@v2
         if: steps.prior_build.outcome != 'success'
@@ -180,7 +180,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 40
     concurrency:
-      group: reader-ipad-combined-${{ github.ref }}-${{ matrix.device }}
+      group: reader-ipad-${{ github.ref }}-${{ matrix.device }}
       cancel-in-progress: true
     strategy:
       fail-fast: false

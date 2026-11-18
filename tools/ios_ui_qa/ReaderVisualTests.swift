@@ -38,7 +38,19 @@ final class ReaderVisualTests: XCTestCase {
   @MainActor
   private func captureZooms(_ reader: XCUIApplication, orientation: String, minimum: Int) throws {
     for target in [minimum, 100] {
-      for _ in 0..<24 {
+      for step in 0..<24 {
+        // Zoom taps do not restart the reader's ten-second hide timer. Renew
+        // it before each target and every three taps, before reading AX labels.
+        if step % 3 == 0 {
+          let collapse = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Collapse navigation")).firstMatch
+          if collapse.exists {
+            collapse.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+          }
+          let open = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
+          if open.waitForExistence(timeout: 1) {
+            open.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+          }
+        }
         let label = reader.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^(60|65|70|75|80|85|90|95|100)%$")).firstMatch
         if !label.exists || !label.isHittable {
           let tab = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
