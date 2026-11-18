@@ -8,7 +8,10 @@ import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
+import 'package:mushaf_two_page/utils/audio_page_follower.dart';
+import 'package:mushaf_two_page/utils/audio_vertical_follower.dart';
 import 'package:mushaf_two_page/utils/ios_display_regions.dart';
+import 'package:mushaf_two_page/utils/page_ayah_index.dart';
 import 'package:mushaf_two_page/utils/reader_layout.dart';
 import 'package:mushaf_two_page/utils/reader_paging.dart';
 
@@ -98,6 +101,7 @@ void main() {
   late Directory fixtures;
   late String image;
   setUpAll(() async {
+    await PageAyahIndex.load();
     fixtures = await Directory.systemTemp.createTemp('fitted_book_');
     image = '${fixtures.path}/page.png';
     final recorder = ui.PictureRecorder();
@@ -110,6 +114,142 @@ void main() {
     picture.dispose();
   });
   tearDownAll(() => fixtures.delete(recursive: true));
+
+  testWidgets(
+    'folding keeps focused selection, audio and persistence on the same page',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = window;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final paging = ReaderPaging(initialPage: 4, lastPage: 851);
+      final audio = AudioPageFollower();
+      final measured = <int>[];
+      final vertical = AudioVerticalFollower(
+        rectsFor: (page, surah, ayah, mushaf) {
+          measured.add(page);
+          return page == 5 ? const [Rect.fromLTWH(.2, .3, .4, .05)] : [];
+        },
+      );
+      final persisted = <int>[];
+      var selected = 5, book = true, cover = false;
+      var cycle = 0;
+      late StateSetter refresh;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, update) {
+              refresh = update;
+              return Scaffold(
+                body: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final layout = ReaderLayout.resolve(
+                      size: constraints.biggest,
+                      iosPhoneWidePortrait: true,
+                      foldedCover: cover,
+                      displayFeatures: book ? [hinge] : [],
+                    );
+                    return AdaptiveQuranPages(
+                      paging: paging,
+                      layout: layout,
+                      singleScale: .8,
+                      spreadScale: 1,
+                      imagePath: (_) => image,
+                      isDarkMode: false,
+                      aspectRatio: QuranPageView.pageAspectRatio,
+                      highlightFor: (page) => page == selected
+                          ? const [Rect.fromLTWH(.2, .3, .4, .05)]
+                          : [],
+                      highlightColor: Colors.amber,
+                      verticalFollower: vertical,
+                      onFocus: persisted.add,
+                      onPageChanged: persisted.add,
+                      onTap: (page, x, y) => refresh(() => selected = page),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The left leaf is page 5; focusing it must survive every subsequent mode.
+      await tester.tap(find.byKey(const ValueKey('quran-page-5')));
+      // Playback yields to manual interaction for the existing idle interval.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(paging.focusedPage, 5);
+      expect(persisted, [5]);
+      final verse = PageAyahIndex.ayahsForPage(
+        5,
+        mushaf: 'indopak_tajweed',
+      ).last;
+      Future<void> expectFollowing() async {
+        expect(paging.focusedPage, 5);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('quran-page-5')),
+            matching: find.byType(CustomPaint),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          audio.targetPage(
+            playing: true,
+            session: 1,
+            cycle: ++cycle,
+            surah: verse.surah,
+            ayah: verse.ayah,
+            currentPage: paging.focusedPage,
+            portrait: paging.singlePage,
+            mushaf: 'indopak_tajweed',
+            visiblePages: paging.visiblePages,
+            sequentialBook: paging.book,
+          ),
+          isNull,
+        );
+        measured.clear();
+        final request = vertical.beginAyah(
+          playing: true,
+          visible: true,
+          session: 1,
+          cycle: cycle,
+          surah: verse.surah,
+          ayah: verse.ayah,
+          mushaf: 'indopak_tajweed',
+        );
+        vertical.reveal(request!);
+        await tester.pumpAndSettle();
+        expect(measured, contains(5));
+        expect(persisted, [5]);
+      }
+
+      await expectFollowing();
+      for (final stage in [
+        (const Size(466, 678), false, true),
+        (const Size(669, 951), false, false),
+        (window, false, false),
+        (window, true, false),
+      ]) {
+        tester.view.physicalSize = stage.$1;
+        refresh(() {
+          book = stage.$2;
+          cover = stage.$3;
+        });
+        await tester.pumpAndSettle();
+        await expectFollowing();
+      }
+      // Returning to a book anchors page 5 on the right, with page 6 on the left.
+      expect(
+        tester.getRect(find.byKey(const ValueKey('quran-page-5'))).left,
+        greaterThanOrEqualTo(hinge.bounds.right),
+      );
+      await tester.pumpWidget(const SizedBox());
+      vertical.dispose();
+      paging.dispose();
+    },
+  );
 
   for (final portrait in [
     const Size(744, 1133),
