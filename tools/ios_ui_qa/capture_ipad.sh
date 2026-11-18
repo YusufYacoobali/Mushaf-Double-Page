@@ -44,7 +44,11 @@ for attempt in 1 2; do
   if op boot 75 xcrun simctl boot "$UDID"; then
     # macOS 15 has the classic Simulator.app. Opening its real display helps
     # initialize render services before trying screenshots and XCTest.
-    op simulator-ui 35 open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
+    if [[ -d "${DEVELOPER_DIR:-}/Applications/Simulator.app" ]]; then
+      op simulator-ui 35 open -a "$DEVELOPER_DIR/Applications/Simulator.app" --args -CurrentDeviceUDID "$UDID" || true
+    else
+      op simulator-ui 35 open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
+    fi
     if ! op bootstatus 225 xcrun simctl bootstatus "$UDID" -b; then
       echo "::warning::iPad bootstatus stalled; checking physical display"
     fi
