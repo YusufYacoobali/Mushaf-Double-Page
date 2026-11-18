@@ -23,10 +23,14 @@ udid, desired = sys.argv[1:]
 attempts = []
 with tempfile.TemporaryDirectory() as directory:
     screenshot = pathlib.Path(directory) / 'orientation.png'
-    candidates = [None, 'portrait', 'landscape-left', 'landscape-right', 'pud']
+    candidates = ([None] + ['left'] * 4 if shutil.which('axe') else
+                  [None, 'portrait', 'landscape-left', 'landscape-right', 'pud'])
     for orientation in candidates:
         if orientation:
-            controls.helper(udid, 'orientation', orientation)
+            if orientation == 'left':
+                controls.run(['axe', 'rotate', 'left', '--udid', udid], check=False)
+            else:
+                controls.helper(udid, 'orientation', orientation)
             time.sleep(2)
         controls.run(['xcrun', 'simctl', 'io', udid, 'screenshot', str(screenshot)])
         data = screenshot.read_bytes()
