@@ -10,32 +10,54 @@ mkdir -p "$OUTPUT"
 cp .ci/ipad-template.json "$OUTPUT/template.json"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
 UDID=""
+BOOT_READY=0
 op() { local stage="$1" seconds="$2"; shift 2; python3 .github/scripts/ci_run.py --operation "$stage" --timeout "$seconds" --output "$OUTPUT/operations" -- "$@"; }
 cleanup() {
   local status=$?
   if [[ -n "$UDID" ]]; then
-    op screenshot 30 xcrun simctl io "$UDID" screenshot "$OUTPUT/final-frame.png" || true
-    op shutdown 30 xcrun simctl shutdown "$UDID" || true
-    op delete 30 xcrun simctl delete "$UDID" || true
+    if [[ "$BOOT_READY" == 1 ]]; then
+      op screenshot 45 xcrun simctl io "$UDID" screenshot "$OUTPUT/final-frame.png" || true
+    fi
+    op shutdown 45 xcrun simctl shutdown "$UDID" || true
+    op delete 45 xcrun simctl delete "$UDID" || true
   fi
   return "$status"
 }
 trap cleanup EXIT
 RUNTIME=$(python3 -c 'import json;print(json.load(open(".ci/ipad-template.json"))["runtime"])')
 TYPE=$(python3 -c 'import json;print(json.load(open(".ci/ipad-template.json"))["device"]["deviceTypeIdentifier"])')
-python3 .github/scripts/ci_run.py --operation create --timeout 30 --output "$OUTPUT/operations" --value-file "$OUTPUT/udid.txt" -- xcrun simctl create "reader-$GITHUB_RUN_ID-$DEVICE-$VERSION" "$TYPE" "$RUNTIME"
-UDID=$(tail -n 1 "$OUTPUT/udid.txt")
-op boot 30 xcrun simctl boot "$UDID"
-op boot 150 xcrun simctl bootstatus "$UDID" -b
-op install 90 xcrun simctl install "$UDID" "$APP"
-op seed 30 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
-python3 .github/scripts/ci_run.py --operation container --timeout 30 --output "$OUTPUT/operations" --value-file "$OUTPUT/container.txt" -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data
+# A heavy shared macOS CoreSimulator host may need more than 150s to settle.
+# Recreate one unresponsive simulator, but only accept it after a real screenshot.
+for attempt in 1 2; do
+  if ! python3 .github/scripts/ci_run.py --operation create --timeout 75 --output "$OUTPUT/operations" --value-file "$OUTPUT/udid.txt" -- xcrun simctl create "reader-$GITHUB_RUN_ID-$DEVICE-$VERSION-$attempt" "$TYPE" "$RUNTIME"; then
+    continue
+  fi
+  UDID=$(tail -n 1 "$OUTPUT/udid.txt")
+  booted=0
+  if op boot 75 xcrun simctl boot "$UDID"; then
+    if ! op bootstatus 225 xcrun simctl bootstatus "$UDID" -b; then
+      echo "::warning::iPad bootstatus stalled; checking actual display"
+    fi
+    if op display-ready 60 xcrun simctl io "$UDID" screenshot "$OUTPUT/boot-$attempt.png"; then
+      booted=1
+    fi
+  fi
+  if [[ "$booted" == 1 ]]; then BOOT_READY=1; break; fi
+  echo "::warning::iPad startup attempt $attempt failed; recreating simulator"
+  op shutdown 60 xcrun simctl shutdown "$UDID" || true
+  op delete 60 xcrun simctl delete "$UDID" || true
+  UDID=""
+done
+[[ "$BOOT_READY" == 1 ]] || { echo "::error::iPad CoreSimulator could not boot"; exit 1; }
+op install 150 xcrun simctl install "$UDID" "$APP"
+python3 .github/scripts/ci_run.py --operation container --timeout 120 --output "$OUTPUT/operations" --value-file "$OUTPUT/container.txt" -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data
 DATA=$(tail -n 1 "$OUTPUT/container.txt")
+op seed 35 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID" "$DATA"
 PREFS="$DATA/Library/Preferences/$BUNDLE_ID.plist"
 CACHE="${READER_ASSET_CACHE:-$PWD/.ci/quran-pages}"
 op asset-cache 90 python3 .github/scripts/reader_asset_cache.py import --data "$DATA" --prefs "$PREFS" --cache "$CACHE"
-op launch 40 xcrun simctl launch "$UDID" "$BUNDLE_ID"
-op download 420 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
+op launch 90 xcrun simctl launch "$UDID" "$BUNDLE_ID"
+op download 540 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
 result=0
 phase() {
   local name="$1" method="$2"

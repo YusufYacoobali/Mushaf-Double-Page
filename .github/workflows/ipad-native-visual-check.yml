@@ -71,7 +71,7 @@ jobs:
       (inputs.artifact_name != '' || needs.reader.result == 'success') &&
       (inputs.reference_artifact != '' || needs.reference.result == 'success')
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 55
     concurrency:
       group: reader-ipad-device-${{ github.ref }}-${{ matrix.device }}
       cancel-in-progress: false
@@ -156,10 +156,19 @@ jobs:
           bash tools/ios_ui_qa/capture_ipad.sh
       - name: Compare actual page geometry independently of control-test results
         id: geometry
-        if: always() && (inputs.test_case == 'layout' || inputs.test_case == 'all')
+        if: >-
+          always() && steps.device.outcome == 'success' &&
+          (steps.baseline.outputs.cache-hit == 'true' || steps.baseline_capture.outcome == 'success') &&
+          (inputs.test_case == 'layout' || inputs.test_case == 'all')
         env:
           DEVICE: ${{ matrix.device }}
         run: |
+          test -s "screenshots-native/$DEVICE-v6/ipad-$DEVICE-portrait-after-18s.png" || {
+            echo "::error::Missing v6 portrait screenshot; consult capture/setup logs"; exit 1;
+          }
+          test -s "screenshots-native/$DEVICE-v6/ipad-$DEVICE-landscape.png" || {
+            echo "::error::Missing v6 landscape screenshot; consult capture/setup logs"; exit 1;
+          }
           python3 .github/scripts/ipad_geometry.py "screenshots-native/$DEVICE-v6" --device "$DEVICE" --reference .ci/v5-baseline
           echo 'geometry_passed=true' >> "$GITHUB_OUTPUT"
       - uses: actions/cache/save@v4

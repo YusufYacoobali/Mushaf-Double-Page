@@ -2,9 +2,12 @@
 # Seed only the throwaway iOS simulator container; never alter app production
 # code or the actual Quran images. Select the first text page rather than cover.
 set -euo pipefail
-if [[ "$#" -ne 2 ]]; then echo "Usage: $0 <simulator-udid> <bundle-id>" >&2; exit 2; fi
+if [[ "$#" -lt 2 || "$#" -gt 3 ]]; then echo "Usage: $0 <simulator-udid> <bundle-id> [data-dir]" >&2; exit 2; fi
 UDID="$1"; BUNDLE="$2"
-DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)"
+# When the caller resolved the app container, avoid another slow simctl query.
+DATA="${3:-}"
+if [[ -z "$DATA" ]]; then DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)"; fi
+[[ -d "$DATA" ]] || { echo "App data folder missing: $DATA" >&2; exit 1; }
 PREFS="$DATA/Library/Preferences/$BUNDLE.plist"
 mkdir -p "$(dirname "$PREFS")"
 python3 - "$PREFS" <<'PY'

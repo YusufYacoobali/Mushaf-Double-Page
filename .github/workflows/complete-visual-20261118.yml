@@ -40,7 +40,7 @@ jobs:
     name: Duo — four postures / min and max zoom / all controls and book swipe
     needs: reader
     runs-on: xcode-27
-    timeout-minutes: 55
+    timeout-minutes: 65
     concurrency:
       group: reader-duo-device-${{ github.ref }}
       cancel-in-progress: false

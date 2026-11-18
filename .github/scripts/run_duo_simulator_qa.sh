@@ -5,6 +5,7 @@ mkdir -p screenshots/operations
 APP=ci-app/Runner.app
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
 UDID=""
+STARTUP_READY=0
 op() { local stage="$1" seconds="$2"; shift 2; python3 .github/scripts/ci_run.py --operation "$stage" --timeout "$seconds" --output screenshots/operations -- "$@"; }
 cleanup() {
  local status=$?
@@ -12,27 +13,59 @@ cleanup() {
   op asset-cache 90 python3 .github/scripts/reader_asset_cache.py export --data "$DATA" --prefs "$DATA/Library/Preferences/$BUNDLE_ID.plist" --cache "$CACHE" || true
  fi
  if [[ -n "$UDID" ]]; then
-  op screenshot 30 duoctl screenshot screenshots/final-frame.png || true
-  op diagnostics 20 xcrun simctl list devices -j || true
-  op shutdown 30 xcrun simctl shutdown "$UDID" || true
-  op delete 30 xcrun simctl delete "$UDID" || true
+  # Do not waste time trying to capture an unresponsive simulator display.
+  if [[ "$STARTUP_READY" == 1 ]]; then op screenshot 45 duoctl screenshot screenshots/final-frame.png || true; fi
+  if [[ "$status" -ne 0 ]]; then op diagnostics 45 xcrun simctl list devices -j || true; fi
+  op shutdown 45 xcrun simctl shutdown "$UDID" || true
+  op delete 45 xcrun simctl delete "$UDID" || true
  fi
  return "$status"
 }
 trap cleanup EXIT
-python3 .github/scripts/ci_run.py --operation create --timeout 30 --output screenshots/operations --value-file screenshots/udid.txt -- xcrun simctl create "reader-$GITHUB_RUN_ID" 'iPhone Duo' com.apple.CoreSimulator.SimRuntime.iOS-27-1
-UDID=$(tail -n 1 screenshots/udid.txt)
-export DUOCTL_UDID="$UDID"
-op boot 30 xcrun simctl boot "$UDID"
-op boot 150 xcrun simctl bootstatus "$UDID" -b
-op install 90 xcrun simctl install "$UDID" "$APP"
-op seed 30 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
-python3 .github/scripts/ci_run.py --operation container --timeout 30 --output screenshots/operations --value-file screenshots/container.txt -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data
-DATA=$(tail -n 1 screenshots/container.txt)
+# On hosted Xcode 27 the device may be Booted while display services hang.
+# Require responsive physical display evidence, not merely a state flag.
+# Recover at most once with a NEW isolated Duo instead of restarting all QA.
 CACHE="${READER_ASSET_CACHE:-$PWD/.ci/quran-pages}"
-op asset-cache 90 python3 .github/scripts/reader_asset_cache.py import --data "$DATA" --prefs "$DATA/Library/Preferences/$BUNDLE_ID.plist" --cache "$CACHE"
-op launch 40 xcrun simctl launch "$UDID" "$BUNDLE_ID"
-op download 420 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
+for attempt in 1 2; do
+  echo "Starting Duo simulator attempt $attempt/2"
+  DATA=""
+  if ! python3 .github/scripts/ci_run.py --operation create --timeout 75 --output screenshots/operations --value-file screenshots/udid.txt -- xcrun simctl create "reader-$GITHUB_RUN_ID-$attempt" 'iPhone Duo' com.apple.CoreSimulator.SimRuntime.iOS-27-1; then
+    continue
+  fi
+  UDID=$(tail -n 1 screenshots/udid.txt)
+  export DUOCTL_UDID="$UDID"
+  booted=0
+  if op boot 90 xcrun simctl boot "$UDID"; then
+    if ! op bootstatus 230 xcrun simctl bootstatus "$UDID" -b; then
+      echo "::warning::Duo bootstatus stalled; testing actual display readiness"
+    fi
+    if op display-ready 60 duoctl state &&
+       op display-capture 60 duoctl screenshot "screenshots/duo-startup-$attempt.png"; then
+      booted=1
+    fi
+  fi
+  if [[ "$booted" == 1 ]]; then
+    if op install 150 xcrun simctl install "$UDID" "$APP" &&
+       python3 .github/scripts/ci_run.py --operation container --timeout 120 --output screenshots/operations --value-file screenshots/container.txt -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data; then
+      DATA=$(tail -n 1 screenshots/container.txt)
+      if op seed 35 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID" "$DATA" &&
+         op asset-cache 120 python3 .github/scripts/reader_asset_cache.py import --data "$DATA" --prefs "$DATA/Library/Preferences/$BUNDLE_ID.plist" --cache "$CACHE" &&
+         op launch 90 xcrun simctl launch "$UDID" "$BUNDLE_ID"; then
+        STARTUP_READY=1
+        break
+      fi
+    fi
+  fi
+  echo "::warning::Duo startup attempt $attempt failed; discarding simulator"
+  op shutdown 60 xcrun simctl shutdown "$UDID" || true
+  op delete 60 xcrun simctl delete "$UDID" || true
+  UDID=""
+done
+if [[ "$STARTUP_READY" != 1 ]]; then
+  echo "::error::Both isolated Duo startup attempts failed; see stage diagnostics"
+  exit 1
+fi
+op download 540 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
 CASE="${READER_TEST_CASE:-layout}"
 TARGET="${DUO_TARGET:-duo-smoke}"
 PROFILE="${READER_CAPTURE_PROFILE:-smoke}"
