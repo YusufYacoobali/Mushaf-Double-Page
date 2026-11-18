@@ -80,7 +80,9 @@ final class ReaderVisualTests: XCTestCase {
 
   @MainActor
   private func captureZooms(_ reader: XCUIApplication, orientation: String, minimum: Int) throws {
-    for target in [minimum, 100] {
+    // Validate and retain a real screenshot at EVERY 5% zoom step, not only
+    // the endpoints. This catches a skipped/mislabelled intermediate value.
+    for target in stride(from: minimum, through: 100, by: 5) {
       for step in 0..<24 {
         // Zoom taps do not restart the reader's ten-second hide timer. Renew
         // it before each target and every three taps, before reading AX labels.
