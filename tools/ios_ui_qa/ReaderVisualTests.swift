@@ -41,13 +41,19 @@ final class ReaderVisualTests: XCTestCase {
       for _ in 0..<24 {
         let label = reader.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^(60|65|70|75|80|85|90|95|100)%$")).firstMatch
         if !label.exists || !label.isHittable {
-          reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch.tap()
+          let tab = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
+          if tab.exists { tab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
           continue
         }
         let current = Int(label.label.replacingOccurrences(of: "%", with: ""))!
         if current == target { break }
         let action = current < target ? "Zoom in" : "Zoom out"
-        reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", action)).firstMatch.tap()
+        let button = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", action)).firstMatch
+        // Flutter exposes the correct frame but XCTest's activation point can
+        // be invalid after rotation/zoom. Touch the observed frame directly.
+        if button.exists {
+          button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
         Thread.sleep(forTimeInterval: 0.2)
       }
       XCTAssertTrue(reader.staticTexts["\(target)%"].waitForExistence(timeout: 3))
