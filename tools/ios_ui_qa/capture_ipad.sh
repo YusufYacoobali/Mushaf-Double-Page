@@ -106,6 +106,30 @@ fi
 # Genuine Quran assets and screenshots, not the simulator boot flag, are the
 # proof of a successful application start.
 op download 540 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
+if [[ "$VERSION" == v6 && -n "$REUSE_UDID" ]]; then
+  # XCTest runner persists across both apps on the SAME simulator. Without
+  # clearing its old screenshots, a failed v6 capture might accidentally
+  # copy v5 evidence and report a false positive.
+  TEST_DATA=$(python3 - "$UDID" <<'PY'
+import subprocess,sys
+p=subprocess.run(['xcrun','simctl','get_app_container',sys.argv[1],
+                  'org.mushaf.visualqa.tests.xctrunner','data'],
+                  capture_output=True,text=True,timeout=35)
+print(p.stdout.strip() if p.returncode == 0 else '')
+PY
+)
+  if [[ -n "$TEST_DATA" ]]; then
+    python3 - "$TEST_DATA" <<'PY'
+from pathlib import Path
+import sys,shutil
+p=Path(sys.argv[1]).resolve()
+assert 'Containers/Data/Application' in str(p), p
+target=p/'Documents'/'reader-qa'
+if target.exists(): shutil.rmtree(target)
+print('Cleared v5 XCTest screenshots before v6; no stale v5 evidence can pass')
+PY
+  fi
+fi
 result=0
 phase() {
   local name="$1" method="$2"
