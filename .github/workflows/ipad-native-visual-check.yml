@@ -88,6 +88,8 @@ jobs:
       READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
     steps:
       - uses: actions/checkout@v4
+      - name: Let macOS 15 finish mounting simulator runtimes before discovery
+        run: bash .github/scripts/simulator_host_health.sh preflight screenshots-native/discovery
       - id: device
         env:
           DEVICE: ${{ matrix.device }}
