@@ -26,37 +26,63 @@ cleanup() {
 trap cleanup EXIT
 RUNTIME=$(python3 -c 'import json;print(json.load(open(".ci/ipad-template.json"))["runtime"])')
 TYPE=$(python3 -c 'import json;print(json.load(open(".ci/ipad-template.json"))["device"]["deviceTypeIdentifier"])')
-# A heavy shared macOS CoreSimulator host may need more than 150s to settle.
-# Recreate one unresponsive simulator, but only accept it after a real screenshot.
+# Fresh simulator devices cannot repair a wedged host-wide CoreSimulator service.
+# On a throwaway GitHub runner, verify display readiness, install AND app launch
+# before declaring startup successful. One failed start triggers a service restart.
+CACHE="${READER_ASSET_CACHE:-$PWD/.ci/quran-pages}"
+bash .github/scripts/simulator_host_health.sh preflight "$OUTPUT/host-preflight" || true
+STARTUP_READY=0
 for attempt in 1 2; do
+  BOOT_READY=0
+  DATA=""
+  echo "Starting $DEVICE $VERSION attempt $attempt/2"
   if ! python3 .github/scripts/ci_run.py --operation create --timeout 75 --output "$OUTPUT/operations" --value-file "$OUTPUT/udid.txt" -- xcrun simctl create "reader-$GITHUB_RUN_ID-$DEVICE-$VERSION-$attempt" "$TYPE" "$RUNTIME"; then
+    if [[ "$attempt" == 1 ]]; then bash .github/scripts/simulator_host_health.sh recover "$OUTPUT/host-recovery" || true; fi
     continue
   fi
   UDID=$(tail -n 1 "$OUTPUT/udid.txt")
-  booted=0
   if op boot 75 xcrun simctl boot "$UDID"; then
+    # macOS 15 has the classic Simulator.app. Opening its real display helps
+    # initialize render services before trying screenshots and XCTest.
+    op simulator-ui 35 open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
     if ! op bootstatus 225 xcrun simctl bootstatus "$UDID" -b; then
-      echo "::warning::iPad bootstatus stalled; checking actual display"
+      echo "::warning::iPad bootstatus stalled; checking physical display"
     fi
-    if op display-ready 60 xcrun simctl io "$UDID" screenshot "$OUTPUT/boot-$attempt.png"; then
-      booted=1
+    if op display-ready 65 xcrun simctl io "$UDID" screenshot "$OUTPUT/boot-$attempt.png"; then
+      BOOT_READY=1
     fi
   fi
-  if [[ "$booted" == 1 ]]; then BOOT_READY=1; break; fi
-  echo "::warning::iPad startup attempt $attempt failed; recreating simulator"
-  op shutdown 60 xcrun simctl shutdown "$UDID" || true
-  op delete 60 xcrun simctl delete "$UDID" || true
+  if [[ "$BOOT_READY" == 1 ]] && op install 150 xcrun simctl install "$UDID" "$APP" &&
+      python3 .github/scripts/ci_run.py --operation container --timeout 120 --output "$OUTPUT/operations" --value-file "$OUTPUT/container.txt" -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data; then
+    DATA=$(tail -n 1 "$OUTPUT/container.txt")
+    PREFS="$DATA/Library/Preferences/$BUNDLE_ID.plist"
+    if op seed 35 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID" "$DATA" &&
+       op asset-cache 90 python3 .github/scripts/reader_asset_cache.py import --data "$DATA" --prefs "$PREFS" --cache "$CACHE"; then
+      # First launch sometimes hangs while SpringBoard finishes first-boot work.
+      # A second launch can return a PID if the first call actually started it.
+      if op launch 105 xcrun simctl launch "$UDID" "$BUNDLE_ID" ||
+         { sleep 8; op launch-retry 105 xcrun simctl launch "$UDID" "$BUNDLE_ID"; }; then
+        STARTUP_READY=1
+        break
+      fi
+    fi
+  fi
+  echo "::warning::iPad $DEVICE $VERSION startup attempt $attempt failed"
+  if [[ "$BOOT_READY" == 1 ]]; then op failed-frame 35 xcrun simctl io "$UDID" screenshot "$OUTPUT/failed-$attempt.png" || true; fi
+  op shutdown 45 xcrun simctl shutdown "$UDID" || true
+  op delete 45 xcrun simctl delete "$UDID" || true
   UDID=""
+  if [[ "$attempt" == 1 ]]; then
+    bash .github/scripts/simulator_host_health.sh recover "$OUTPUT/host-recovery" || true
+  fi
 done
-[[ "$BOOT_READY" == 1 ]] || { echo "::error::iPad CoreSimulator could not boot"; exit 1; }
-op install 150 xcrun simctl install "$UDID" "$APP"
-python3 .github/scripts/ci_run.py --operation container --timeout 120 --output "$OUTPUT/operations" --value-file "$OUTPUT/container.txt" -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data
-DATA=$(tail -n 1 "$OUTPUT/container.txt")
-op seed 35 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID" "$DATA"
-PREFS="$DATA/Library/Preferences/$BUNDLE_ID.plist"
-CACHE="${READER_ASSET_CACHE:-$PWD/.ci/quran-pages}"
-op asset-cache 90 python3 .github/scripts/reader_asset_cache.py import --data "$DATA" --prefs "$PREFS" --cache "$CACHE"
-op launch 90 xcrun simctl launch "$UDID" "$BUNDLE_ID"
+if [[ "$STARTUP_READY" != 1 ]]; then
+  bash .github/scripts/simulator_host_health.sh diagnose "$OUTPUT/host-final" || true
+  echo "::error::iPad CoreSimulator/app startup failed twice; reader UI tests not executed"
+  exit 1
+fi
+# Genuine Quran assets and screenshots, not the simulator boot flag, are the
+# proof of a successful application start.
 op download 540 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
 result=0
 phase() {
