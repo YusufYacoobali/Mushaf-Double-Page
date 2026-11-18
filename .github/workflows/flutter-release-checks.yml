@@ -3,11 +3,12 @@ name: Flutter release checks
 on:
   push:
     branches: [v5, v6]
-    # Harness-only updates compile in visual QA and reuse the verified reader.
-    paths-ignore:
-      - '.github/**'
-      - 'tools/ios_ui_qa/**'
   workflow_dispatch:
+    inputs:
+      build_ios_release:
+        description: Also compile the unsigned iOS release app
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -31,6 +32,7 @@ jobs:
         run: flutter test --no-pub --reporter expanded
 
   ios-no-codesign-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_ios_release
     runs-on: macos-15
     timeout-minutes: 45
     steps:

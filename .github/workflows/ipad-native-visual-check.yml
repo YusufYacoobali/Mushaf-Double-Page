@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 40
     concurrency:
       group: reader-ipad-${{ github.ref }}-${{ matrix.device }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix:
