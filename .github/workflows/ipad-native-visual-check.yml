@@ -139,6 +139,7 @@ jobs:
           IPAD_VERSION: v5
           IPAD_CASE: layout
           IPAD_APP: ci-app-v5/Runner.app
+          IPAD_KEEP_DEVICE: '1'
         run: |
           bash tools/ios_ui_qa/capture_ipad.sh
           python3 .github/scripts/ipad_geometry.py "screenshots-native/$IPAD_DEVICE-v5" --device "$IPAD_DEVICE"
@@ -158,6 +159,12 @@ jobs:
           IPAD_CASE: ${{ inputs.test_case }}
         run: |
           python3 .github/scripts/ipad_geometry.py .ci/v5-baseline --device "$IPAD_DEVICE"
+          # Reuse the already booted v5 device when this job captured its
+          # baseline. With a cached baseline, the script creates a new device.
+          if [[ -s ".ci/ipad-$IPAD_DEVICE-reuse-udid.txt" ]]; then
+            export IPAD_REUSE_UDID
+            IPAD_REUSE_UDID="$(cat ".ci/ipad-$IPAD_DEVICE-reuse-udid.txt")"
+          fi
           bash tools/ios_ui_qa/capture_ipad.sh
       - name: Compare actual page geometry independently of control-test results
         id: geometry
