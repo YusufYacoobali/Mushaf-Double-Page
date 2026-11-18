@@ -260,6 +260,7 @@ void main() {
     const Size(1194, 834),
     const Size(1366, 1024),
     const Size(1100, 320),
+    const Size(678, 466),
     window,
   ]) {
     testWidgets('landscape dock at $size is compact and vertically centred', (
@@ -269,12 +270,15 @@ void main() {
       tester.view.physicalSize = size;
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
-      final duo = size == window;
+      final cover = size == const Size(678, 466);
+      final duo = size == window || cover;
       final layout = ReaderLayout.resolve(
         size: size,
-        padding: insets,
+        padding: cover ? const EdgeInsets.only(right: 24, bottom: 21) : insets,
         preserveLegacyIPadPortrait: !duo,
-        displayFeatures: duo ? [hinge] : [],
+        foldedCover: cover,
+        iosPhoneWidePortrait: duo,
+        displayFeatures: duo && !cover ? [hinge] : [],
       );
       var expanded = false;
       late StateSetter refresh;
@@ -343,7 +347,7 @@ void main() {
           expect(find.byTooltip('Action $i').hitTestable(), findsOneWidget);
         }
       }
-      if (duo) expect(panel.overlaps(hinge.bounds), isFalse);
+      if (duo && !cover) expect(panel.overlaps(hinge.bounds), isFalse);
       expect(tester.takeException(), isNull);
     });
   }

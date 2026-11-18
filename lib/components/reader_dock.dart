@@ -39,7 +39,10 @@ class ReaderDockOverlay extends StatelessWidget {
       centerSideDock: layout.centerSideDock,
       child: child,
     );
-    if (layout.fullWidthPortrait || iPhoneLandscape) return scoped;
+    if (layout.fullWidthPortrait ||
+        (iPhoneLandscape && !layout.centerSideDock)) {
+      return scoped;
+    }
     return Positioned.fromRect(
       rect: layout.controlsRegion,
       child: MediaQuery.removePadding(
