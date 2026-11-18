@@ -23,7 +23,7 @@ final class ReaderVisualTests: XCTestCase {
     if !zoom.exists || !zoom.isHittable {
       let tab = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
       if tab.waitForExistence(timeout: 2) {
-        tab.tap()
+        touch(tab, in: reader)
       } else {
         let frame = reader.frame
         reader.coordinate(withNormalizedOffset: CGVector(dx: (frame.width - 15) / frame.width, dy: 0.5)).tap()
@@ -36,6 +36,20 @@ final class ReaderVisualTests: XCTestCase {
   }
 
   @MainActor
+  private func touch(_ element: XCUIElement, in reader: XCUIApplication) {
+    // Resolve the observed rectangle once. An element-relative coordinate
+    // re-queries its changing label during the touch (Open -> Collapse).
+    let box = element.frame
+    let window = reader.frame
+    reader.coordinate(withNormalizedOffset: CGVector(
+      dx: (box.midX - window.minX) / window.width,
+      dy: (box.midY - window.minY) / window.height
+    )).tap()
+    // Flutter's reveal animation is not represented by UIKit's idle state.
+    Thread.sleep(forTimeInterval: 0.5)
+  }
+
+  @MainActor
   private func captureZooms(_ reader: XCUIApplication, orientation: String, minimum: Int) throws {
     for target in [minimum, 100] {
       for step in 0..<24 {
@@ -44,17 +58,17 @@ final class ReaderVisualTests: XCTestCase {
         if step % 3 == 0 {
           let collapse = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Collapse navigation")).firstMatch
           if collapse.exists {
-            collapse.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            touch(collapse, in: reader)
           }
           let open = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
           if open.waitForExistence(timeout: 1) {
-            open.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            touch(open, in: reader)
           }
         }
         let label = reader.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^(60|65|70|75|80|85|90|95|100)%$")).firstMatch
         if !label.exists || !label.isHittable {
           let tab = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
-          if tab.exists { tab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+          if tab.exists { touch(tab, in: reader) }
           continue
         }
         let current = Int(label.label.replacingOccurrences(of: "%", with: ""))!
@@ -64,7 +78,7 @@ final class ReaderVisualTests: XCTestCase {
         // Flutter exposes the correct frame but XCTest's activation point can
         // be invalid after rotation/zoom. Touch the observed frame directly.
         if button.exists {
-          button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+          touch(button, in: reader)
         }
         Thread.sleep(forTimeInterval: 0.2)
       }

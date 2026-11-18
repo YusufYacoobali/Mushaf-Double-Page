@@ -1,4 +1,5 @@
 name: iPhone Duo visual check
+run-name: Duo and iPad visual verification (${{ github.ref_name }})
 
 on:
   workflow_dispatch:
