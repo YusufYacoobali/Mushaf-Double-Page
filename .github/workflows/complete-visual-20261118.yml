@@ -47,6 +47,8 @@ jobs:
     needs: reader
     runs-on: xcode-27
     timeout-minutes: 65
+    outputs:
+      visual_passed: ${{ steps.verdict.outputs.visual_passed }}
     concurrency:
       group: reader-duo-device-${{ github.ref }}
       cancel-in-progress: false
@@ -71,6 +73,61 @@ jobs:
           path: .ci/quran-pages
           key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - name: Capture every posture, min/max page fitting, all zoom steps and book gesture
+        id: qa_capture
+        continue-on-error: true
+        env:
+          DUO_TARGET: duo-smoke
+          READER_TEST_CASE: all
+          READER_CAPTURE_PROFILE: endpoints
+          READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
+        run: bash .github/scripts/run_duo_simulator_qa.sh
+      - name: Record primary Duo evidence outcome for fresh-runner retry
+        if: always()
+        id: verdict
+        run: echo "visual_passed=${{ steps.qa_capture.outcome == 'success' }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/save@v4
+        if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: all-v6-duo-layouts-and-zooms-primary
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+  duo-retry:
+    name: Duo fresh-runner retry (only after an unsuccessful primary)
+    needs: [reader, duo]
+    if: always() && needs.reader.result == 'success' && needs.duo.outputs.visual_passed != 'true'
+    runs-on: xcode-27
+    timeout-minutes: 65
+    concurrency:
+      group: reader-duo-device-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.reader.outputs.artifact_name }}
+          path: reader-build
+      - name: Prepare known compatible simulator app and tools on a NEW Mac
+        run: |
+          mkdir -p ci-app
+          tar -xzf reader-build/ios-simulator-runner.tgz -C ci-app
+          test -f ci-app/Runner.app/Info.plist
+          brew install skarol/tap/duoctl tesseract
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache/restore@v4
+        id: pages
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - name: Retry every Duo posture and genuine page/screenshot check on clean host
         env:
           DUO_TARGET: duo-smoke
           READER_TEST_CASE: all
@@ -85,7 +142,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: all-v6-duo-layouts-and-zooms
+          name: all-v6-duo-layouts-and-zooms-retry
           path: screenshots/
           if-no-files-found: warn
           retention-days: 14
@@ -103,7 +160,7 @@ jobs:
   verify-visual-evidence:
     name: Accept only real Duo and iPad layout/zoom screenshots
     if: always()
-    needs: [duo, ipad-mini-and-pro13]
+    needs: [duo, duo-retry, ipad-mini-and-pro13]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -111,7 +168,7 @@ jobs:
       - name: Download actual Duo screenshots and metadata
         uses: actions/download-artifact@v4
         with:
-          name: all-v6-duo-layouts-and-zooms
+          name: ${{ needs.duo.outputs.visual_passed == 'true' && 'all-v6-duo-layouts-and-zooms-primary' || 'all-v6-duo-layouts-and-zooms-retry' }}
           path: qa/duo
       - name: Download actual iPad mini screenshots and v5 comparison
         uses: actions/download-artifact@v4
