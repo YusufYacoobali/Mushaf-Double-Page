@@ -1,0 +1,83 @@
+name: iPad native UI visual check
+on:
+  push:
+    branches: [v6]
+    paths:
+      - '.github/workflows/ipad-native-visual-check.yml'
+      - 'tools/ios_ui_qa/**'
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Verified reader simulator build run
+        type: string
+        default: '44333730110'
+  workflow_call:
+    inputs:
+      source_run_id:
+        type: string
+        required: false
+        default: '44333730110'
+permissions:
+  actions: read
+  contents: read
+jobs:
+  ipad-native:
+    name: Native iPad ${{ matrix.device }} v5/v6 screenshots
+    runs-on: macos-15
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [mini, pro11, pro13]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          run-id: ${{ inputs.source_run_id || '44333730110' }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          run-id: '44183372666'
+          github-token: ${{ github.token }}
+          path: v5-build
+      - name: Prepare original reader applications and separate XCTest host
+        run: |
+          mkdir -p ci-app ci-app-v5
+          tar -xzf ios-simulator-runner.tgz -C ci-app
+          tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
+          brew install xcodegen
+          python3 - <<'PY'
+          import json, plistlib
+          from pathlib import Path
+          with open('ci-app/Runner.app/Info.plist', 'rb') as f:
+              identifier = plistlib.load(f)['CFBundleIdentifier']
+          Path('tools/ios_ui_qa/ReaderAppIdentity.swift').write_text('enum ReaderAppIdentity { static let bundleID = ' + json.dumps(identifier) + ' }\n')
+          PY
+          xcodegen generate --spec tools/ios_ui_qa/project.yml
+          xcodebuild build-for-testing -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj -scheme ReaderVisualTests -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ui-build CODE_SIGNING_ALLOWED=NO
+      - name: Capture original v6 app through Apple UI testing
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v6
+        run: bash tools/ios_ui_qa/capture_ipad.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-v6
+          path: screenshots-native/${{ matrix.device }}-v6/
+          retention-days: 14
+      - name: Capture original v5 app through Apple UI testing
+        if: ${{ !cancelled() }}
+        env:
+          IPAD_DEVICE: ${{ matrix.device }}
+          IPAD_VERSION: v5
+          IPAD_APP: ci-app-v5/Runner.app
+        run: bash tools/ios_ui_qa/capture_ipad.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-ipad-${{ matrix.device }}-v5
+          path: screenshots-native/${{ matrix.device }}-v5/
+          retention-days: 14
