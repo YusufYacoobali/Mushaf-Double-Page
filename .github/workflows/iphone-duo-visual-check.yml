@@ -6,8 +6,6 @@ on:
     branches: [v5, v6]
     paths:
       - '.github/workflows/iphone-duo-visual-check.yml'
-      - '.github/workflows/ipad-native-visual-check.yml'
-      - 'tools/ios_ui_qa/**'
       - '.github/scripts/**'
       - 'ios/Runner/**'
       - 'ios/Runner.xcodeproj/project.pbxproj'
