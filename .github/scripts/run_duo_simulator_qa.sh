@@ -157,10 +157,31 @@ if duoctl half && duoctl rotate landscape; then
   sleep 2
   duoctl screenshot screenshots/duo-half-open-book-base.png || true
   run_case duo-half-open-book 60 100
+  # Optional native recording of the verified 100% book and real forward swipe.
+  # Recording support varies between simulator images; PNG verification remains
+  # mandatory even when video capture is unavailable.
+  video_pid=""
+  if display_id=$(python3 - "$UDID" <<'PY'
+import runpy, shutil, sys
+from pathlib import Path
+native = runpy.run_path(str(Path(shutil.which('duoctl')).resolve()), run_name='reader_video')
+active = [d for d in native['displays'](sys.argv[1]) if d.get('active')]
+assert len(active) == 1, active
+print(active[0]['displayId'])
+PY
+  ); then
+    xcrun simctl io "$UDID" recordVideo --display="$display_id" --codec=h264 screenshots/duo-half-open-book.mov > screenshots/duo-video.log 2>&1 &
+    video_pid=$!
+    sleep 2
+  fi
   # A real horizontal swipe should move the RTL book from 4/5 to 6/7.
   duoctl swipe 540 300 900 300 --duration 0.3
   sleep 2
   duoctl screenshot screenshots/duo-half-open-book-after-swipe.png
+  if [[ -n "$video_pid" ]]; then
+    kill -INT "$video_pid" 2>/dev/null || true
+    wait "$video_pid" || true
+  fi
 else
   echo "::error::Unable to enter half-open book posture"
   failures=$((failures+1))

@@ -166,6 +166,15 @@ jobs:
             screenshots/duo-half-open-book-after-swipe.png
           retention-days: 14
 
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quran-duo-book-video
+          path: |
+            screenshots/duo-half-open-book.mov
+            screenshots/duo-video.log
+          retention-days: 14
+
   ipad-native:
     name: Compare iPads with v5
     needs: build-simulator
