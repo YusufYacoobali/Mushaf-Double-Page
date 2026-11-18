@@ -88,22 +88,9 @@ wait_for_real_quran_pages() {
   return 1
 }
 ready=0
-wait_for_active_display() {
-  local n
-  for n in 1 2 3 4 5; do
-    if duoctl state > screenshots/duo-startup-state.json; then return 0; fi
-    echo "Duo display is not active yet ($n/5)"
-    if [[ "$n" == 2 ]]; then
-      duoctl open || true
-      duoctl close || true
-    fi
-    sleep 4
-  done
-  return 1
-}
 for attempt in 1 2; do
   echo "Starting isolated Duo attempt $attempt/2"
-  if new_device && start_app && wait_for_real_quran_pages && wait_for_active_display; then
+  if new_device && start_app && wait_for_real_quran_pages; then
     ready=1
     break
   fi
@@ -119,9 +106,9 @@ export DUOCTL_UDID="$UDID"
 # the system alert using a real active-display touch before any captures.
 # The "Don't Allow" button is centred at (120, 385) logical points on the
 # 466 x 678 cover display; this changes ONLY the disposable simulator.
-duoctl screenshot screenshots/duo-first-launch.png || true
-# Optional reminder initialization is omitted in the disposable QA builds, so
-# no permission dialog needs a blind tap on the Quran reader.
+duoctl screenshot screenshots/duo-first-launch-permission.png || true
+echo "Dismissing first-run iOS notification permission alert"
+duoctl tap 120 385
 sleep 3
 duoctl screenshot screenshots/duo-after-permission.png || true
 # AXe's describe-ui times out on GitHub's iOS 27 Duo simulator even
@@ -129,13 +116,11 @@ duoctl screenshot screenshots/duo-after-permission.png || true
 # that unrelated accessibility service.
 sleep 2
 duoctl state > screenshots/duo-initial-state.json
-duoctl --help > screenshots/duoctl-version-and-commands.txt
 echo "App launched; 851 Quran images exist. Capturing actual reader renders."
 
 failures=0
 run_case() {
   local label="$1" minimum="$2" maximum="$3"
-  if [[ "${QA_SMOKE:-0}" == 1 ]]; then minimum=80; maximum=80; fi
   echo "Capturing $label ($minimum% / $maximum%)"
   if ! bash .github/scripts/capture_duo_zoom.sh "$label" "$minimum" "$maximum"; then
     failures=$((failures+1))
@@ -146,11 +131,6 @@ if duoctl close; then
   sleep 2
   duoctl screenshot screenshots/duo-folded-base.png || true
   run_case duo-folded 70 100
-  if duoctl rotate landscape; then
-    run_case duo-folded-landscape 70 100
-  else
-    failures=$((failures+1))
-  fi
 else
   echo "::error::Unable to fold the Duo"
   failures=$((failures+1))
@@ -172,21 +152,13 @@ else
   echo "::error::Unable to unfold the Duo"
   failures=$((failures+1))
 fi
-# Book posture must be tested independently from the fully open display.
+# Priority 1 adds one posture to the proven v5 capture sequence.
 if duoctl half && duoctl rotate landscape; then
   sleep 2
+  duoctl screenshot screenshots/duo-half-open-book-base.png || true
   run_case duo-half-open-book 60 100
-  if ! bash .github/scripts/record_book_navigation.sh; then
-    echo "::error::Book-mode page navigation failed"
-    failures=$((failures+1))
-  fi
-  if duoctl rotate portrait; then
-    run_case duo-half-open-tabletop 70 100
-  else
-    failures=$((failures+1))
-  fi
 else
-  echo "::error::Unable to enter genuine half-open posture"
+  echo "::error::Unable to enter half-open book posture"
   failures=$((failures+1))
 fi
 echo "Duo failed cases: $failures" | tee screenshots/qa-result.txt

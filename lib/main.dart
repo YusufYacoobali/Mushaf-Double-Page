@@ -12,7 +12,6 @@ import 'progress/app_time_tracker.dart';
 import 'progress/journey_tracking.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -1149,30 +1148,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                 Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
           );
           _paging!.configure(layout.pageMode);
-          // Debug simulator evidence is read from the app container. iOS 27
-          // does not reliably forward Flutter's output through simctl launch.
-          assert(() {
-            unawaited(
-              File('${_docDir.path}/reader-qa.json').writeAsString(
-                jsonEncode({
-                  'mode': layout.pageMode.name,
-                  'pages': _paging!.visiblePages,
-                  'zoom':
-                      ((layout.singlePage
-                                  ? _pageScalePortrait
-                                  : _pageScaleLandscape) *
-                              100)
-                          .round(),
-                  'regions': [
-                    for (final r in layout.pageRegions)
-                      [r.left, r.top, r.width, r.height],
-                  ],
-                  'timestamp': DateTime.now().toUtc().toIso8601String(),
-                }),
-              ),
-            );
-            return true;
-          }());
           _singlePage = layout.singlePage;
           _bottomDock = layout.bottomDock;
           _logicalPage = _paging!.focusedPage;

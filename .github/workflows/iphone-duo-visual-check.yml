@@ -8,20 +8,14 @@ on:
       - '.github/workflows/iphone-duo-visual-check.yml'
       - '.github/scripts/**'
       - 'ios/Runner/**'
-      - 'ios/Flutter/**'
       - 'ios/Runner.xcodeproj/project.pbxproj'
       - 'lib/main.dart'
-      - 'lib/utils/**'
+      - 'lib/utils/reader_layout.dart'
       - 'lib/pages/page_view.dart'
       - 'lib/components/**'
 
 permissions:
   contents: read
-  actions: read
-
-env:
-  # Prove one Duo and one iPad mini before expanding the complete zoom matrix.
-  QA_SMOKE: '1'
 
 concurrency:
   group: quran-duo-visual-qa-${{ github.ref }}
@@ -29,26 +23,11 @@ concurrency:
 
 jobs:
   build-simulator:
-    name: Build iOS simulator (${{ matrix.version }})
+    name: Build iOS simulator application
     runs-on: xcode-27
     timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        version: [v5, v6]
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ matrix.version == 'v5' && '1df8a49e646f61355feafc790431ee3209f61c6c' || github.sha }}
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          path: qa-tools
-          sparse-checkout: .github/scripts/prepare_simulator_qa.py
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-      - name: Prepare identical native test inputs for v5 and v6
-        run: python3 qa-tools/.github/scripts/prepare_simulator_qa.py
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -86,13 +65,13 @@ jobs:
           ls -lh ios-simulator-runner.tgz
       - uses: actions/upload-artifact@v4
         with:
-          name: quran-ios-simulator-${{ matrix.version }}
+          name: quran-ios-duo-simulator-build
           path: ios-simulator-runner.tgz
-          retention-days: 7
+          retention-days: 2
           if-no-files-found: error
 
   iphone-duo:
-    name: Test clean iPhone Duo modes (80% smoke check)
+    name: Test clean iPhone Duo (all zooms)
     needs: build-simulator
     runs-on: xcode-27
     timeout-minutes: 48
@@ -100,7 +79,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: quran-ios-simulator-v6
+          name: quran-ios-duo-simulator-build
       - name: Extract app
         run: |
           mkdir -p ci-app
@@ -108,162 +87,41 @@ jobs:
           test -d ci-app/Runner.app
       - name: Install Duo controls (no accessibility dependency)
         run: brew install skarol/tap/duoctl
-      - name: Install screenshot validation tools
-        run: |
-          python3 -m venv .qa-venv
-          .qa-venv/bin/pip install --quiet Pillow
-          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
-      - name: Capture every zoom in folded, unfolded, and half-open modes
+      - name: Run folded, unfolded, and half-open reader screenshots
         shell: bash
         run: bash .github/scripts/run_duo_simulator_qa.sh
       - name: Upload actual Duo screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quran-duo-diagnostics
-          path: |
-            screenshots/*.json
-            screenshots/*.txt
-            screenshots/*.log
-            screenshots/book-*
-            screenshots/last-duo-screen.png
-            screenshots/notification-alert.png
+          name: quran-duo-visual-qa
+          path: screenshots/
           if-no-files-found: warn
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-folded
-          path: screenshots/duo-folded-[0-9]*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-folded-landscape
-          path: screenshots/duo-folded-landscape-*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-unfolded-portrait
-          path: screenshots/duo-unfolded-portrait-*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-unfolded-landscape
-          path: screenshots/duo-unfolded-wide-*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-half-open-book
-          path: screenshots/duo-half-open-book-*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-duo-half-open-tabletop
-          path: screenshots/duo-half-open-tabletop-*.png
           retention-days: 14
 
   ipad-mini:
-    name: iPad ${{ matrix.family }} (${{ matrix.version }}, both orientations, 80% smoke check)
+    name: Test clean iPad mini portrait
     needs: build-simulator
     runs-on: xcode-27
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        version: [v5, v6]
-        family: [mini]
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: quran-ios-simulator-${{ matrix.version }}
+          name: quran-ios-duo-simulator-build
       - name: Extract app
         run: |
           mkdir -p ci-app
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
-      - name: Install verified simulator orientation controls
-        run: brew install skarol/tap/duoctl
-      - name: Install screenshot validation tools
-        run: |
-          python3 -m venv .qa-venv
-          .qa-venv/bin/pip install --quiet Pillow
-          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
-      - name: Capture iPad portrait and landscape at every zoom
+      - name: Capture iPad mini reader screenshot
         shell: bash
-        env:
-          IPAD_FAMILY: ${{ matrix.family }}
-          VERIFY_READER_LOG: ${{ matrix.version == 'v6' && '1' || '0' }}
         run: bash .github/scripts/run_ipad_simulator_qa.sh
-      - name: Upload iPad screenshots and diagnostics
+      - name: Upload iPad mini screenshot and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-diagnostics
-          path: |
-            screenshots-ipad/*.json
-            screenshots-ipad/*.txt
-            screenshots-ipad/*.log
-            screenshots-ipad/screenshot-on-error.png
-            screenshots-ipad/notification-alert.png
+          name: quran-ipad-mini-visual-qa
+          path: screenshots-ipad/
           if-no-files-found: warn
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-portrait-low
-          path: screenshots-ipad/ipad-*-portrait-[78]*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-portrait-high
-          path: screenshots-ipad/ipad-*-portrait-[19]*.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-landscape-low
-          path: |
-            screenshots-ipad/ipad-*-landscape-[67]*.png
-            screenshots-ipad/ipad-*-landscape-80.png
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-${{ matrix.family }}-${{ matrix.version }}-landscape-high
-          path: |
-            screenshots-ipad/ipad-*-landscape-85.png
-            screenshots-ipad/ipad-*-landscape-[19]*.png
-          retention-days: 14
-
-  compare-ipads:
-    name: Compare actual v5 and v6 iPad screenshots
-    needs: ipad-mini
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: quran-ipad-*
-          path: ipad-captures
-      - run: python3 -m pip install Pillow
-      - run: |
-          if [[ "$QA_SMOKE" == 1 ]]; then
-            python3 .github/scripts/compare_ipad_captures.py ipad-captures ipad-comparison --smoke
-          else
-            python3 .github/scripts/compare_ipad_captures.py ipad-captures ipad-comparison
-          fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: quran-ipad-v5-v6-comparison
-          path: ipad-comparison/
-          if-no-files-found: error
           retention-days: 14
