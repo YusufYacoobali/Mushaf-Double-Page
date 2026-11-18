@@ -93,3 +93,38 @@ jobs:
       test_case: all
       artifact_name: ${{ needs.reader.outputs.artifact_name }}
       reference_artifact: ${{ needs.reference.outputs.artifact_name }}
+
+  verify-visual-evidence:
+    name: Accept only real Duo and iPad layout/zoom screenshots
+    if: always()
+    needs: [duo, ipad-mini-and-pro13]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download actual Duo screenshots and metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: all-v6-duo-layouts-and-zooms
+          path: qa/duo
+      - name: Download actual iPad mini screenshots and v5 comparison
+        uses: actions/download-artifact@v4
+        with:
+          name: ipad-mini-all
+          path: qa/ipad-mini
+      - name: Download actual 13-inch Pro screenshots and v5 comparison
+        uses: actions/download-artifact@v4
+        with:
+          name: ipad-pro13-all
+          path: qa/ipad-pro13
+      - name: Verify every posture, intermediate zoom, navigation and RTL page turn
+        run: |
+          python3 .github/scripts/verify_visual_evidence.py \
+            --duo qa/duo --mini qa/ipad-mini --pro13 qa/ipad-pro13 \
+            --report qa/full-evidence-verification.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-v6-visual-evidence-verdict
+          path: qa/full-evidence-verification.json
+          if-no-files-found: warn
