@@ -48,7 +48,7 @@ for attempt in 1 2; do
   if [[ "$attempt" == 1 && -n "$REUSE_UDID" ]]; then
     UDID="$REUSE_UDID"
     echo "Reusing already-booted v5 simulator $UDID; skipping create, boot and GUI"
-    if op reuse-ready 55 xcrun simctl spawn "$UDID" /usr/bin/true; then
+    if op reuse-ready 55 xcrun simctl spawn "$UDID" /bin/sh -c :; then
       BOOT_READY=1
       # Same app bundle ID: uninstall v5 so v6 has clean, isolated preferences.
       op terminate-v5 25 xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
