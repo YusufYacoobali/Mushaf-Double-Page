@@ -1,0 +1,1 @@
+Run exactly one targeted v6 Duo smoke verification: all four postures at 100% and half-open book swipe. Use the reusable QA simulator artifact. Do not run the full iPad matrix.
