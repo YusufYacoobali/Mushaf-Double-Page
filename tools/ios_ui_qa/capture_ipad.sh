@@ -11,13 +11,22 @@ cp .ci/ipad-template.json "$OUTPUT/template.json"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
 UDID=""
 BOOT_READY=0
+# Keep the successfully booted v5 simulator alive for the v6 comparison.
+# Reusing the same guest avoids a second costly CoreSimulator cold-start.
+KEEP_DEVICE="${IPAD_KEEP_DEVICE:-0}"
+REUSE_UDID="${IPAD_REUSE_UDID:-}"
 op() { local stage="$1" seconds="$2"; shift 2; python3 .github/scripts/ci_run.py --operation "$stage" --timeout "$seconds" --output "$OUTPUT/operations" -- "$@"; }
 cleanup() {
   local status=$?
   if [[ -n "$UDID" ]]; then
-    if [[ "$BOOT_READY" == 1 ]]; then
-      op screenshot 45 xcrun simctl io "$UDID" screenshot "$OUTPUT/final-frame.png" || true
+    if [[ "$status" == 0 && "$KEEP_DEVICE" == 1 ]]; then
+      mkdir -p .ci
+      printf '%s\n' "$UDID" > ".ci/ipad-$DEVICE-reuse-udid.txt"
+      echo "Preserved booted v5 iPad $UDID for v6 on the same runner"
+      return 0
     fi
+    # Diagnostics are already in operations/ and XCTest attachments.
+    # A second screenshot at shutdown often hangs the same display service.
     op shutdown 45 xcrun simctl shutdown "$UDID" || true
     op delete 45 xcrun simctl delete "$UDID" || true
   fi
@@ -36,26 +45,35 @@ for attempt in 1 2; do
   BOOT_READY=0
   DATA=""
   echo "Starting $DEVICE $VERSION attempt $attempt/2"
-  if ! python3 .github/scripts/ci_run.py --operation create --timeout 75 --output "$OUTPUT/operations" --value-file "$OUTPUT/udid.txt" -- xcrun simctl create "reader-$GITHUB_RUN_ID-$DEVICE-$VERSION-$attempt" "$TYPE" "$RUNTIME"; then
-    if [[ "$attempt" == 1 ]]; then bash .github/scripts/simulator_host_health.sh recover "$OUTPUT/host-recovery" || true; fi
-    continue
-  fi
-  UDID=$(tail -n 1 "$OUTPUT/udid.txt")
-  if op boot 75 xcrun simctl boot "$UDID"; then
-    # macOS 15 has the classic Simulator.app. Opening its real display helps
-    # initialize render services before trying screenshots and XCTest.
-    if [[ -d "${DEVELOPER_DIR:-}/Applications/Simulator.app" ]]; then
-      op simulator-ui 35 open -a "$DEVELOPER_DIR/Applications/Simulator.app" --args -CurrentDeviceUDID "$UDID" || true
-    else
-      op simulator-ui 35 open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
-    fi
-    if ! op bootstatus 225 xcrun simctl bootstatus "$UDID" -b; then
-      echo "::warning::iPad bootstatus stalled; checking physical display"
-    fi
-    if op display-ready 65 xcrun simctl io "$UDID" screenshot "$OUTPUT/boot-$attempt.png"; then
+  if [[ "$attempt" == 1 && -n "$REUSE_UDID" ]]; then
+    UDID="$REUSE_UDID"
+    echo "Reusing already-booted v5 simulator $UDID; skipping create, boot and GUI"
+    if op reuse-ready 55 xcrun simctl spawn "$UDID" /usr/bin/true; then
       BOOT_READY=1
+      # Same app bundle ID: uninstall v5 so v6 has clean, isolated preferences.
+      op terminate-v5 25 xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+      op uninstall-v5 45 xcrun simctl uninstall "$UDID" "$BUNDLE_ID" || true
+    fi
+  else
+    if ! python3 .github/scripts/ci_run.py --operation create --timeout 75 --output "$OUTPUT/operations" --value-file "$OUTPUT/udid.txt" -- xcrun simctl create "reader-$GITHUB_RUN_ID-$DEVICE-$VERSION-$attempt" "$TYPE" "$RUNTIME"; then
+      if [[ "$attempt" == 1 ]]; then bash .github/scripts/simulator_host_health.sh recover "$OUTPUT/host-recovery" || true; fi
+      continue
+    fi
+    UDID=$(tail -n 1 "$OUTPUT/udid.txt")
+    if op boot 75 xcrun simctl boot "$UDID"; then
+      # Opening Simulator.app is optional: CoreSimulator and XCTest can render
+      # headlessly, and a blocked GUI must not prevent the actual app launch.
+      if [[ -d "${DEVELOPER_DIR:-}/Applications/Simulator.app" ]]; then
+        op simulator-ui 35 open -a "$DEVELOPER_DIR/Applications/Simulator.app" --args -CurrentDeviceUDID "$UDID" || true
+      fi
+      if op bootstatus 225 xcrun simctl bootstatus "$UDID" -b; then
+        BOOT_READY=1
+      fi
     fi
   fi
+  # The old harness took a pre-app screenshot here and discarded otherwise
+  # healthy devices when CoreSimulator's display daemon was slow. Install and
+  # launch first; XCTest will provide the required genuine reader screenshots.
   if [[ "$BOOT_READY" == 1 ]] && op install 150 xcrun simctl install "$UDID" "$APP" &&
       python3 .github/scripts/ci_run.py --operation container --timeout 120 --output "$OUTPUT/operations" --value-file "$OUTPUT/container.txt" -- xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data; then
     DATA=$(tail -n 1 "$OUTPUT/container.txt")
@@ -72,7 +90,7 @@ for attempt in 1 2; do
     fi
   fi
   echo "::warning::iPad $DEVICE $VERSION startup attempt $attempt failed"
-  if [[ "$BOOT_READY" == 1 ]]; then op failed-frame 35 xcrun simctl io "$UDID" screenshot "$OUTPUT/failed-$attempt.png" || true; fi
+  # Don't call an already wedged screenshot service again as a failure probe.
   op shutdown 45 xcrun simctl shutdown "$UDID" || true
   op delete 45 xcrun simctl delete "$UDID" || true
   UDID=""
