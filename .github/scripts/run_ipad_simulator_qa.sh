@@ -24,9 +24,13 @@ patterns = {'mini': r'^iPad mini', 'ipad': r'^iPad \(',
             'air11': r'^iPad Air 11', 'air13': r'^iPad Air 13',
             'pro11': r'^iPad Pro 11', 'pro13': r'^iPad Pro 13'}
 devices = [d for d in json.load(open(sys.argv[1]))['devicetypes']
-           if re.search(patterns[sys.argv[2]], d['name'])]
+           if re.search(patterns[sys.argv[2]], d['name'])
+           and d['minRuntimeVersion'] <= (27 << 16) <= d['maxRuntimeVersion']]
 assert devices, f'No simulator device for {sys.argv[2]}'
-print(devices[-1]['identifier'])
+# CoreSimulator lists current models first, followed by historical models.
+# Filter runtime compatibility before choosing: the newest mini needs 27.2,
+# while older iPads at the end of the list cannot run 27.0 at all.
+print(devices[0]['identifier'])
 PY
 )"
 UDID="$(xcrun simctl create "quran-ci-ipad-$FAMILY-$GITHUB_RUN_ID" "$TYPE" com.apple.CoreSimulator.SimRuntime.iOS-27-0)"
