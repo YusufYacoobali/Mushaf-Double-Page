@@ -193,7 +193,20 @@ class QuranPageView {
           );
           if (pageRegions != null) {
             // Book zoom is relative to a complete page fitted inside each
-            // hinge-safe panel. Legacy regional/iPad spreads keep width zoom.
+            // hinge-safe panel. Use the smaller fitted panel for BOTH pages so
+            // navigation clearance or an off-centre hinge cannot change their
+            // relative text size. Legacy/iPad spreads retain their width zoom.
+            final bookWidth = bookFirstPage == null
+                ? null
+                : pageRegions
+                          .map(
+                            (region) => math.min(
+                              region.width,
+                              region.height * aspectRatio,
+                            ),
+                          )
+                          .reduce(math.min) *
+                      clamped;
             return Stack(
               children: [
                 for (var physical = 0; physical < 2; physical++)
@@ -207,17 +220,12 @@ class QuranPageView {
                           clamped,
                           aspectRatio,
                           pageRegions[physical],
+                          bookWidth,
                         ),
-                        builder: (viewport) => bookFirstPage != null
+                        builder: (viewport) => bookWidth != null
                             ? Center(
                                 child: SizedBox(
-                                  width:
-                                      math.min(
-                                        pageRegions[physical].width,
-                                        pageRegions[physical].height *
-                                            aspectRatio,
-                                      ) *
-                                      clamped,
+                                  width: bookWidth,
                                   child: framedPage(pageAt(physical), viewport),
                                 ),
                               )

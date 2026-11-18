@@ -64,11 +64,14 @@ if [[ -n "$TEST_DATA" ]]; then
 fi
 python3 - "$OUTPUT" "$DEVICE" <<'PY'
 from pathlib import Path
-import struct, sys
+from PIL import Image, ImageOps
+import sys
 root, device = Path(sys.argv[1]), sys.argv[2]
 for mode in ['portrait-after-18s', 'landscape']:
     path = root / f'ipad-{device}-{mode}.png'
-    width, height = struct.unpack('>II', path.read_bytes()[16:24])
+    # XCTest stores landscape pixels in sensor orientation with EXIF rotation.
+    # Validate the displayed image, keeping the original screenshot untouched.
+    width, height = ImageOps.exif_transpose(Image.open(path)).size
     assert (width > height) == (mode == 'landscape'), (mode, width, height)
     print(f'Actual {mode} PNG: {width}x{height}')
 PY

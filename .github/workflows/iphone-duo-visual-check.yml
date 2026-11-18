@@ -6,6 +6,8 @@ on:
     branches: [v5, v6]
     paths:
       - '.github/workflows/iphone-duo-visual-check.yml'
+      - '.github/workflows/ipad-native-visual-check.yml'
+      - 'tools/ios_ui_qa/**'
       - '.github/scripts/**'
       - 'ios/Runner/**'
       - 'ios/Runner.xcodeproj/project.pbxproj'
@@ -164,69 +166,9 @@ jobs:
             screenshots/duo-half-open-book-after-swipe.png
           retention-days: 14
 
-  ipad-mini:
-    name: Compare iPad ${{ matrix.device }} with v5
+  ipad-native:
+    name: Compare iPads with v5
     needs: build-simulator
-    runs-on: xcode-27
-    timeout-minutes: 48
-    strategy:
-      fail-fast: false
-      matrix:
-        device: [mini, pro11, pro13]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: quran-ios-duo-simulator-build
-      - name: Extract app
-        run: |
-          mkdir -p ci-app
-          tar -xzf ios-simulator-runner.tgz -C ci-app
-          test -d ci-app/Runner.app
-      - name: Download original v5 simulator build
-        uses: actions/download-artifact@v4
-        with:
-          name: quran-ios-duo-simulator-build
-          run-id: '44183372666'
-          github-token: ${{ github.token }}
-          path: v5-build
-      - name: Extract original v5 application
-        run: |
-          mkdir -p ci-app-v5
-          tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
-      - name: Install native simulator input controls
-        run: |
-          brew install skarol/tap/duoctl tesseract
-          python3 -m venv .qa-venv
-          .qa-venv/bin/pip install Pillow
-          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
-      - name: Capture v6 iPad portrait and landscape
-        shell: bash
-        env:
-          IPAD_DEVICE: ${{ matrix.device }}
-          IPAD_VERSION: v6
-        run: bash .github/scripts/run_ipad_simulator_qa.sh
-      - name: Upload v6 iPad screenshots and diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quran-ipad-${{ matrix.device }}-v6
-          path: screenshots-ipad/${{ matrix.device }}-v6/
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Capture v5 iPad portrait and landscape
-        if: ${{ !cancelled() }}
-        shell: bash
-        env:
-          IPAD_DEVICE: ${{ matrix.device }}
-          IPAD_VERSION: v5
-          IPAD_APP: ci-app-v5/Runner.app
-        run: bash .github/scripts/run_ipad_simulator_qa.sh
-      - name: Upload v5 iPad screenshots and diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quran-ipad-${{ matrix.device }}-v5
-          path: screenshots-ipad/${{ matrix.device }}-v5/
-          if-no-files-found: warn
-          retention-days: 14
+    uses: ./.github/workflows/ipad-native-visual-check.yml
+    with:
+      source_run_id: ${{ github.run_id }}

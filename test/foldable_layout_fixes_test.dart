@@ -383,6 +383,14 @@ void main() {
               findsOneWidget,
             );
           }
+          final current = tester.getRect(
+            find.byKey(const ValueKey('quran-page-4')),
+          );
+          final next = tester.getRect(
+            find.byKey(const ValueKey('quran-page-5')),
+          );
+          expect(next.width, closeTo(current.width, .001));
+          expect(next.height, closeTo(current.height, .001));
           expect(find.byType(SingleChildScrollView), findsNothing);
           await tester.drag(find.byType(PageView), const Offset(800, 0));
           await tester.pumpAndSettle();
