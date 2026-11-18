@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import '../pages/page_view.dart';
 import '../utils/reader_layout.dart';
