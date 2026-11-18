@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Capture real Flutter reader screenshots at min/max zoom. Xcode 27's AXe
 # accessibility service times out in CI even though the app is running.
-# Avoid AXe: set actual persisted app zoom while Runner is stopped, relaunch,
-# screenshot the genuine rendered Quran page in each Duo posture.
+# Avoid AXe: seed persisted zoom, then drive the real zoom buttons until the
+# visible toolbar percentage matches. Preference writes alone can be cached.
 set -Eeuo pipefail
 if [[ "$#" != 3 ]]; then echo "Usage: $0 <state> <min-percent> <max-percent>" >&2; exit 2; fi
 LABEL="$1"
@@ -101,7 +101,9 @@ else:
         assert state.get("orientation") == "portrait", state
 print(f"Validated display: {active}, hinge={angle}, orientation={state.get('orientation')}")
 PY
-  duoctl screenshot "$name.png"
+  local dock=side
+  if [[ "$LABEL" == "duo-folded" || "$LABEL" == "duo-unfolded-portrait" ]]; then dock=bottom; fi
+  python3 .github/scripts/simulator_reader_input.py capture "$UDID" "$name.png" --zoom "$percent" --dock "$dock"
   [[ -s "$name.png" ]] || { echo "::error::No screenshot created: $name.png"; return 1; }
   sips -g pixelWidth -g pixelHeight "$name.png"
   echo "PASS: real $LABEL reader at $percent% ($name.png)" | tee -a "screenshots/$LABEL-result.txt"

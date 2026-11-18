@@ -87,7 +87,9 @@ jobs:
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
       - name: Install Duo controls (no accessibility dependency)
-        run: brew install skarol/tap/duoctl
+        run: |
+          brew install skarol/tap/duoctl
+          xcrun swiftc -O .github/scripts/simulator_reader_ocr.swift -o .qa-reader-ocr
       - name: Run folded, unfolded, and half-open reader screenshots
         shell: bash
         run: bash .github/scripts/run_duo_simulator_qa.sh
@@ -163,6 +165,10 @@ jobs:
         run: |
           mkdir -p ci-app-v5
           tar -xzf v5-build/ios-simulator-runner.tgz -C ci-app-v5
+      - name: Install native simulator input controls
+        run: |
+          brew install skarol/tap/duoctl
+          xcrun swiftc -O .github/scripts/simulator_reader_ocr.swift -o .qa-reader-ocr
       - name: Capture v6 iPad portrait and landscape
         shell: bash
         env:

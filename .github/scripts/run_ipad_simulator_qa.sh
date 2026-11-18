@@ -54,27 +54,18 @@ xcrun simctl io "$UDID" screenshot "$OUTPUT/ipad-$DEVICE-portrait.png"
 # without altering application code, so reviewers can distinguish an
 # auto-dismissing overlay from a persistent layout issue.
 sleep 18
-xcrun simctl io "$UDID" screenshot "$OUTPUT/ipad-$DEVICE-portrait-after-18s.png"
+python3 .github/scripts/simulator_reader_input.py capture "$UDID" "$OUTPUT/ipad-$DEVICE-portrait-after-18s.png"
 
 # Use the Simulator's real rotation action, with no injected application code.
 # Confirm the rendered PNG is landscape before accepting the capture.
-open -a Simulator --args -CurrentDeviceUDID "$UDID"
-sleep 3
-osascript <<'APPLESCRIPT' > "$OUTPUT/rotation.txt" 2>&1
-tell application "Simulator" to activate
-tell application "System Events"
-  tell process "Simulator"
-    key code 123 using command down
-  end tell
-end tell
-APPLESCRIPT
+python3 .github/scripts/simulator_reader_input.py landscape "$UDID" 2>&1 | tee "$OUTPUT/rotation.txt"
 sleep 3
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
 sleep 2
 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
 xcrun simctl launch "$UDID" "$BUNDLE_ID"
 sleep 5
-xcrun simctl io "$UDID" screenshot "$OUTPUT/ipad-$DEVICE-landscape.png"
+python3 .github/scripts/simulator_reader_input.py capture "$UDID" "$OUTPUT/ipad-$DEVICE-landscape.png" --require-zoom
 python3 - "$OUTPUT/ipad-$DEVICE-landscape.png" <<'PY'
 import struct, sys
 with open(sys.argv[1], 'rb') as f:
