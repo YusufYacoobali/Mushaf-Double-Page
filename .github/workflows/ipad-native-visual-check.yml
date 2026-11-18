@@ -192,6 +192,7 @@ jobs:
         if: always()
         with:
           name: ipad-${{ matrix.device }}-${{ inputs.test_case }}
+          overwrite: true
           path: |
             screenshots-native/
             .ci/v5-baseline/
