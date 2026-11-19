@@ -64,8 +64,13 @@ python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geome
 # 100%, so rotation keeps the requested page without restarting the app.
 echo "::group::Rotate iPad mini to landscape"
 rotated_after="$(python3 -c 'import time; print(time.time())')"
-timeout 360 python3 .github/scripts/simulator_reader_input.py landscape "$UDID" \
-  2>&1 | tee screenshots-ipad/rotation.txt
+python3 .github/scripts/ci_run.py --operation ipad-landscape-rotation --timeout 360 \
+  --output screenshots-ipad/rotation -- \
+  xcodebuild test-without-building -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj \
+  -scheme ReaderVisualTests -derivedDataPath ui-build \
+  -destination "platform=iOS Simulator,id=$UDID" -parallel-testing-enabled NO \
+  -only-testing:ReaderVisualTests/ReaderVisualTests/testRotateLandscape \
+  -resultBundlePath screenshots-ipad/rotation.xcresult CODE_SIGNING_ALLOWED=NO
 echo "::endgroup::"
 python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geometry.json" \
   screenshots-ipad/ipad-mini-landscape.png ipad-mini-landscape 100 "$rotated_after" --udid "$UDID" --page "$QA_PAGE"

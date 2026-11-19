@@ -1,0 +1,1 @@
+Complete iPad mini page 6 portrait and pages 6–7 landscape at 100% using one targeted XCTest rotation. Reuse the exact verified 60e1f8e application and successful Duo captures from run 44543617927, reject any production-source mismatch, and reverify all 12 original captures before assembling the comparison.

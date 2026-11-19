@@ -116,12 +116,13 @@ jobs:
           mkdir -p ci-app
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
-      - name: Install simulator rotation and capture verifier
+      - name: Prepare targeted XCTest rotation and capture verifier
         run: |
-          brew install skarol/tap/duoctl
+          brew install xcodegen
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install Pillow
           echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+          bash .github/scripts/build_ipad_rotation_harness.sh
       - name: Capture iPad mini portrait and landscape at 100%
         shell: bash
         run: bash .github/scripts/proven_ipad_simulator_qa.sh

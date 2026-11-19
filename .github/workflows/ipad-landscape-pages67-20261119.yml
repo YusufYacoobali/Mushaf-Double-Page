@@ -1,0 +1,173 @@
+name: Complete pages 6–7 iPad landscape verification
+run-name: Pages 6–7 · verified Duo + iPad portrait and landscape at 100%
+
+on:
+  push:
+    branches: [v6]
+    paths:
+      - '.github/ipad-landscape-pages67-20261119.request'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: quran-ipad-landscape-pages67-${{ github.ref }}
+  cancel-in-progress: false
+
+# This follow-up changes only the simulator harness. Reuse the exact app and
+# successful Duo captures, with explicit source checks, rather than rebuild it.
+env:
+  SOURCE_RUN_ID: '44543617927'
+  SOURCE_APP_SHA: '60e1f8e83c80ba2ea15e19695936dc0da6d6d84a'
+
+jobs:
+  ipad-mini:
+    name: Verify iPad mini portrait and landscape at 100%
+    runs-on: xcode-27
+    timeout-minutes: 35
+    env:
+      READER_QA_PAGE: '6'
+      READER_QA_SINGLE_ZOOM: '100'
+      READER_QA_SPREAD_ZOOM: '100'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require unchanged app sources and successful source build/Duo jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --exit-code "$SOURCE_APP_SHA" HEAD -- . ':(exclude).github/**' ':(exclude)tools/ios_ui_qa/**'
+          python3 - <<'PY'
+          import json, os, urllib.request
+          base = 'https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY'] + '/'
+          def api(path):
+              request = urllib.request.Request(base + path, headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              })
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          source = int(os.environ['SOURCE_RUN_ID'])
+          run = api(f'actions/runs/{source}')
+          assert run['head_sha'] == os.environ['SOURCE_APP_SHA'], 'source app revision mismatch'
+          for job_id, name in [
+              (135628184574, 'Build iOS simulator application'),
+              (135631601020, 'Test clean iPhone Duo (min/max zoom)'),
+          ]:
+              job = api(f'actions/jobs/{job_id}')
+              assert job['run_id'] == source and job['name'] == name
+              assert job['conclusion'] == 'success', f'{name} did not pass'
+          print('Confirmed identical application sources and successful source build/Duo verification')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Extract the verified application
+        run: |
+          mkdir -p ci-app
+          tar -xzf ios-simulator-runner.tgz -C ci-app
+          test -d ci-app/Runner.app
+      - name: Prepare the small XCTest rotation runner before booting iPad
+        run: |
+          brew install xcodegen
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+          bash .github/scripts/build_ipad_rotation_harness.sh
+      - name: Capture iPad mini portrait and landscape at 100%
+        shell: bash
+        run: bash .github/scripts/proven_ipad_simulator_qa.sh
+      - name: Upload iPad mini originals and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quran-ipad-mini-visual-qa
+          path: screenshots-ipad/
+          if-no-files-found: warn
+          retention-days: 14
+
+  comparison:
+    name: Reverify all 12 captures and assemble comparison
+    needs: ipad-mini
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-duo-visual-qa
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: screenshots
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ipad-mini-visual-qa
+          path: screenshots-ipad
+      - name: Recheck requested pages, geometry and genuine screenshot edges
+        run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          .qa-venv/bin/python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, '.github/scripts')
+          from verify_fitted_capture import MODES, verify
+          count = 0
+          for posture, minimum in [
+              ('duo-folded', 70), ('duo-unfolded-portrait', 70),
+              ('duo-unfolded-wide', 60), ('duo-half-open-book', 60),
+          ]:
+              cases = [(f'min-{minimum}', minimum, 'initial', None),
+                       ('max-100', 100, 'initial', f'min-{minimum}')]
+              if posture in ('duo-folded', 'duo-unfolded-wide'):
+                  phase = 'collapsed' if posture == 'duo-folded' else 'bottom'
+                  cases.append((f'max-100-{phase}', 100, phase, 'max-100'))
+              for suffix, zoom, phase, before_suffix in cases:
+                  path = Path('screenshots') / f'{posture}-{suffix}'
+                  before = json.loads(Path(f'screenshots/{posture}-{before_suffix}.layout.json').read_text()) if before_suffix else None
+                  state = json.loads(Path(str(path) + '-state.json').read_text())
+                  verify(str(path) + '.png', str(path) + '.layout.json', zoom, MODES[posture],
+                         posture=posture, state=state, phase=phase, before=before, expected_page=6)
+                  count += 1
+          for orientation, posture in [('portrait', 'ipad-mini'), ('landscape', 'ipad-mini-landscape')]:
+              path = Path('screenshots-ipad') / f'ipad-mini-{orientation}'
+              verify(str(path) + '.png', str(path) + '.layout.json', 100, MODES[posture],
+                     posture=posture, expected_page=6)
+              count += 1
+          assert count == 12
+          print('PASS: all 12 captures show the requested pages and zoom with verified geometry and pixels')
+          PY
+          .qa-venv/bin/python .github/scripts/reader_comparison.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quran-layout-comparison
+          path: reader-comparison.png
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reader-originals-portrait
+          path: |
+            screenshots/duo-folded-min-*.png
+            screenshots/duo-folded-max-*.png
+            screenshots/duo-unfolded-portrait-min-*.png
+            screenshots/duo-unfolded-portrait-max-*.png
+            screenshots-ipad/ipad-mini-portrait.png
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reader-originals-landscape
+          path: |
+            screenshots/duo-unfolded-wide-min-*.png
+            screenshots/duo-unfolded-wide-max-*.png
+            screenshots/duo-half-open-book-min-*.png
+            screenshots/duo-half-open-book-max-*.png
+            screenshots-ipad/ipad-mini-landscape.png
+          if-no-files-found: error
+          retention-days: 14

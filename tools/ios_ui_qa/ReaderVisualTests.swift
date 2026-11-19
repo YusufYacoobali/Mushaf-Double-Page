@@ -2,6 +2,26 @@ import XCTest
 
 final class ReaderVisualTests: XCTestCase {
   @MainActor
+  func testRotateLandscape() throws {
+    continueAfterFailure = false
+    let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
+    // Activate the already-installed reader without resetting its page or zoom.
+    reader.activate()
+    XCTAssertTrue(reader.wait(for: .runningForeground, timeout: 20),
+                  "rotation: reader not foreground")
+    XCUIDevice.shared.orientation = .portrait
+    waitForOrientation(reader, landscape: false)
+    XCUIDevice.shared.orientation = .landscapeLeft
+    waitForOrientation(reader, landscape: true)
+    // Retain a diagnostic only. The workflow still pairs a separate, genuine
+    // screenshot with fresh reader geometry after this rotation-only test.
+    let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    attachment.name = "reader-landscape-rotation"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+
+  @MainActor
   func testLayout() throws {
     continueAfterFailure = false
     let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
