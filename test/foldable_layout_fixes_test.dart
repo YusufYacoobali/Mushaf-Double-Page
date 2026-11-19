@@ -665,8 +665,9 @@ void main() {
                 );
               } else {
                 expect(frame.top, closeTo(reading.top - offset, .001));
-                if (atBottom)
+                if (atBottom) {
                   expect(frame.bottom, closeTo(reading.bottom, .001));
+                }
               }
             }
           }
