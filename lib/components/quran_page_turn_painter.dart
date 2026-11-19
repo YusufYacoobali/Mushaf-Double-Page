@@ -151,11 +151,11 @@ class QuranPageTurnPainter extends CustomPainter {
       columns,
       split,
       _strips,
-      // The portrait flap carries the incoming page, just like a spread's
-      // reverse face. Keep its text readable instead of showing blank paper.
-      back.image,
+      // Every single-page curl has a printed front and a blank paper back.
+      // A two-page spread carries its incoming leaf on the reverse instead.
+      single ? null : back.image,
       mirror: !forward,
-      underside: single && back.image == null,
+      underside: single,
     );
 
     final edge = columns.last;

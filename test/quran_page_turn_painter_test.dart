@@ -17,6 +17,7 @@ const _orange = Color(0xffff7700);
 const _pink = Color(0xffff00ff);
 const _cyan = Color(0xff00ffff);
 const _paper = Color(0xff50483e);
+const _lightPaper = Color(0xfffaf8f0);
 
 Future<ui.Image> _page(int number, Color fill, {bool marked = false}) async {
   final recorder = ui.PictureRecorder();
@@ -60,6 +61,7 @@ Future<_Pixels> _frame(
   double progress, {
   bool forward = true,
   List<Rect> clips = _clips,
+  Color paperColor = _paper,
 }) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
@@ -70,7 +72,7 @@ Future<_Pixels> _frame(
     forward: forward,
     progress: progress,
     clipRegions: clips,
-    paperColor: _paper,
+    paperColor: paperColor,
   ).paint(canvas, _size);
   final picture = recorder.endRecording();
   final image = await picture.toImage(
@@ -191,57 +193,82 @@ void main() {
   }
 
   test(
-    'portrait curl carries readable incoming content on its reverse face',
+    'single-page curl keeps its printed front and opaque blank reverse',
     () async {
-      for (final forward in [true, false]) {
-        final from = [PageTurnLeaf(bounds: _left, image: current[1].image)];
-        final to = [PageTurnLeaf(bounds: _left, image: next[1].image)];
-        for (final progress in [.25, .5, .75]) {
-          final pixels = await _frame(from, to, progress, forward: forward);
-          final row = [for (var x = 4; x < 108; x++) pixels.at(x, 97)];
-          expect(
-            row.where((p) => p == (80, 72, 62)),
-            isEmpty,
-            reason: 'The reverse must contain the incoming page at $progress',
+      for (final (paper, paperRgb) in [
+        (_paper, (80, 72, 62)),
+        (_lightPaper, (250, 248, 240)),
+      ]) {
+        for (final forward in [true, false]) {
+          final from = [PageTurnLeaf(bounds: _left, image: current[1].image)];
+          final to = [PageTurnLeaf(bounds: _left, image: next[1].image)];
+          for (final progress in [.25, .5, .75]) {
+            final pixels = await _frame(
+              from,
+              to,
+              progress,
+              forward: forward,
+              paperColor: paper,
+            );
+            final row = [for (var x = 4; x < 108; x++) pixels.at(x, 97)];
+            expect(
+              row.where((p) => p == paperRgb),
+              isNotEmpty,
+              reason: 'The reverse must be opaque blank paper at $progress',
+            );
+            expect(
+              row[forward ? 0 : row.length - 1],
+              forward ? (255, 0, 255) : (0, 255, 255),
+              reason: 'The destination underneath retains its own orientation',
+            );
+            if (progress == .25) {
+              expect(
+                pixels.at(forward ? 48 : 64, 97),
+                paperRgb,
+                reason: 'The raised reverse has no incoming page markings',
+              );
+              expect(
+                pixels.at(forward ? 92 : 20, 97),
+                (255, 0, 0),
+                reason:
+                    'The outgoing printed face remains visible while curling',
+              );
+            }
+            if (progress == .5) {
+              expect(
+                pixels.at(forward ? 97 : 14, 97),
+                paperRgb,
+                reason: 'The reverse stays blank as the curl crosses the page',
+              );
+              final abovePage = [
+                for (var x = 4; x < 108; x++) pixels.at(x, 19),
+              ];
+              expect(
+                abovePage.any((rgb) => rgb.$1 > rgb.$2 && rgb.$2 > rgb.$3),
+                isTrue,
+                reason: 'The lifted paper silhouette rises above the flat page',
+              );
+              expect(pixels.at(forward ? 109 : 2, 97), (52, 52, 52));
+            }
+          }
+          final end = await _frame(
+            from,
+            to,
+            1,
+            forward: forward,
+            paperColor: paper,
+          );
+          final actualDestination = await _frame(
+            to,
+            from,
+            0,
+            paperColor: paper,
           );
           expect(
-            row[forward ? 0 : row.length - 1],
-            forward ? (255, 0, 255) : (0, 255, 255),
-            reason: 'The destination underneath retains its own orientation',
+            end.bytes.buffer.asUint8List(),
+            actualDestination.bytes.buffer.asUint8List(),
           );
-          if (progress == .25) {
-            expect(
-              pixels.at(forward ? 48 : 64, 97),
-              forward ? (0, 255, 255) : (255, 0, 255),
-              reason: 'The raised reverse face uses readable, untinted content',
-            );
-            expect(
-              pixels.at(forward ? 92 : 20, 97),
-              (255, 0, 0),
-              reason: 'The outgoing printed face remains visible while curling',
-            );
-          }
-          if (progress == .5) {
-            expect(
-              pixels.at(forward ? 97 : 14, 97),
-              forward ? (0, 255, 255) : (255, 0, 255),
-              reason: 'The reverse face does not mirror the page markings',
-            );
-            final abovePage = [for (var x = 4; x < 108; x++) pixels.at(x, 19)];
-            expect(
-              abovePage.any((rgb) => rgb.$3 > 140),
-              isTrue,
-              reason: 'The lifted paper silhouette rises above the flat page',
-            );
-            expect(pixels.at(forward ? 109 : 2, 97), (52, 52, 52));
-          }
         }
-        final end = await _frame(from, to, 1, forward: forward);
-        final actualDestination = await _frame(to, from, 0);
-        expect(
-          end.bytes.buffer.asUint8List(),
-          actualDestination.bytes.buffer.asUint8List(),
-        );
       }
     },
   );
