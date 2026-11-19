@@ -4,11 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
+import 'package:mushaf_two_page/components/reader_audio_controls.dart';
 import 'package:mushaf_two_page/logic/audio_playback_backend.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/pages/tasbeeh.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/audio_page_follower.dart';
 import 'package:mushaf_two_page/utils/audio_vertical_follower.dart';
 import 'package:mushaf_two_page/utils/page_ayah_index.dart';
@@ -497,21 +499,52 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: LayoutBuilder(
-            builder: (context, bounds) => AdaptiveQuranPages(
-              paging: paging,
-              layout: ReaderLayout.resolve(size: bounds.biggest),
-              singleScale: .8,
-              spreadScale: 1,
-              imagePath: (_) => 'assets/mushaf/madani_preview.png',
-              isDarkMode: false,
-              aspectRatio: .69,
-              highlightFor: (_) => [],
-              highlightColor: Colors.amber,
-              mushaf: 'madani',
-              verticalFollower: vertical,
-              onFocus: (_) {},
-              onPageChanged: manualCommits.add,
+          home: Scaffold(
+            body: LayoutBuilder(
+              builder: (context, bounds) {
+                final layout = ReaderLayout.resolve(size: bounds.biggest);
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    AdaptiveQuranPages(
+                      paging: paging,
+                      layout: layout,
+                      singleScale: .8,
+                      spreadScale: 1,
+                      imagePath: (_) => 'assets/mushaf/madani_preview.png',
+                      isDarkMode: false,
+                      aspectRatio: .69,
+                      highlightFor: (_) => [],
+                      highlightColor: Colors.amber,
+                      mushaf: 'madani',
+                      verticalFollower: vertical,
+                      onFocus: (_) {},
+                      onPageChanged: manualCommits.add,
+                    ),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: ListenableBuilder(
+                        listenable: controller,
+                        builder: (context, _) => ReaderAudioControls(
+                          palette: AppPalette.of(context),
+                          portrait: layout.singlePage,
+                          title: 'Al-Baqarah',
+                          reference: '2:${controller.currentAyah}',
+                          subtitle: '',
+                          playing: controller.playing,
+                          paused: controller.paused,
+                          playbackActive: controller.hasActivePlayback,
+                          onPrevious: controller.seekPrevious,
+                          onPlayPause: controller.togglePlayPause,
+                          onNext: controller.seekNext,
+                          onStop: controller.stop,
+                          onSettings: () {},
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -585,14 +618,49 @@ void main() {
       expect(paging.settled, isTrue);
       expect(paging.focusedPage, 6);
       expect(controller.audible, isTrue);
+      final rotating = paging.goTo(8, animate: true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(paging.phase, PageTurnPhase.settling);
+      native.clock(176400 + 4400);
+      final beforeResize = controller.playbackPosition;
+      final occurrence = controller.currentOccurrence;
+      tester.view.physicalSize = const Size(400, 800);
+      await tester.pumpAndSettle();
+      expect(await rotating, isTrue);
+      expect(paging.singlePage, isTrue);
+      expect(paging.focusedPage, 8);
+      native.clock(176400 + 8800);
+      await tester.pump();
+      expect(controller.audible, isTrue);
+      expect(controller.currentOccurrence, occurrence);
+      expect(controller.playbackPosition, greaterThan(beforeResize));
       expect([
         for (final action in ['prepare', 'play', 'pause', 'stop', 'seek'])
           native.count(action),
       ], transport);
       expect(legacy.sourceLoads, 0);
-      await controller.pause();
+
+      final turning = paging.goTo(9, animate: true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(paging.phase, PageTurnPhase.settling);
+      await tester.tap(find.byTooltip('Pause'));
+      await tester.pump();
+      expect(controller.paused, isTrue);
       expect(native.count('pause'), transport[2] + 1);
-      expect(controller.audible, isFalse);
+      expect(paging.phase, PageTurnPhase.settling);
+      await tester.tap(find.byTooltip('Resume'));
+      await tester.pump();
+      expect(native.count('play'), transport[1] + 1);
+      await tester.tap(find.byTooltip('Stop audio'));
+      await tester.pump();
+      expect(paging.phase, PageTurnPhase.settling);
+      expect(native.count('stop'), transport[3] + 1);
+      expect(controller.phase, QuranPlaybackPhase.idle);
+      await tester.pumpAndSettle();
+      expect(await turning, isTrue);
+      expect(controller.hasActivePlayback, isFalse);
       controller.removeListener(audioChanged);
       await tester.pumpWidget(const SizedBox());
       paging.dispose();
