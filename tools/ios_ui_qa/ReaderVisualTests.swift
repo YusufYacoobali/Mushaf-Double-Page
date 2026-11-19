@@ -9,10 +9,22 @@ final class ReaderVisualTests: XCTestCase {
     reader.activate()
     XCTAssertTrue(reader.wait(for: .runningForeground, timeout: 20),
                   "rotation: reader not foreground")
+    dismissNotification()
     XCUIDevice.shared.orientation = .portrait
     waitForOrientation(reader, landscape: false)
     XCUIDevice.shared.orientation = .landscapeLeft
     waitForOrientation(reader, landscape: true)
+    dismissNotification(timeout: 10)
+    // A system permission sheet can cover the reader while its geometry still
+    // passes. Require a clear screen before the workflow takes its real PNG.
+    let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    for _ in 0..<5 {
+      XCTAssertFalse(springboard.alerts.firstMatch.exists,
+                     "rotation: a system alert still covers the reader")
+      XCTAssertFalse(reader.alerts.firstMatch.exists,
+                     "rotation: a reader alert still covers the page")
+      Thread.sleep(forTimeInterval: 0.5)
+    }
     // Retain a diagnostic only. The workflow still pairs a separate, genuine
     // screenshot with fresh reader geometry after this rotation-only test.
     let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -153,10 +165,28 @@ final class ReaderVisualTests: XCTestCase {
   }
 
   @MainActor
-  private func dismissNotification() {
+  private func dismissNotification(timeout: TimeInterval = 3) {
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-    let deny = springboard.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] %@ AND label ENDSWITH[c] %@", "Don", "Allow")).firstMatch
-    if deny.waitForExistence(timeout: 3) { deny.tap() }
+    // Dismiss only this app's notification prompt on the disposable simulator.
+    // Other permission prompts and unrelated alerts must remain test failures.
+    let notification = springboard.alerts.containing(NSPredicate(
+      format: "label CONTAINS[c] %@ AND label CONTAINS[c] %@",
+      "Quran Dual Page", "Send You Notifications"
+    )).firstMatch
+    guard notification.waitForExistence(timeout: timeout) else { return }
+    let deny = notification.buttons.matching(NSPredicate(
+      format: "label == %@ OR label == %@", "Don't Allow", "Don’t Allow"
+    )).firstMatch
+    guard deny.waitForExistence(timeout: 3) else {
+      XCTFail("notification: the app's permission alert has no Don't Allow button")
+      return
+    }
+    deny.tap()
+    let dismissed = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "exists == false"), object: notification
+    )
+    XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed,
+                   "notification: the app's permission alert did not disappear")
   }
 
   @MainActor
