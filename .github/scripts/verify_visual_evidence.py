@@ -112,6 +112,10 @@ def verify_ipad(root, device):
             f'iPad {device} v5/v6 pixel+paper geometry comparison did not pass')
     png(folder / f'ipad-{device}-portrait-after-18s.png', landscape=False)
     png(folder / f'ipad-{device}-landscape.png', landscape=True)
+    closed = png(folder / f'ipad-{device}-navigation-closed.png', landscape=True)
+    opened = png(folder / f'ipad-{device}-navigation-open.png', landscape=True)
+    require(closed != opened,
+            f'iPad {device} navigation tab did not reveal controls: screenshots identical')
     for orientation, minimum in (('portrait', 70), ('landscape', 60)):
         hashes = []
         for value in range(minimum, 101, 5):
