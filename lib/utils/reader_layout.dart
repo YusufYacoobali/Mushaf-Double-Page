@@ -10,8 +10,8 @@ enum DockPlacement { bottom, side }
 
 enum ReaderSpreadLayout { centeredLandscape, separateRegions, widePortrait }
 
-/// Window geometry with an explicit iPad portrait compatibility hint.
-/// Width alone cannot distinguish an iPad mini from an unfolded phone.
+/// Shared tablet geometry with explicit iPad and foldable hints.
+/// Window width alone cannot distinguish a tablet from an unfolded phone.
 class ReaderLayout {
   const ReaderLayout({
     required this.pageMode,
@@ -52,6 +52,8 @@ class ReaderLayout {
 
   static ReaderLayout resolve({
     required Size size,
+    // Logical display size retains tablet behaviour in a smaller app window.
+    Size? displaySize,
     EdgeInsets padding = EdgeInsets.zero,
     List<DisplayFeature> displayFeatures = const [],
     double pageAspectRatio = 721 / 1058,
@@ -100,6 +102,15 @@ class ReaderLayout {
                   f.type == DisplayFeatureType.fold ||
                   f.type == DisplayFeatureType.hinge,
             ));
+    // Ordinary Android tablets use the same page fitting and controls as iPad.
+    // Any fold/hinge or cover hint keeps its own posture policy, even on a
+    // tablet-sized display. The explicit iPad hint retains its precedence.
+    final tablet =
+        preserveLegacyIPadPortrait ||
+        (!foldable &&
+            !foldedCover &&
+            (size.shortestSide >= 600 ||
+                (displaySize?.shortestSide ?? 0) >= 600));
     final halfOpened = displayFeatures.where(
       (f) =>
           (f.type == DisplayFeatureType.fold ||
@@ -129,9 +140,9 @@ class ReaderLayout {
               f.bounds.bottom < safeBounds.bottom,
         );
     final foldablePortrait = foldable && !landscape && !book;
-    // Original iPad reading was always one full-width page in portrait.
-    // Do not apply the unfolded-phone width threshold to an iPad window.
-    final legacyIPadPortrait = preserveLegacyIPadPortrait && !landscape;
+    // All ordinary tablets retain one full-width page in portrait or a square
+    // window; two pages belong to landscape or an explicit book posture.
+    final tabletPortrait = tablet && !landscape;
     final bottom =
         (!landscape || (sameRow.length >= 2 && !book)) && controls.width >= 300;
     final pageBounds = <Rect>[];
@@ -184,7 +195,7 @@ class ReaderLayout {
           ];
     final minimumWidth = landscape ? 600.0 : 720.0;
     final canSpread =
-        !legacyIPadPortrait &&
+        !tabletPortrait &&
         !tabletop &&
         !(foldedCover && !preserveLegacyIPadPortrait) &&
         !foldablePortrait &&
@@ -211,7 +222,7 @@ class ReaderLayout {
     final originalPortraitBounds =
         !fitPages &&
         !landscape &&
-        (size.width < 600 || legacyIPadPortrait) &&
+        (size.width < 600 || tabletPortrait) &&
         regions.length == 1 &&
         largest == safeDisplayRegions(size, padding, const []).single;
     final continuous =
@@ -333,7 +344,7 @@ class ReaderLayout {
       centerShortLandscapeSpread: fitPages && continuousSpread,
       centerSideDock:
           landscape &&
-          (preserveLegacyIPadPortrait ||
+          (tablet ||
               foldedCover ||
               (iosPhoneWidePortrait && size.shortestSide >= 600) ||
               displayFeatures.any(

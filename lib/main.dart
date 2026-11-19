@@ -1104,8 +1104,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       backgroundColor: _readerWhite ? Colors.white : Colors.black,
       body: LayoutBuilder(
         builder: (context, constraints) {
+          final display = View.of(context).display;
           final layout = ReaderLayout.resolve(
             size: constraints.biggest,
+            displaySize: display.size / display.devicePixelRatio,
             padding: MediaQuery.paddingOf(context),
             displayFeatures: [
               ...MediaQuery.displayFeaturesOf(context),

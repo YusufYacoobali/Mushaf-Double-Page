@@ -301,11 +301,11 @@ void main() {
         await tester.pump();
         expect(paging.settled, isFalse);
         final staleOperation = paging.operation;
-        tester.view.physicalSize = const Size(900, 900);
+        tester.view.physicalSize = const Size(1100, 800);
         await tester.pumpAndSettle();
         expect(layout!.singlePage, isFalse);
-        expect(layout!.spreadLayout, ReaderSpreadLayout.widePortrait);
-        expect(layout!.bottomDock, isTrue);
+        expect(layout!.spreadLayout, ReaderSpreadLayout.centeredLandscape);
+        expect(layout!.bottomDock, isFalse);
         expect(paging.focusedPage, 237);
         expect(paging.visiblePages, [236, 237]);
         expect(visits, isEmpty);

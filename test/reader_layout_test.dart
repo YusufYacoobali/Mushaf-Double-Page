@@ -13,7 +13,7 @@ void main() {
       (const Size(390, 844), ReaderPageMode.single, DockPlacement.bottom),
       (const Size(844, 390), ReaderPageMode.spread, DockPlacement.side),
       (const Size(600, 840), ReaderPageMode.single, DockPlacement.bottom),
-      (const Size(900, 900), ReaderPageMode.spread, DockPlacement.bottom),
+      (const Size(900, 900), ReaderPageMode.single, DockPlacement.bottom),
       (const Size(951, 669), ReaderPageMode.spread, DockPlacement.side),
       (const Size(1200, 800), ReaderPageMode.spread, DockPlacement.side),
       (const Size(340, 700), ReaderPageMode.single, DockPlacement.bottom),
@@ -67,10 +67,11 @@ void main() {
       );
       expect(inset.pageRegions.single, const Rect.fromLTWH(0, 0, 320, 568));
       expect(inset.fullWidthPortrait, isTrue);
-      // Wide portrait spreads still reserve their stable contextual-dock gutter.
-      final spread = ReaderLayout.resolve(size: const Size(900, 900));
-      expect(spread.singlePage, isFalse);
-      expect(spread.pageRegions.every((r) => r.bottom == 758), isTrue);
+      // Tablet portrait/square windows use the same full-width reader as iPad.
+      final tablet = ReaderLayout.resolve(size: const Size(900, 900));
+      expect(tablet.singlePage, isTrue);
+      expect(tablet.fullWidthPortrait, isTrue);
+      expect(tablet.pageRegions.single, const Rect.fromLTWH(0, 0, 900, 900));
     },
   );
   for (final type in [DisplayFeatureType.hinge, DisplayFeatureType.fold]) {
@@ -145,7 +146,7 @@ void main() {
       ],
     );
     expect(layout.safeRegions, [const Rect.fromLTWH(0, 0, 900, 900)]);
-    expect(layout.pageMode, ReaderPageMode.spread);
+    expect(layout.pageMode, ReaderPageMode.single);
   });
   test(
     'spread mapping includes every file once, with blank book boundaries',
