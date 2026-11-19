@@ -60,15 +60,42 @@ def actual_posture(angle):
     raise AssertionError(f"Hinge has not reached a requested endpoint: {angle}")
 
 
-def foreground_package(windows):
-    # Current focus identifies a permission sheet even when the underlying
-    # app remains the resumed activity. Do not accept mFocusedApp alone.
+def foreground_window(windows):
+    # Android 16 prints per-display focus in DISPLAY CONTENTS, which is absent
+    # from `dumpsys window windows`. Read the full dump and join it to the
+    # current top-focused display; ignore historical LAST ANR sections.
+    section, display = None, None
+    top_displays, focuses = [], {}
     for line in windows.splitlines():
-        if "mCurrentFocus=" in line:
-            match = re.search(r"\bu\d+\s+([A-Za-z0-9_.]+)/", line)
+        if line.startswith("WINDOW MANAGER "):
+            section = ("displays" if line.startswith("WINDOW MANAGER DISPLAY CONTENTS ")
+                       else "windows" if line.startswith("WINDOW MANAGER WINDOWS ") else None)
+            display = None
+        if section == "windows":
+            match = re.fullmatch(r"\s*mTopFocusedDisplayId=(\d+)\s*", line)
             if match:
-                return match.group(1)
-    raise AssertionError("No foreground activity in current window focus")
+                top_displays.append(int(match.group(1)))
+        elif section == "displays":
+            match = re.match(r"\s*Display: mDisplayId=(\d+)\b", line)
+            if match:
+                display = int(match.group(1))
+            match = re.match(r"\s*mCurrentFocus=(.*)$", line)
+            if match:
+                assert display is not None, "Window focus has no associated display"
+                assert display not in focuses, "Ambiguous window focus for one display"
+                focuses[display] = match.group(1)
+    assert len(top_displays) == 1, "No unambiguous top-focused Android display"
+    display = top_displays[0]
+    assert display in focuses, "No current window focus for the top-focused display"
+    # A permission sheet can be focused while the app remains resumed. Never
+    # substitute mFocusedApp, visible activities or focus on another display.
+    match = re.fullmatch(r"Window\{\S+\s+u\d+\s+([A-Za-z0-9_.]+)/[^}]+\}", focuses[display])
+    assert match, "No foreground activity in the top-focused Android window"
+    return {"displayId": display, "package": match.group(1)}
+
+
+def foreground_package(windows):
+    return foreground_window(windows)["package"]
 
 
 def unobstructed_ui(xml):
@@ -294,8 +321,9 @@ class Capture:
         xml = self.shell("cat", remote)
         (self.output / (name + ".ui.xml")).write_text(xml + "\n")
         unobstructed_ui(xml)
-        windows = self.shell("dumpsys", "window", "windows")
-        foreground = foreground_package(windows)
+        windows = self.shell("dumpsys", "window")
+        focus = foreground_window(windows)
+        foreground = focus["package"]
         assert foreground == PACKAGE, "Reader is not the focused Android window: " + foreground
         angle_text = self.adb("emu", "sensor", "get", "hinge-angle0")
         angle = hinge_angle(angle_text)
@@ -307,6 +335,7 @@ class Capture:
             "emulatorPosture": actual_posture(angle), "emulatorPostureSource": "hinge-angle0",
             "hingeAngle": angle, "hingeSensor": angle_text,
             "foregroundPackage": foreground, "noSystemDialogs": True,
+            "focusedDisplayId": focus["displayId"],
             "displayDump": self.shell("dumpsys", "display"), "windowDump": windows,
             "userRotation": self.rotation, "uiDumpFile": name + ".ui.xml",
         }
@@ -353,7 +382,9 @@ class Capture:
                 following = self.frame()
                 time.sleep(0.35)
                 assert following == frame == self.frame(), "Reader changed during screenshot"
-                assert foreground_package(self.shell("dumpsys", "window", "windows")) == PACKAGE, "Window focus changed during screenshot"
+                assert foreground_window(self.shell("dumpsys", "window")) == {
+                    "displayId": state["focusedDisplayId"], "package": PACKAGE,
+                }, "Window focus changed during screenshot"
                 state["pixelSize"] = list(Image.open(io.BytesIO(raw)).size)
                 state["physicalDisplayId"] = display_id
                 state["surfaceFlingerDisplays"] = display_ids
@@ -406,7 +437,7 @@ class Capture:
         (path / "error.txt").write_text(str(error) + "\n")
         commands = {
             "logcat.txt": lambda: self.adb("logcat", "-d", "-t", "1200"),
-            "window.txt": lambda: self.shell("dumpsys", "window", "windows"),
+            "window.txt": lambda: self.shell("dumpsys", "window"),
             "display.txt": lambda: self.shell("dumpsys", "display"),
             "device-state.txt": lambda: self.shell("cmd", "device_state", "state"),
             "hinge.txt": lambda: self.adb("emu", "sensor", "get", "hinge-angle0"),
@@ -418,9 +449,24 @@ class Capture:
             except Exception as exc:
                 (path / (name + ".error.txt")).write_text(str(exc) + "\n")
         try:
-            (path / "screen.png").write_bytes(self.adb("exec-out", "screencap -p", binary=True))
-        except Exception:
-            pass
+            display_ids = self.shell("dumpsys", "SurfaceFlinger", "--display-id")
+            (path / "physical-displays.txt").write_text(display_ids + "\n")
+            ids = list(dict.fromkeys(re.findall(r"\bDisplay\s+(\d+)", display_ids)))
+            assert ids, "No physical display IDs available for diagnostic screenshots"
+            # The default multi-display screencap prefixes stdout with warning
+            # text, producing an invalid PNG. Select each physical display and
+            # validate its bytes before keeping it as reviewable evidence.
+            for display_id in ids:
+                try:
+                    raw = self.adb("exec-out", f"screencap -p -d {display_id}", binary=True)
+                    with Image.open(io.BytesIO(raw)) as png:
+                        assert png.format == "PNG", "Diagnostic capture is not PNG"
+                        png.verify()
+                    (path / f"screen-{display_id}.png").write_bytes(raw)
+                except Exception as exc:
+                    (path / f"screen-{display_id}.error.txt").write_text(str(exc) + "\n")
+        except Exception as exc:
+            (path / "screen.error.txt").write_text(str(exc) + "\n")
 
     def run(self):
         self.prepare()
