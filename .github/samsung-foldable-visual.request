@@ -4,3 +4,5 @@ Rerun with required Linux emulator libraries, verified native boot transitions a
 Load the native Samsung fold configuration from the Android 16 scanned system_ext overlay partition.
 Verify foreground focus from the active Android display and retain valid per-display failure screenshots.
 Verify centred fitting unfolded landscape spreads and the exact scroll endpoints on pages 6–7 with the updated app build.
+
+2026-11-19: Run the same native verification on v7 from app source c5947e5f9d8c2016b8860cd9879c753e836a9cc4. Capture all requested pages 6–7 layouts and zoom endpoints freshly; retain strict geometry and screenshot validation.
