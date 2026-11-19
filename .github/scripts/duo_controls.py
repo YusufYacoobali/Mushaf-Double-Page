@@ -40,10 +40,31 @@ else:
    s=state();current=round(s['zoom']*100)
    if current==target:break
    label='Zoom in' if current<target else 'Zoom out'
-   if label not in s['controls']:
-    touch('Open navigation');until(lambda v:label in v['controls'],'zoom controls did not open')
-   touch(label)
-   until(lambda v:round(v['zoom']*100)!=current,'zoom button made no change')
+   expected=current+(5 if current<target else -5)
+   # A floating navigation panel can reflow or collapse after each tap.
+   # Hosted Duo digitizer events sometimes miss one interaction. Retry the
+   # real physical tap at most twice, checking the rendered app's geometry
+   # state after each attempt; NEVER invent a change or modify stored zoom.
+   for attempt in range(1,4):
+    s=state()
+    if round(s['zoom']*100)==expected:break
+    if label not in s['controls']:
+     if 'Open navigation' not in s['controls']:
+      raise RuntimeError(f'No zoom or navigation control at {current}%: {s}')
+     touch('Open navigation')
+     until(lambda v:label in v['controls'],'zoom controls did not open')
+    touch(label)
+    try:
+     until(lambda v:round(v['zoom']*100)==expected,
+           f'{label} did not advance {current}% to {expected}% (attempt {attempt})')
+     break
+    except RuntimeError:
+     actual=round(state()['zoom']*100)
+     print(f'Zoom tap attempt {attempt}/3: expected {expected}%, rendered {actual}%',flush=True)
+     if attempt==3:raise
+     # Avoid layering consecutive taps on a still-animating Flutter overlay.
+     time.sleep(.7)
+   assert round(state()['zoom']*100)==expected, f'Zoom jumped unexpectedly: expected {expected}%'
   assert round(state()['zoom']*100)==target,'requested zoom was not reached'
   capture(str(target))
 print(json.dumps({'case':a.case,'passed':True}))
