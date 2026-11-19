@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Capture real Flutter reader screenshots at min/max zoom. Xcode 27's AXe
 # accessibility service times out in CI even though the app is running.
-# Avoid AXe: set actual persisted app zoom while Runner is stopped, relaunch,
-# screenshot the genuine rendered Quran page in each Duo posture.
+# Avoid AXe: seed app zoom while Runner is stopped, then require fresh rendered
+# geometry at that zoom and cross-check the genuine screenshot before passing.
 set -Eeuo pipefail
 if [[ "$#" != 3 ]]; then echo "Usage: $0 <state> <min-percent> <max-percent>" >&2; exit 2; fi
 LABEL="$1"
@@ -55,7 +55,7 @@ PY
   # UserDefaults domain across Runner restarts. Update the live preference
   # service through simctl spawn (the same NSUserDefaults the Flutter plugin
   # reads), then verify that daemon's value before relaunching the app.
-  local key value live
+  local key value live mode launched_after
   if [[ "$LABEL" == "duo-folded" || "$LABEL" == "duo-unfolded-portrait" ]]; then
     key="flutter.quran_single_page_scale"
   else
@@ -75,12 +75,32 @@ PY
     echo "::warning::defaults write unavailable; invalidating cfprefsd cache"
     xcrun simctl spawn "$UDID" killall cfprefsd >/dev/null 2>&1 || true
   fi
+  # Guest defaults can address a different user domain from the sandboxed app.
+  # Always discard cached preferences and reapply the container values after
+  # pending daemon writes stop. Rendered geometry below remains the proof.
+  xcrun simctl spawn "$UDID" killall cfprefsd >/dev/null 2>&1 || true
+  sleep 1
+  python3 - "$PREFS" "$key" "$value" <<'PY'
+import plistlib, sys
+path, key, value = sys.argv[1:]
+with open(path, 'rb') as f:
+    data = plistlib.load(f)
+data.update({key: float(value), 'flutter.CurrentPage1': 4,
+             'flutter.reader_controls_arrow_only': False,
+             'flutter.review_prompt_rate_chosen': True})
+with open(path, 'wb') as f:
+    plistlib.dump(data, f, fmt=plistlib.FMT_BINARY)
+PY
+  rm -f "$DATA/Documents/reader-geometry.json"
+  launched_after="$(python3 -c 'import time; print(time.time())')"
   for n in 1 2 3; do
     if xcrun simctl launch "$UDID" "$BUNDLE_ID"; then break; fi
     sleep 5
   done
   sleep 5
   duoctl state > "$name-state.json"
+  # Retain the actual screen even when posture/geometry validation fails.
+  duoctl screenshot "$name.png"
   python3 - "$name-state.json" "$LABEL" <<'PY'
 import json
 import sys
@@ -101,9 +121,45 @@ else:
         assert state.get("orientation") == "portrait", state
 print(f"Validated display: {active}, hinge={angle}, orientation={state.get('orientation')}")
 PY
+  case "$LABEL" in
+    duo-folded|duo-unfolded-portrait) mode=single ;;
+    duo-unfolded-wide) mode=spread ;;
+    duo-half-open-book) mode=dualScreenBook ;;
+    *) echo "::error::Unknown posture $LABEL"; return 1 ;;
+  esac
+  # This bounded wait observes the app; it never substitutes the requested
+  # percentage for the rendered percentage. Keep the last snapshot on failure.
+  if ! python3 - "$DATA/Documents/reader-geometry.json" "$name.layout.json" "$percent" "$mode" "$launched_after" > "$name-geometry.txt" 2>&1 <<'PY'
+import json, sys, time
+from pathlib import Path
+sys.path.insert(0, '.github/scripts')
+from verify_fitted_capture import assert_capture_state
+source, destination, percent, mode, after = sys.argv[1:]
+deadline = time.monotonic() + 30
+last_error = 'No rendered geometry was written'
+while time.monotonic() < deadline:
+    try:
+        data = json.loads(Path(source).read_text())
+        Path(destination).write_text(json.dumps(data, indent=2) + '\n')
+        assert_capture_state(data, int(percent), mode, float(after))
+        print(f"Fresh rendered {mode} geometry at {data['zoom'] * 100:g}%")
+        break
+    except (OSError, ValueError, KeyError, TypeError, AssertionError) as error:
+        last_error = str(error)
+        time.sleep(.5)
+else:
+    raise RuntimeError(f'Rendered geometry did not match within 30s: {last_error}')
+PY
+  then
+    cat "$name-geometry.txt"
+    duoctl screenshot "$name.png" || true
+    return 1
+  fi
+  cat "$name-geometry.txt"
   duoctl screenshot "$name.png"
   [[ -s "$name.png" ]] || { echo "::error::No screenshot created: $name.png"; return 1; }
   sips -g pixelWidth -g pixelHeight "$name.png"
+  python3 .github/scripts/verify_fitted_capture.py "$name.png" "$name.layout.json" --zoom "$percent" --mode "$mode" --after "$launched_after" | tee "$name-verification.txt"
   echo "PASS: real $LABEL reader at $percent% ($name.png)" | tee -a "screenshots/$LABEL-result.txt"
 }
 echo "Running $LABEL at min=$MIN and max=$MAX"

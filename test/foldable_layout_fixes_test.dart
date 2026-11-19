@@ -42,8 +42,11 @@ void main() {
         preserveLegacyIPadPortrait: ipad,
         iosPhoneWidePortrait: iosPhone,
       );
-      expect(layout.fitPagesToViewport, isFalse,
-          reason: '$size must use its unchanged non-foldable sizing');
+      expect(
+        layout.fitPagesToViewport,
+        isFalse,
+        reason: '$size must use its unchanged non-foldable sizing',
+      );
       expect(layout.pageMode, mode, reason: '$size layout mode changed');
     }
     // The native iPad guard wins even if a device sends foldable hints.
@@ -57,33 +60,35 @@ void main() {
     expect(ipadWithHints.pageMode, ReaderPageMode.single);
   });
 
-  test('proportional fitting is enabled for identified foldable layouts only', () {
-    final folded = ReaderLayout.resolve(
-      size: const Size(466, 678),
-      foldedCover: true,
-      iosPhoneWidePortrait: true,
-    );
-    final openPortrait = ReaderLayout.resolve(
-      size: const Size(669, 951),
-      iosPhoneWidePortrait: true,
-    );
-    final openLandscape = ReaderLayout.resolve(
-      size: const Size(951, 669),
-      iosPhoneWidePortrait: true,
-    );
-    final androidBook = ReaderLayout.resolve(
-      size: window,
-      displayFeatures: const [hinge],
-    );
-    for (final layout in [folded, openPortrait, openLandscape, androidBook]) {
-      expect(layout.fitPagesToViewport, isTrue);
-    }
-    expect(folded.pageMode, ReaderPageMode.single);
-    expect(openPortrait.pageMode, ReaderPageMode.single);
-    expect(openLandscape.pageMode, ReaderPageMode.spread);
-    expect(androidBook.pageMode, ReaderPageMode.dualScreenBook);
-  });
-
+  test(
+    'proportional fitting is enabled for identified foldable layouts only',
+    () {
+      final folded = ReaderLayout.resolve(
+        size: const Size(466, 678),
+        foldedCover: true,
+        iosPhoneWidePortrait: true,
+      );
+      final openPortrait = ReaderLayout.resolve(
+        size: const Size(669, 951),
+        iosPhoneWidePortrait: true,
+      );
+      final openLandscape = ReaderLayout.resolve(
+        size: const Size(951, 669),
+        iosPhoneWidePortrait: true,
+      );
+      final androidBook = ReaderLayout.resolve(
+        size: window,
+        displayFeatures: const [hinge],
+      );
+      for (final layout in [folded, openPortrait, openLandscape, androidBook]) {
+        expect(layout.fitPagesToViewport, isTrue);
+      }
+      expect(folded.pageMode, ReaderPageMode.single);
+      expect(openPortrait.pageMode, ReaderPageMode.single);
+      expect(openLandscape.pageMode, ReaderPageMode.spread);
+      expect(androidBook.pageMode, ReaderPageMode.dualScreenBook);
+    },
+  );
 
   for (final state in [
     DisplayFeatureState.unknown,
@@ -391,137 +396,207 @@ void main() {
     ('open portrait', const Size(669, 951), false),
     ('open landscape', const Size(951, 669), false),
   ]) {
-    testWidgets('${scenario.$1} fits proportionally at every toolbar zoom', (
-      tester,
-    ) async {
-      final size = scenario.$2;
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = size;
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.view.resetPhysicalSize);
-      final portrait = size.height > size.width;
-      final dock = portrait
-          ? Rect.fromLTWH(10, size.height - 114, size.width - 20, 78)
-          : Rect.fromLTWH(size.width - 78, 80, 72, size.height - 160);
-      final layout = ReaderLayout.resolve(
-        size: size,
-        padding: insets,
-        foldedCover: scenario.$3,
-        iosPhoneWidePortrait: true,
-        navigationBounds: dock,
-      );
-      expect(layout.fitPagesToViewport, isTrue);
-      final paging = ReaderPaging(initialPage: 4, lastPage: 851);
-      Future<Rect> render(double zoom) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: AdaptiveQuranPages(
-                paging: paging,
-                layout: layout,
-                singleScale: zoom,
-                spreadScale: zoom,
-                imagePath: (_) => image,
-                isDarkMode: false,
-                aspectRatio: QuranPageView.pageAspectRatio,
-                highlightFor: (_) => const [],
-                highlightColor: Colors.amber,
-                onPageChanged: (_) {},
-                onFocus: (_) {},
+    for (final edition in ['indopak_tajweed', 'madani']) {
+      testWidgets(
+        '${scenario.$1} $edition fits the full safe region behind the dock',
+        (tester) async {
+          final size = scenario.$2;
+          tester.view.devicePixelRatio = 1;
+          tester.view.physicalSize = size;
+          addTearDown(tester.view.resetDevicePixelRatio);
+          addTearDown(tester.view.resetPhysicalSize);
+          final safe = Rect.fromLTRB(
+            insets.left,
+            insets.top,
+            size.width - insets.right,
+            size.height - insets.bottom,
+          );
+          final aspect = QuranPageView.aspectRatioForMushaf(edition);
+          final paging = ReaderPaging(initialPage: 4, lastPage: 851);
+          final dockKey = GlobalKey();
+          var expanded = false;
+          var showContext = false;
+          var zoom = 1.0;
+          late StateSetter refresh;
+          late ReaderLayout layout;
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: ThemeData(platform: TargetPlatform.iOS),
+              home: StatefulBuilder(
+                builder: (context, update) {
+                  refresh = update;
+                  layout = ReaderLayout.resolve(
+                    size: size,
+                    padding: insets,
+                    foldedCover: scenario.$3,
+                    iosPhoneWidePortrait: true,
+                    pageAspectRatio: aspect,
+                  );
+                  return Scaffold(
+                    body: Stack(
+                      children: [
+                        AdaptiveQuranPages(
+                          paging: paging,
+                          layout: layout,
+                          singleScale: zoom,
+                          spreadScale: zoom,
+                          imagePath: (_) => image,
+                          isDarkMode: false,
+                          aspectRatio: aspect,
+                          highlightFor: (_) => const [],
+                          highlightColor: Colors.amber,
+                          onPageChanged: (_) {},
+                          onFocus: (_) {},
+                        ),
+                        ReaderDockOverlay(
+                          layout: layout,
+                          child: ReaderDock(
+                            geometryKey: dockKey,
+                            placement: layout.dockPlacement,
+                            expanded: expanded,
+                            onToggle: () => refresh(() => expanded = !expanded),
+                            palette: AppPalette.emerald,
+                            zoom: SizedBox(
+                              width: layout.bottomDock ? 100 : 40,
+                              height: layout.bottomDock ? 32 : 120,
+                            ),
+                            actions: [
+                              for (var i = 0; i < 5; i++)
+                                IconButton(
+                                  icon: const Icon(Icons.book),
+                                  onPressed: () {},
+                                ),
+                            ],
+                            contextControls: showContext
+                                ? const SizedBox(
+                                    width: 36,
+                                    height: 36,
+                                    child: Icon(Icons.play_arrow),
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        return tester.getRect(find.byKey(const ValueKey('quran-page-4')));
-      }
-
-      final maximum = await render(1);
-      expect(
-        maximum.width / maximum.height,
-        closeTo(QuranPageView.pageAspectRatio, .001),
-      );
-      expect(maximum.overlaps(dock), isFalse);
-      final reading = layout.usableContentBounds;
-      expect(reading.contains(maximum.topLeft), isTrue);
-      expect(maximum.right, lessThanOrEqualTo(reading.right + .001));
-      expect(maximum.bottom, lessThanOrEqualTo(reading.bottom + .001));
-      final maxGroup = layout.singlePage
-          ? maximum
-          : maximum.expandToInclude(
-              tester.getRect(find.byKey(const ValueKey('quran-page-5'))),
+          );
+          await tester.pumpAndSettle();
+          Map<int, Rect> pages() => {
+            for (final page in layout.singlePage ? [4] : [4, 5])
+              page: tester.getRect(find.byKey(ValueKey('quran-page-$page'))),
+          };
+          final maximum = pages();
+          void expectMaximumUnchanged() {
+            expect(layout.usableContentBounds, safe);
+            expect(
+              pages(),
+              maximum,
+              reason: 'Floating controls must not resize or shift the pages',
             );
-      expect(
-        (maxGroup.width - reading.width).abs() < .001 ||
-            (maxGroup.height - reading.height).abs() < .001,
-        isTrue,
-        reason:
-            '100% must reach the limiting dimension, without excess margins',
-      );
-      for (final zoom in [.7, .85, .95]) {
-        final page = await render(zoom);
-        expect(page.width, closeTo(maximum.width * zoom, .001));
-        expect(page.height, closeTo(maximum.height * zoom, .001));
-      }
-      expect(find.byType(SingleChildScrollView), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-      paging.dispose();
-    });
-  }
+          }
 
-  testWidgets('folded fit uses the actual rendered dock footprint', (
-    tester,
-  ) async {
-    const size = Size(466, 678);
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = size;
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final key = GlobalKey();
-    final initial = ReaderLayout.resolve(
-      size: size,
-      padding: insets,
-      foldedCover: true,
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Stack(
-            children: [
-              ReaderDockOverlay(
-                layout: initial,
-                child: ReaderDock(
-                  geometryKey: key,
-                  placement: initial.dockPlacement,
-                  expanded: true,
-                  onToggle: () {},
-                  palette: AppPalette.emerald,
-                  zoom: const SizedBox(width: 100, height: 32),
-                  actions: [
-                    for (var i = 0; i < 5; i++)
-                      IconButton(
-                        icon: const Icon(Icons.book),
-                        onPressed: () {},
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final dock = tester.getRect(find.byKey(key));
-    expect(dock.height, lessThan(150));
-    final fitted = ReaderLayout.resolve(
-      size: size,
-      padding: insets,
-      foldedCover: true,
-      navigationBounds: dock,
-    );
-    expect(fitted.usableContentBounds.bottom, closeTo(dock.top - 8, .001));
-  });
+          expect(layout.fitPagesToViewport, isTrue);
+          expect(layout.safeRegions, [safe]);
+          expect(layout.usableContentBounds, safe);
+          for (final page in maximum.values) {
+            expect(page.width / page.height, closeTo(aspect, .001));
+            expect(page.left, greaterThanOrEqualTo(safe.left - .001));
+            expect(page.top, greaterThanOrEqualTo(safe.top - .001));
+            expect(page.right, lessThanOrEqualTo(safe.right + .001));
+            expect(page.bottom, lessThanOrEqualTo(safe.bottom + .001));
+          }
+          final maxGroup = maximum.values.reduce(
+            (a, b) => a.expandToInclude(b),
+          );
+          expect(maxGroup.center.dx, closeTo(safe.center.dx, .001));
+          expect(maxGroup.center.dy, closeTo(safe.center.dy, .001));
+          expect(
+            (maxGroup.width - safe.width).abs() < .001 ||
+                (maxGroup.height - safe.height).abs() < .001,
+            isTrue,
+            reason:
+                '100% must reach a full safe-screen edge, even behind '
+                'the floating navigation bar',
+          );
+
+          Future<void> toggleDock() async {
+            await tester.tap(find.byType(NavigationPullTab));
+            await tester.pump(const Duration(milliseconds: 100));
+            expectMaximumUnchanged();
+            await tester.pumpAndSettle();
+            expectMaximumUnchanged();
+          }
+
+          final collapsedDock = tester.getRect(find.byKey(dockKey));
+          await toggleDock();
+          final expandedDock = tester.getRect(find.byKey(dockKey));
+          expect(
+            layout.bottomDock ? expandedDock.height : expandedDock.width,
+            greaterThan(
+              layout.bottomDock ? collapsedDock.height : collapsedDock.width,
+            ),
+          );
+          if (layout.bottomDock) {
+            expect(
+              maximum[4]!.overlaps(expandedDock),
+              isTrue,
+              reason: 'Portrait pages must continue under the floating bar',
+            );
+          }
+
+          refresh(() => showContext = true);
+          await tester.pump(const Duration(milliseconds: 100));
+          expectMaximumUnchanged();
+          await tester.pumpAndSettle();
+          expectMaximumUnchanged();
+          final contextDock = tester.getRect(find.byKey(dockKey));
+          expect(
+            layout.bottomDock ? contextDock.height : contextDock.width,
+            greaterThan(
+              layout.bottomDock ? expandedDock.height : expandedDock.width,
+            ),
+          );
+          await toggleDock();
+          refresh(() => showContext = false);
+          await tester.pumpAndSettle();
+          expectMaximumUnchanged();
+          await toggleDock();
+
+          for (final value in [.7, .85, .95]) {
+            refresh(() => zoom = value);
+            await tester.pumpAndSettle();
+            for (final entry in pages().entries) {
+              expect(
+                entry.value.width,
+                closeTo(maximum[entry.key]!.width * value, .001),
+              );
+              expect(
+                entry.value.height,
+                closeTo(maximum[entry.key]!.height * value, .001),
+              );
+            }
+            expect(layout.usableContentBounds, safe);
+          }
+          refresh(() => zoom = 1);
+          await tester.pumpAndSettle();
+          expectMaximumUnchanged();
+          expect(
+            find.descendant(
+              of: find.byType(AdaptiveQuranPages),
+              matching: find.byType(SingleChildScrollView),
+            ),
+            findsNothing,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          paging.dispose();
+        },
+      );
+    }
+  }
 
   for (final edition in ['indopak_tajweed', 'madani']) {
     for (final scale in [.6, 1.0]) {

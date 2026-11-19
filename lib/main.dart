@@ -180,9 +180,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   late final AudioVerticalFollower _audioVerticalFollower;
   final _readerDockKey = GlobalKey();
   final _readerDockGeometryKey = GlobalKey();
-  Rect? _fittedNavigationBounds;
-  Object? _fittedNavigationIdentity;
-  bool _fittedNavigationWasExpanded = false;
   bool get _readerVisible =>
       mounted &&
       _ready &&
@@ -1139,9 +1136,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       backgroundColor: _readerWhite ? Colors.white : Colors.black,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          ReaderLayout resolveLayout({
-            Rect? navigationBounds,
-          }) => ReaderLayout.resolve(
+          final layout = ReaderLayout.resolve(
             size: constraints.biggest,
             padding: MediaQuery.paddingOf(context),
             displayFeatures: [
@@ -1153,57 +1148,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             foldedCover: !_isIPad && _iosDisplayRegions.closed,
             iosPhoneWidePortrait:
                 Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
-            navigationBounds: navigationBounds,
           );
-          var layout = resolveLayout();
-          _singlePage = layout.singlePage;
-          _bottomDock = layout.bottomDock;
-          _logicalPage = _paging!.focusedPage;
-          final audioControls = _readerAudioControls(palette);
-          if (layout.fitPagesToViewport) {
-            final identity = (
-              constraints.biggest,
-              layout.dockPlacement,
-              audioControls != null || _selPage != null,
-            );
-            if (_fittedNavigationIdentity == identity) {
-              layout = resolveLayout(navigationBounds: _fittedNavigationBounds);
-            }
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              final box = _readerDockGeometryKey.currentContext
-                  ?.findRenderObject();
-              if (box is! RenderBox || !box.hasSize || !box.attached) return;
-              var bounds = MatrixUtils.transformRect(
-                box.getTransformTo(null),
-                Offset.zero & box.size,
-              );
-              // Retain the known expanded footprint when controls auto-hide,
-              // keeping page size stable while permitting safe reopening.
-              if (_fittedNavigationIdentity == identity &&
-                  _fittedNavigationWasExpanded &&
-                  !_isScrollbarVisible) {
-                return;
-              }
-              if (_fittedNavigationIdentity == identity &&
-                  _fittedNavigationWasExpanded &&
-                  _fittedNavigationBounds != null) {
-                bounds = _fittedNavigationBounds!.expandToInclude(bounds);
-              }
-              if (_fittedNavigationIdentity != identity ||
-                  _fittedNavigationBounds != bounds) {
-                setState(() {
-                  _fittedNavigationIdentity = identity;
-                  _fittedNavigationBounds = bounds;
-                  _fittedNavigationWasExpanded = _isScrollbarVisible;
-                });
-              }
-            });
-          }
           _paging!.configure(layout.pageMode);
           _singlePage = layout.singlePage;
           _bottomDock = layout.bottomDock;
           _logicalPage = _paging!.focusedPage;
+          final audioControls = _readerAudioControls(palette);
           final overlay = layout.controlsRegion;
           return ReaderActivity(
             layoutIdentity: layout.pageMode,
@@ -1220,7 +1170,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
               focusedPage: _paging!.focusedPage,
               visiblePages: _paging!.visiblePages,
               edition: _mushaf,
-              navigationBounds: _fittedNavigationBounds,
+              navigationKey: _readerDockGeometryKey,
               settled: () =>
                   _paging!.controller.hasClients &&
                   !_paging!.controller.position.isScrollingNotifier.value,

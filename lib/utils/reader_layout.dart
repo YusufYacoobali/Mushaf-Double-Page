@@ -39,7 +39,8 @@ class ReaderLayout {
   final bool fullWidthPortrait;
   final bool centerSideDock;
 
-  /// Foldable pages use a proportional fit; iPads retain their v5 geometry.
+  /// Foldable pages fit the safe display, behind the floating controls.
+  /// iPads retain their v5 geometry.
   final bool fitPagesToViewport;
   bool get singlePage => pageMode == ReaderPageMode.single;
   bool get bottomDock => dockPlacement == DockPlacement.bottom;
@@ -52,7 +53,6 @@ class ReaderLayout {
     bool preserveLegacyIPadPortrait = false,
     bool iosPhoneWidePortrait = false,
     bool foldedCover = false,
-    Rect? navigationBounds,
   }) {
     final regions = safeDisplayRegions(size, padding, displayFeatures);
     final largest = regions.reduce(
@@ -135,33 +135,20 @@ class ReaderLayout {
         : [largest];
     final centeredLandscape = landscape && candidates.length == 1;
     for (final region in candidates) {
-      // Keep spread planning stable as controls appear and disappear. A single
-      // page with a bottom dock uses the full safe region below, with overlays.
+      // Floating controls overlay foldable pages: 100% fits the full safe
+      // display or physical panel, independent of the dock's current size.
+      // Preserve the existing gutters for non-foldable spread planning.
       final right =
           !fitPages && !bottom && region == controls && !centeredLandscape
           ? 140.0
           : 0.0;
       final bottomGutter = !fitPages && bottom ? 142.0 : 0.0;
-      // The rendered dock supplies its actual bounds. A small visual gap is
-      // spacing, not an assumed toolbar size or page scale.
-      final nav = navigationBounds;
-      final reserve = fitPages && nav != null && region.overlaps(nav);
       pageBounds.add(
         Rect.fromLTRB(
           region.left,
           region.top,
-          math.max(
-            region.left + 1,
-            reserve && !bottom
-                ? math.min(region.right, nav.left - 8)
-                : region.right - right,
-          ),
-          math.max(
-            region.top + 1,
-            reserve && bottom
-                ? math.min(region.bottom, nav.top - 8)
-                : region.bottom - bottomGutter,
-          ),
+          math.max(region.left + 1, region.right - right),
+          math.max(region.top + 1, region.bottom - bottomGutter),
         ),
       );
     }

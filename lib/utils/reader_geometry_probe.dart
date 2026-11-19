@@ -16,7 +16,7 @@ class ReaderGeometryProbe extends StatefulWidget {
     required this.visiblePages,
     required this.edition,
     required this.settled,
-    this.navigationBounds,
+    this.navigationKey,
   });
   final Widget child;
   final ReaderLayout layout;
@@ -25,7 +25,7 @@ class ReaderGeometryProbe extends StatefulWidget {
   final List<int> visiblePages;
   final String edition;
   final bool Function() settled;
-  final Rect? navigationBounds;
+  final GlobalKey? navigationKey;
   @override
   State<ReaderGeometryProbe> createState() => _ReaderGeometryProbeState();
 }
@@ -91,6 +91,18 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
       }
 
       context.visitChildElements(visit);
+      // Measure controls only for QA evidence. They never reduce page bounds.
+      final navigationBox = widget.navigationKey?.currentContext
+          ?.findRenderObject();
+      final navigationBounds =
+          navigationBox is RenderBox &&
+              navigationBox.hasSize &&
+              navigationBox.attached
+          ? MatrixUtils.transformRect(
+              navigationBox.getTransformTo(null),
+              Offset.zero & navigationBox.size,
+            )
+          : null;
       final data = {
         'viewport': {'width': media.size.width, 'height': media.size.height},
         'pixelRatio': media.devicePixelRatio,
@@ -100,12 +112,11 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
         'focusedPage': widget.focusedPage,
         'edition': widget.edition,
         'readingBounds': rect(widget.layout.usableContentBounds),
+        'safeRegions': widget.layout.safeRegions.map(rect).toList(),
         'regions': widget.layout.pageRegions.map(rect).toList(),
         'pages': pages,
         'controls': controls,
-        'navigation': widget.navigationBounds == null
-            ? null
-            : rect(widget.navigationBounds!),
+        'navigation': navigationBounds == null ? null : rect(navigationBounds),
       };
       final frame = jsonEncode(data);
       if (lastFrame != frame) {

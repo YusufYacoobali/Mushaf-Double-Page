@@ -49,7 +49,7 @@ jobs:
           File.write(path, text.sub(marker, marker + override.lines.map { |line| '    ' + line }.join))
           RUBY
       - name: Build Flutter simulator app (arm64)
-        run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub
+        run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub --dart-define=READER_LAYOUT_QA=true
       - name: Archive simulator application with permissions preserved
         run: |
           test -d build/ios/iphonesimulator/Runner.app
@@ -63,7 +63,7 @@ jobs:
           if-no-files-found: error
 
   iphone-duo:
-    name: Test clean iPhone Duo (all zooms)
+    name: Test clean iPhone Duo (min/max zoom)
     needs: build-simulator
     runs-on: xcode-27
     timeout-minutes: 48
@@ -78,7 +78,11 @@ jobs:
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
       - name: Install Duo controls (no accessibility dependency)
-        run: brew install skarol/tap/duoctl
+        run: |
+          brew install skarol/tap/duoctl
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
       - name: Run folded, unfolded, and half-open reader screenshots
         shell: bash
         run: bash .github/scripts/proven_duo_simulator_qa.sh
