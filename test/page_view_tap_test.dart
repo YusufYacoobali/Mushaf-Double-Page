@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
+import 'package:mushaf_two_page/utils/reader_layout.dart';
+import 'package:mushaf_two_page/utils/reader_paging.dart';
 
 void main() {
   late Directory imageDirectory;
@@ -204,67 +207,229 @@ void main() {
     transform.dispose();
   });
 
+  Future<void> pumpReader(
+    WidgetTester tester, {
+    required ReaderPaging paging,
+    Size size = const Size(400, 800),
+    double scale = .7,
+    required ValueChanged<int> onVisit,
+    VoidCallback? onTap,
+    VoidCallback? onBackgroundTap,
+  }) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AdaptiveQuranPages(
+            paging: paging,
+            layout: ReaderLayout.resolve(size: size),
+            singleScale: scale,
+            spreadScale: scale,
+            imagePath: (_) => imageFile.path,
+            isDarkMode: false,
+            aspectRatio: QuranPageView.pageAspectRatio,
+            highlightFor: (_) => [],
+            highlightColor: Colors.amber,
+            onPageChanged: onVisit,
+            onFocus: (_) {},
+            onTap: (_, _, _) => onTap?.call(),
+            onBackgroundTap: onBackgroundTap,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+    'reduced motion settles adjacent commands and swipes immediately',
+    (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final paging = ReaderPaging(initialPage: 2, lastPage: 6);
+      final visits = <int>[];
+      await pumpReader(tester, paging: paging, onVisit: visits.add);
+      final command = paging.goTo(3, animate: true);
+      await tester.pump();
+      expect(paging.settled, isTrue);
+      expect(await command, isTrue);
+      expect(paging.visiblePages, [3]);
+      await tester.dragFrom(const Offset(300, 400), const Offset(-250, 0));
+      await tester.pump();
+      expect(paging.settled, isTrue);
+      expect(paging.visiblePages, [2]);
+      expect(visits, [2]);
+      await tester.pumpWidget(const SizedBox());
+      paging.dispose();
+    },
+  );
+
+  testWidgets('page and margin taps resume after a programmatic turn', (
+    tester,
+  ) async {
+    final paging = ReaderPaging(initialPage: 2, lastPage: 6);
+    final visits = <int>[];
+    var taps = 0, backgroundTaps = 0;
+    await pumpReader(
+      tester,
+      paging: paging,
+      onVisit: visits.add,
+      onTap: () => taps++,
+      onBackgroundTap: () => backgroundTaps++,
+    );
+    final navigation = paging.goTo(3, animate: true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(paging.settled, isFalse);
+    await tester.tapAt(const Offset(200, 400));
+    await tester.tapAt(const Offset(10, 10));
+    expect(taps, 0);
+    expect(backgroundTaps, 0);
+    await tester.pumpAndSettle();
+    expect(await navigation, isTrue);
+    expect(paging.visiblePages, [3]);
+    await tester.tapAt(const Offset(200, 400));
+    expect(taps, 1);
+    await tester.tapAt(const Offset(10, 10));
+    expect(taps, 1);
+    expect(backgroundTaps, 1);
+    expect(visits, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    paging.dispose();
+  });
+
+  testWidgets(
+    'cancelled diagonal page turn preserves the zoomed vertical position',
+    (tester) async {
+      final paging = ReaderPaging(initialPage: 2, lastPage: 6);
+      final visits = <int>[];
+      await pumpReader(tester, paging: paging, onVisit: visits.add);
+      final transform = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!;
+      transform.value = Matrix4.diagonal3Values(1.3, 1.3, 1);
+      await tester.pumpAndSettle();
+      await tester.timedDragFrom(
+        const Offset(200, 400),
+        const Offset(0, -70),
+        const Duration(milliseconds: 300),
+      );
+      await tester.pumpAndSettle();
+      final original = transform.value.clone();
+      expect(original.storage[13], lessThan(0));
+      final drag = await tester.startGesture(const Offset(80, 400));
+      await drag.moveBy(const Offset(30, 0));
+      await tester.pump(const Duration(milliseconds: 100));
+      await drag.moveBy(const Offset(65, -25));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(paging.phase, PageTurnPhase.dragging);
+      expect(transform.value, original);
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(transform.value, original);
+      expect(paging.focusedPage, 2);
+      expect(visits, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      paging.dispose();
+    },
+  );
+
+  for (final duringDrag in [false, true]) {
+    testWidgets(
+      'pinch zooms the live page when the second finger arrives ${duringDrag ? 'during a turn' : 'before a turn'}',
+      (tester) async {
+        final paging = ReaderPaging(initialPage: 2, lastPage: 6);
+        final visits = <int>[];
+        var taps = 0;
+        await pumpReader(
+          tester,
+          paging: paging,
+          onVisit: visits.add,
+          onTap: () => taps++,
+          onBackgroundTap: () => taps++,
+        );
+        final first = await tester.startGesture(
+          const Offset(80, 400),
+          pointer: 1,
+        );
+        if (duringDrag) {
+          await first.moveBy(const Offset(75, 0));
+          await tester.pump();
+          expect(paging.settled, isFalse);
+        }
+        final second = await tester.startGesture(
+          const Offset(220, 400),
+          pointer: 2,
+        );
+        await tester.pump();
+        await first.moveTo(const Offset(50, 400));
+        await second.moveTo(const Offset(320, 400));
+        await tester.pump();
+        await first.moveBy(const Offset(-20, 0));
+        await second.moveBy(const Offset(20, 0));
+        await tester.pump();
+        final viewer = tester.widget<InteractiveViewer>(
+          find.byType(InteractiveViewer),
+        );
+        expect(
+          viewer.transformationController!.value.getMaxScaleOnAxis(),
+          greaterThan(1),
+        );
+        await first.up();
+        await second.up();
+        await tester.pumpAndSettle();
+        expect(paging.settled, isTrue);
+        expect(paging.visiblePages, [2]);
+        expect(visits, isEmpty);
+        expect(taps, 0);
+        await tester.pumpWidget(const SizedBox());
+        paging.dispose();
+      },
+    );
+  }
+
   for (final portrait in [false, true]) {
     for (var percent = portrait ? 70 : 60; percent <= 100; percent += 5) {
       testWidgets(
         '${portrait ? 'portrait' : 'landscape'} turns pages both ways at $percent percent',
         (tester) async {
-          tester.view.physicalSize = portrait
-              ? const Size(400, 800)
-              : const Size(800, 400);
-          tester.view.devicePixelRatio = 1;
-          addTearDown(tester.view.resetPhysicalSize);
-          addTearDown(tester.view.resetDevicePixelRatio);
-          var page = 0;
-          await tester.pumpWidget(
-            MaterialApp(
-              home: Scaffold(
-                body: PageView.builder(
-                  reverse: true,
-                  itemCount: 3,
-                  onPageChanged: (index) => page = index,
-                  itemBuilder: (_, index) => portrait
-                      ? QuranPageView.singlePage(
-                          logicalPage: index,
-                          pageScale: percent / 100,
-                          imagePath: (_) => imageFile.path,
-                          isDarkMode: false,
-                          onTap: (_, _, _) {},
-                        )
-                      : QuranPageView.doublePage(
-                          spreadIndex: index,
-                          totalPages: 6,
-                          pageScale: percent / 100,
-                          imagePath: (_) => imageFile.path,
-                          isDarkMode: false,
-                          onTap: (_, _, _) {},
-                        ),
-                ),
-              ),
-            ),
+          final paging = ReaderPaging(initialPage: 2, lastPage: 6);
+          final visits = <int>[];
+          await pumpReader(
+            tester,
+            paging: paging,
+            size: portrait ? const Size(400, 800) : const Size(800, 400),
+            scale: percent / 100,
+            onVisit: visits.add,
           );
-          await tester.pumpAndSettle();
           final dx = portrait ? 300.0 : 600.0;
           await tester.dragFrom(const Offset(80, 200), Offset(dx, 0));
           await tester.pumpAndSettle();
-          expect(page, 1);
+          expect(paging.visiblePages, portrait ? [3] : [4, 5]);
           await tester.dragFrom(Offset(dx + 80, 200), Offset(-dx, 0));
           await tester.pumpAndSettle();
-          expect(page, 0);
+          expect(paging.visiblePages, portrait ? [2] : [2, 3]);
           if (!portrait && percent == 100) {
-            final before = tester.getTopLeft(find.byType(AspectRatio).first).dy;
+            final page = find.byKey(const ValueKey('quran-page-2'));
+            final before = tester.getTopLeft(page).dy;
             await tester.dragFrom(
-              const Offset(400, 300),
+              const Offset(600, 300),
               const Offset(0, -200),
             );
             await tester.pumpAndSettle();
-            expect(page, 0);
-            expect(
-              tester.getTopLeft(find.byType(AspectRatio).first).dy,
-              lessThan(before),
-            );
+            expect(paging.visiblePages, [2, 3]);
+            expect(tester.getTopLeft(page).dy, lessThan(before));
           }
+          expect(visits, [portrait ? 3 : 4, 2]);
           expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          paging.dispose();
         },
       );
     }

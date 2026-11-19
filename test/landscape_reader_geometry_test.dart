@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
+import 'package:mushaf_two_page/components/quran_page_turn_painter.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/reader_layout.dart';
@@ -45,6 +47,181 @@ void main() {
     }
   });
   tearDownAll(() async => images.delete(recursive: true));
+
+  QuranPageTurnPainter turn(WidgetTester tester) {
+    final paint = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint && widget.painter is QuranPageTurnPainter,
+    );
+    return tester.widget<CustomPaint>(paint).painter! as QuranPageTurnPainter;
+  }
+
+  testWidgets(
+    'a later ayah on the incoming spread keeps the same turning sheet',
+    (tester) async {
+      final path = '${images.path}/indopak_tajweed.png';
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+        () => precacheImage(
+          FileImage(File(path)),
+          tester.element(find.byType(SizedBox).last),
+        ),
+      );
+      final paging = ReaderPaging(initialPage: 6, lastPage: 12);
+      final visits = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdaptiveQuranPages(
+            paging: paging,
+            layout: ReaderLayout.resolve(size: const Size(800, 600)),
+            singleScale: 1,
+            spreadScale: 1,
+            imagePath: (_) => path,
+            isDarkMode: false,
+            aspectRatio: QuranPageView.pageAspectRatio,
+            highlightFor: (_) => [],
+            highlightColor: Colors.amber,
+            onPageChanged: visits.add,
+            onFocus: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final first = paging.goTo(8, animate: true);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final sheet = turn(tester);
+      expect(sheet.progress, inExclusiveRange(0, 1));
+      final latest = paging.goTo(9, animate: true);
+      await tester.pump();
+      final retargeted = turn(tester);
+      expect(retargeted.source, same(sheet.source));
+      expect(retargeted.destination, same(sheet.destination));
+      expect(retargeted.progress, greaterThanOrEqualTo(sheet.progress));
+      await tester.pumpAndSettle();
+      expect(await first, isFalse);
+      expect(await latest, isTrue);
+      expect(paging.focusedPage, 9);
+      expect(visits, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      paging.dispose();
+    },
+  );
+
+  testWidgets(
+    'turn freezes the scrolled page and its highlight until cancellation',
+    (tester) async {
+      const size = Size(800, 400);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final paging = ReaderPaging(initialPage: 6, lastPage: 12);
+      final visits = <int>[];
+      final reader = GlobalKey();
+      const highlight = Rect.fromLTWH(.25, .45, .3, .1);
+      var color = const Color(0xffff0000);
+      late StateSetter update;
+      final imagePath = '${images.path}/indopak_tajweed.png';
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+        () => precacheImage(
+          FileImage(File(imagePath)),
+          tester.element(find.byType(SizedBox).last),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: reader,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                update = setState;
+                return AdaptiveQuranPages(
+                  paging: paging,
+                  layout: ReaderLayout.resolve(size: size),
+                  singleScale: 1,
+                  spreadScale: 1,
+                  imagePath: (_) => imagePath,
+                  isDarkMode: false,
+                  aspectRatio: QuranPageView.pageAspectRatio,
+                  highlightFor: (page) => page == 6 ? [highlight] : [],
+                  highlightColor: color,
+                  onPageChanged: visits.add,
+                  onFocus: (_) {},
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.dragFrom(const Offset(600, 300), const Offset(0, -110));
+      await tester.pumpAndSettle();
+      final page = find.byKey(const ValueKey('quran-page-6'));
+      final frame = tester.getRect(page);
+      expect(frame.top, lessThan(-50));
+      final sample =
+          frame.topLeft +
+          Offset(
+            frame.width * highlight.center.dx,
+            frame.height * highlight.center.dy,
+          );
+
+      Future<int> pixel(ui.Image image, Rect bounds) async {
+        final x = ((sample.dx - bounds.left) / bounds.width * image.width)
+            .floor();
+        final y = ((sample.dy - bounds.top) / bounds.height * image.height)
+            .floor();
+        final rgba = (await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        ))!;
+        return rgba.getUint32(4 * (image.width * y + x));
+      }
+
+      Future<int?> livePixel() => tester.runAsync(() async {
+        final boundary =
+            reader.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage();
+        try {
+          return await pixel(image, Offset.zero & size);
+        } finally {
+          image.dispose();
+        }
+      });
+      expect(await livePixel(), 0xff0000ff);
+      final gesture = await tester.startGesture(const Offset(60, 240));
+      await gesture.moveBy(const Offset(90, 0));
+      await tester.pumpAndSettle();
+      final initial = turn(tester);
+      final right = initial.source.last;
+      expect(right.bounds, frame);
+      expect(
+        await tester.runAsync(() => pixel(right.image!, right.bounds)),
+        0xff0000ff,
+      );
+
+      update(() => color = const Color(0xff00ff00));
+      await gesture.moveBy(const Offset(25, 0));
+      await tester.pumpAndSettle();
+      final updated = turn(tester);
+      expect(updated.progress, greaterThan(initial.progress));
+      expect(updated.source.last.image, same(right.image));
+      expect(
+        updated.destination.last.image,
+        same(initial.destination.last.image),
+      );
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+      expect(paging.visiblePages, [6, 7]);
+      expect(visits, isEmpty);
+      expect(tester.getRect(page), frame);
+      expect(await livePixel(), 0x00ff00ff);
+      await tester.pumpWidget(const SizedBox());
+      paging.dispose();
+    },
+  );
 
   for (final edition in ['indopak_tajweed', 'madani']) {
     for (final size in [const Size(844, 390), const Size(915, 412)]) {
@@ -231,7 +408,7 @@ void main() {
             await tester.pumpAndSettle();
             expectV4Geometry();
           }
-          // Both pages share v4's vertical scroll; horizontal turns still reach PageView.
+          // Both pages scroll vertically together and still respond to horizontal turns.
           await tester.dragFrom(const Offset(100, 280), const Offset(0, -140));
           await tester.pumpAndSettle();
           final scrolled = rectangles();

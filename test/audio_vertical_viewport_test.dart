@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
+import 'package:mushaf_two_page/components/quran_page_turn_view.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/audio_vertical_follower.dart';
 import 'package:mushaf_two_page/utils/reader_layout.dart';
@@ -313,21 +314,27 @@ void main() {
             ..setEntry(1, 1, 1.4),
         ),
       );
-      var page = 0;
+      final paging = ReaderPaging(initialPage: 1, lastPage: 3)
+        ..configure(ReaderPageMode.single);
+      final commits = <int>[];
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: PageView.builder(
-              reverse: true,
-              itemCount: 3,
-              onPageChanged: (value) => page = value,
-              itemBuilder: (_, index) => QuranPageView.singlePage(
-                logicalPage: index,
-                pageScale: .7,
-                imagePath: (_) => image,
-                isDarkMode: false,
-                transformationController: controllers[index],
-              ),
+            body: QuranPageTurnView(
+              paging: paging,
+              layout: ReaderLayout.resolve(size: const Size(400, 800)),
+              layoutIdentity: 'portrait',
+              isDarkMode: false,
+              onPageChanged: commits.add,
+              buildSurface: (index, active, wrapLeaf) =>
+                  QuranPageView.singlePage(
+                    logicalPage: index + 1,
+                    wrapLeaf: wrapLeaf,
+                    pageScale: .7,
+                    imagePath: (_) => image,
+                    isDarkMode: false,
+                    transformationController: controllers[index],
+                  ),
             ),
           ),
         ),
@@ -346,11 +353,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(controllers[0].value.storage[13], lessThan(0));
-      expect(page, 0);
+      expect(commits, isEmpty);
       await tester.dragFrom(const Offset(60, 400), const Offset(300, 0));
       await tester.pumpAndSettle();
-      expect(page, 1);
+      expect(commits, [2]);
       await tester.pumpWidget(const SizedBox());
+      paging.dispose();
       for (final controller in controllers) {
         controller.dispose();
       }
@@ -410,7 +418,7 @@ void main() {
     'adaptive navigation lays out the target before revealing and rotation cancels stale work',
     (tester) async {
       size(tester, const Size(800, 400));
-      final f = follower(8);
+      final f = follower(6);
       final paging = ReaderPaging(initialPage: 4, lastPage: 30);
       late StateSetter refresh;
       await tester.pumpWidget(
@@ -450,7 +458,7 @@ void main() {
         ayah: 1,
         mushaf: 'madani',
       )!;
-      final navigating = paging.goTo(8, animate: true);
+      final navigating = paging.goTo(6, animate: true);
       refresh(() {});
       final done = f.revealAfterNavigation(request, navigating);
       await tester.pump();
@@ -458,7 +466,7 @@ void main() {
       expect(scrolls(tester).every((s) => s.offset == 0), isTrue);
       await tester.pumpAndSettle();
       await done;
-      expect(paging.visiblePages, [8, 9]);
+      expect(paging.visiblePages, [6, 7]);
       expect(scrolls(tester).any((s) => s.offset > 0), isTrue);
       final pending = f.beginAyah(
         playing: true,
@@ -469,7 +477,7 @@ void main() {
         ayah: 2,
         mushaf: 'madani',
       )!;
-      final nextNavigation = paging.goTo(12, animate: true);
+      final nextNavigation = paging.goTo(8, animate: true);
       refresh(() {});
       final cancelled = f.revealAfterNavigation(pending, nextNavigation);
       await tester.pump();
@@ -477,7 +485,7 @@ void main() {
       tester.view.physicalSize = const Size(400, 800);
       await tester.pumpAndSettle();
       await cancelled;
-      expect(paging.focusedPage, 12);
+      expect(paging.focusedPage, 8);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       f.dispose();

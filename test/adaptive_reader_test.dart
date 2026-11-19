@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
+import 'package:mushaf_two_page/components/quran_page_turn_painter.dart';
+import 'package:mushaf_two_page/components/quran_page_turn_view.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/reader_layout.dart';
@@ -26,6 +28,128 @@ void main() {
     picture.dispose();
   });
   tearDownAll(() async => dir.delete(recursive: true));
+  testWidgets(
+    'accessibility scroll actions turn RTL and stop at each boundary',
+    (tester) async {
+      const size = Size(390, 844);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final semantics = tester.ensureSemantics();
+      final paging = ReaderPaging(initialPage: 1, lastPage: 2);
+      final visits = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdaptiveQuranPages(
+            paging: paging,
+            layout: ReaderLayout.resolve(size: size),
+            singleScale: .8,
+            spreadScale: .7,
+            imagePath: (_) => image,
+            isDarkMode: false,
+            aspectRatio: QuranPageView.pageAspectRatio,
+            highlightFor: (_) => [],
+            highlightColor: Colors.amber,
+            onPageChanged: visits.add,
+            onFocus: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      const forward = ui.SemanticsAction.scrollRight;
+      const back = ui.SemanticsAction.scrollLeft;
+      for (final (action, unavailable, target) in [
+        (forward, back, 2),
+        (back, forward, 1),
+      ]) {
+        expect(find.semantics.byAction(unavailable), findsNothing);
+        final node = find.semantics.byAction(action).evaluate().single;
+        node.owner!.performAction(node.id, action);
+        await tester.pumpAndSettle();
+        expect(paging.visiblePages, [target]);
+      }
+      expect(find.semantics.byAction(back), findsNothing);
+      expect(visits, [2, 1]);
+      await tester.pumpWidget(const SizedBox());
+      semantics.dispose();
+      paging.dispose();
+    },
+  );
+
+  for (final missing in [const RawImage(), const Placeholder()]) {
+    testWidgets(
+      'an unavailable ${missing.runtimeType} turn target recovers on the next decoded page',
+      (tester) async {
+        const size = Size(400, 800);
+        final layout = ReaderLayout.resolve(size: size);
+        final paging = ReaderPaging(initialPage: 1, lastPage: 3)
+          ..configure(layout.pageMode);
+        final loading = ValueNotifier(true);
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawColor(Colors.white, BlendMode.src);
+        final picture = recorder.endRecording();
+        final image = picture.toImageSync(8, 8);
+        picture.dispose();
+        final visits = <int>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: QuranPageTurnView(
+              paging: paging,
+              layout: layout,
+              layoutIdentity: size,
+              isDarkMode: false,
+              onPageChanged: visits.add,
+              buildSurface: (index, active, wrapLeaf) =>
+                  ValueListenableBuilder<bool>(
+                    valueListenable: loading,
+                    builder: (context, pending, _) => Center(
+                      child: wrapLeaf(
+                        index + 1,
+                        SizedBox(
+                          width: 200,
+                          height: 300,
+                          child: index == 1 && pending
+                              ? missing
+                              : RawImage(image: image),
+                        ),
+                      ),
+                    ),
+                  ),
+            ),
+          ),
+        );
+        final painter = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is QuranPageTurnPainter,
+        );
+        final cold = paging.goTo(2, animate: true);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(painter, findsNothing);
+        expect(paging.focusedPage, 1);
+        await tester.pumpAndSettle();
+        expect(await cold, isTrue);
+        expect(paging.focusedPage, 2);
+        loading.value = false;
+        await tester.pumpAndSettle();
+        final warm = paging.goTo(3, animate: true);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pump(const Duration(milliseconds: 85));
+        expect(painter, findsOneWidget);
+        expect(paging.progress, greaterThan(0));
+        await tester.pumpAndSettle();
+        expect(await warm, isTrue);
+        expect(paging.focusedPage, 3);
+        expect(visits, isEmpty);
+        await tester.pumpWidget(const SizedBox());
+        paging.dispose();
+        loading.dispose();
+        image.dispose();
+      },
+    );
+  }
+
   for (final mushaf in ['indopak_tajweed', 'madani']) {
     testWidgets(
       '$mushaf compact 80 percent page stays near full width when the dock toggles',
@@ -172,7 +296,11 @@ void main() {
         await tester.pumpAndSettle();
         expect(paging.visiblePages, [237]);
         expect(visits, isEmpty);
-        final oldView = tester.widget<PageView>(find.byType(PageView));
+        final drag = await tester.startGesture(const Offset(80, 350));
+        await drag.moveBy(const Offset(60, 0));
+        await tester.pump();
+        expect(paging.settled, isFalse);
+        final staleOperation = paging.operation;
         tester.view.physicalSize = const Size(900, 900);
         await tester.pumpAndSettle();
         expect(layout!.singlePage, isFalse);
@@ -181,7 +309,9 @@ void main() {
         expect(paging.focusedPage, 237);
         expect(paging.visiblePages, [236, 237]);
         expect(visits, isEmpty);
-        oldView.onPageChanged!(0);
+        await drag.up();
+        await tester.pumpAndSettle();
+        expect(paging.completeTurn(staleOperation), isFalse);
         expect(paging.focusedPage, 237);
         expect(visits, isEmpty);
         final right = tester.getRect(
@@ -228,12 +358,12 @@ void main() {
         await tester.pumpAndSettle();
         expect(paging.visiblePages, [236]);
         expect(visits, isEmpty);
-        await tester.drag(find.byType(PageView), const Offset(300, 0));
+        await tester.dragFrom(const Offset(20, 300), const Offset(280, 0));
         await tester.pumpAndSettle();
         expect(paging.focusedPage, 237);
         expect(visits, [237]);
-        // Even a late callback from the old spread cannot persist a distant page.
-        oldView.onPageChanged!(400);
+        // Late animation completion cannot overwrite the newer visit.
+        expect(paging.completeTurn(staleOperation), isFalse);
         expect(paging.focusedPage, 237);
         expect(visits, [237]);
         expect(tester.takeException(), isNull);
@@ -354,7 +484,7 @@ void main() {
     },
   );
   testWidgets(
-    'rapid resizing during animated navigation rejects retired controllers',
+    'rapid resizing during an adjacent turn preserves the exact command target',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -384,8 +514,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final navigation = paging.goTo(600, animate: true);
+      final navigation = paging.goTo(238, animate: true);
       await tester.pump(const Duration(milliseconds: 50));
+      expect(paging.settled, isFalse);
+      expect(paging.focusedPage, 237);
+      final staleOperation = paging.operation;
       for (final size in [
         const Size(900, 900),
         const Size(340, 700),
@@ -396,7 +529,15 @@ void main() {
         await tester.pump();
       }
       await tester.pumpAndSettle();
-      await navigation;
+      expect(await navigation, isTrue);
+      expect(paging.focusedPage, 238);
+      expect(paging.visiblePages, [238]);
+      expect(paging.completeTurn(staleOperation), isFalse);
+      expect(visits, isEmpty);
+
+      await paging.goTo(600, animate: true);
+      expect(paging.settled, isTrue);
+      await tester.pumpAndSettle();
       expect(paging.focusedPage, 600);
       expect(paging.visiblePages, [600]);
       expect(visits, isEmpty);

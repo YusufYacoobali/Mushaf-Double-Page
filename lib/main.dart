@@ -162,13 +162,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   late Directory _docDir;
   ReaderPaging? _paging;
-  PageController get _pageController => _paging!.controller;
 
   bool _ready = false;
   bool _isIPad = false;
   StreamSubscription<dynamic>? _displayRegionSubscription;
   IosDisplayRegions _iosDisplayRegions = IosDisplayRegions.fromEvent(null);
-  bool get _hasPageController => _paging != null;
   bool _singlePage = true;
   bool _bottomDock = true;
   bool _ayahHighlightingEnabled = true;
@@ -346,14 +344,20 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   void _jumpToReadingPage(int page, {int? surah}) {
     _audioVerticalFollower.invalidate();
     final logical = page.clamp(1, maxFilePage);
+    _forgetAyahSelection();
+    // A direct jump commits synchronously, including bookmark highlight resume.
+    unawaited(_paging!.goTo(logical));
+    _didCommitPage(logical, surah: surah);
+  }
+
+  void _didCommitPage(int page, {int? surah, bool recordActivity = true}) {
+    if (!mounted) return;
     setState(() {
-      _logicalPage = logical;
-      _forgetAyahSelection();
+      _logicalPage = page;
       _recordSurahVisit(surah: surah);
     });
-    unawaited(_paging!.goTo(logical));
-    StorageManager.saveCurrentPage(logical, maxPage: maxFilePage);
-    unawaited(_recordProgress());
+    unawaited(StorageManager.saveCurrentPage(page, maxPage: maxFilePage));
+    if (recordActivity) unawaited(_recordProgress());
   }
 
   void _increaseScale() => _adjustScale(0.05);
@@ -411,7 +415,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   void _onScreenTap() {
     // Clear the selection independently of whether taps can reveal controls.
     if (_selPage != null) {
-      setState(_forgetAyahSelection);
+      _forgetAyahSelection();
       return;
     }
 
@@ -475,57 +479,18 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     _audioFollowScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _audioFollowScheduled = false;
-      if (!mounted ||
-          !_ready ||
-          !_hasPageController ||
-          !_pageController.hasClients) {
-        return;
-      }
-      final audio = QuranAudioController.instance;
-      final visible = _readerVisible;
-      final target = _audioPageFollower.targetPage(
-        playing: audio.audible,
-        visible: visible,
-        session: audio.playbackSessionId,
-        cycle: audio.currentRepeat,
-        surah: audio.currentSurah,
-        ayah: audio.currentAyah,
-        currentPage: _logicalPage,
-        portrait: _singlePage,
-        mushaf: _mushaf,
-        visiblePages: _paging!.visiblePages,
-        sequentialBook: _paging!.book,
-      );
-      final vertical = _audioVerticalFollower.beginAyah(
-        playing: audio.audible,
-        visible: visible,
-        session: audio.playbackSessionId,
-        cycle: audio.currentRepeat,
-        surah: audio.currentSurah,
-        ayah: audio.currentAyah,
-        mushaf: _mushaf,
-      );
-      if (target == null) {
-        if (vertical != null) _audioVerticalFollower.reveal(vertical);
-        return;
-      }
-      setState(() {
-        _logicalPage = target;
-        _recordSurahVisit();
-      });
-      final navigation = _paging!.goTo(
-        target,
+      final paging = _paging;
+      if (!mounted || !_ready || paging == null) return;
+      _audioPageFollower.followReader(
+        audio: QuranAudioController.instance,
+        paging: paging,
+        vertical: _audioVerticalFollower,
+        visible: _readerVisible,
         animate: !AppMotion.reduced(context),
+        mushaf: _mushaf,
+        onCommit: (page, changedSpread) =>
+            _didCommitPage(page, recordActivity: changedSpread),
       );
-      if (vertical != null) {
-        unawaited(
-          _audioVerticalFollower.revealAfterNavigation(vertical, navigation),
-        );
-      } else {
-        unawaited(navigation);
-      }
-      unawaited(StorageManager.saveCurrentPage(target, maxPage: maxFilePage));
-      unawaited(_recordProgress());
     });
   }
 
@@ -638,7 +603,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       }
     }
     if (_selPage != null) {
-      setState(_forgetAyahSelection);
+      _forgetAyahSelection();
     } else {
       _onScreenTap();
     }
@@ -1031,8 +996,11 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
           setState(() {
             _mushaf = mushaf;
             _paging!.lastPage = maxFilePage;
-            _paging!.focusedPage = _logicalPage.clamp(1, maxFilePage);
-            _paging!.configure(_paging!.mode, force: true);
+            _paging!.configure(
+              _paging!.mode,
+              force: true,
+              focusPage: _logicalPage,
+            );
             _forgetAyahSelection();
           });
           _surahHistory = RecentSurahHistory(_mushaf);
@@ -1173,9 +1141,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
               navigationKey: _readerDockGeometryKey,
               native: _iosDisplayRegions,
               isIPad: _isIPad,
-              settled: () =>
-                  _paging!.controller.hasClients &&
-                  !_paging!.controller.position.isScrollingNotifier.value,
+              settled: () => _paging!.settled,
               child: Stack(
                 children: [
                   AdaptiveQuranPages(
@@ -1192,36 +1158,15 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
                     highlightColor: palette.accent.withValues(alpha: .26),
                     onTap: _onPageTap,
                     onBackgroundTap: _onScreenTap,
-                    onFocus: (page) {
-                      setState(() {
-                        _logicalPage = page;
-                        _recordSurahVisit(
-                          surah: PageAyahIndex.surahsOnPage(
-                            page,
-                            mushaf: _mushaf,
-                          ).firstOrNull,
-                        );
-                      });
-                      unawaited(
-                        StorageManager.saveCurrentPage(
-                          page,
-                          maxPage: maxFilePage,
-                        ),
-                      );
-                    },
-                    onPageChanged: (page) {
-                      setState(() {
-                        _logicalPage = page;
-                        _recordSurahVisit();
-                      });
-                      unawaited(
-                        StorageManager.saveCurrentPage(
-                          page,
-                          maxPage: maxFilePage,
-                        ),
-                      );
-                      unawaited(_recordProgress());
-                    },
+                    onFocus: (page) => _didCommitPage(
+                      page,
+                      surah: PageAyahIndex.surahsOnPage(
+                        page,
+                        mushaf: _mushaf,
+                      ).firstOrNull,
+                      recordActivity: false,
+                    ),
+                    onPageChanged: _didCommitPage,
                   ),
                   Positioned.fromRect(
                     rect: overlay.deflate(16),

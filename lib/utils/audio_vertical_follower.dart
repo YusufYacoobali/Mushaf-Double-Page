@@ -108,6 +108,7 @@ class AudioVerticalFollower {
   bool _scrolling = false, _coolingDown = false;
   Timer? _idle;
   AudioVerticalRequest? _pending;
+  bool Function()? _currentNavigation;
 
   bool get interacting => _pointers.isNotEmpty || _scrolling || _coolingDown;
   bool get userScrolling => _scrolling;
@@ -130,6 +131,7 @@ class AudioVerticalFollower {
     }
     _visiblePages = List.of(visiblePages);
     _settled = settled;
+    if (_settled?.call() ?? true) _schedule();
   }
 
   void attach(int page, AudioVerticalSurface surface) =>
@@ -169,6 +171,7 @@ class AudioVerticalFollower {
   bool _valid(AudioVerticalRequest request) =>
       !_disposed &&
       request.revision == _revision &&
+      (_currentNavigation?.call() ?? true) &&
       (canFollow?.call() ?? true);
 
   void reveal(AudioVerticalRequest request) {
@@ -180,10 +183,16 @@ class AudioVerticalFollower {
 
   Future<void> revealAfterNavigation(
     AudioVerticalRequest request,
-    Future<void> navigation,
-  ) async {
-    await navigation;
-    if (_valid(request)) reveal(request);
+    Future<bool> navigation, {
+    bool Function()? currentNavigation,
+    VoidCallback? onSettled,
+  }) async {
+    if (await navigation && _valid(request)) {
+      if (!(currentNavigation?.call() ?? true)) return;
+      _currentNavigation = currentNavigation;
+      onSettled?.call();
+      reveal(request);
+    }
   }
 
   void _schedule() {
@@ -203,10 +212,7 @@ class AudioVerticalFollower {
       _pending = null;
       return;
     }
-    if (!(_settled?.call() ?? true)) {
-      if (_layoutAttempts++ < 2) _schedule();
-      return;
-    }
+    if (!(_settled?.call() ?? true)) return;
     final candidates = <(AudioVerticalSurface, AudioVerticalGeometry)>[];
     for (final page in _visiblePages) {
       final surface = _surfaces[page];
@@ -239,6 +245,7 @@ class AudioVerticalFollower {
   void invalidate() {
     _revision++;
     _pending = null;
+    _currentNavigation = null;
     for (final surface in _surfaces.values.toSet()) {
       surface.cancel();
     }

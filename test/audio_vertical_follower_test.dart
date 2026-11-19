@@ -167,16 +167,40 @@ void main() {
   testWidgets('navigation finishes before measuring the destination page', (
     tester,
   ) async {
-    final gate = Completer<void>();
+    final gate = Completer<bool>();
     final done = follower.revealAfterNavigation(request(1)!, gate.future);
     await tester.pump();
     expect(surface.moves, isEmpty);
     follower.configureView(layoutIdentity: 'portrait', visiblePages: [5]);
     follower.attach(5, surface);
-    gate.complete();
+    gate.complete(true);
     await done;
     await tester.pump();
     expect(surface.moves, [56]);
+  });
+  testWidgets('a superseded command cannot focus or reveal after settlement', (
+    tester,
+  ) async {
+    var committed = 0;
+    final first = request(1)!;
+    await follower.revealAfterNavigation(
+      first,
+      Future.value(false),
+      onSettled: () => committed++,
+    );
+    final second = request(2)!;
+    var operation = 1;
+    final settled = follower.revealAfterNavigation(
+      second,
+      Future.value(true),
+      currentNavigation: () => operation == 1,
+      onSettled: () => committed++,
+    );
+    operation++; // A newer command arrived before the completion microtask.
+    await settled;
+    await tester.pump();
+    expect(committed, 0);
+    expect(surface.moves, isEmpty);
   });
   for (final reason in [
     'manual navigation',
@@ -185,7 +209,7 @@ void main() {
     'new selection',
   ]) {
     testWidgets('$reason rejects an old navigation completion', (tester) async {
-      final gate = Completer<void>();
+      final gate = Completer<bool>();
       final done = follower.revealAfterNavigation(request(1)!, gate.future);
       if (reason == 'new selection') {
         request(2, session: 2);
@@ -194,7 +218,7 @@ void main() {
       } else {
         follower.configureView(layoutIdentity: reason, visiblePages: [4]);
       }
-      gate.complete();
+      gate.complete(true);
       await done;
       await tester.pump();
       expect(surface.moves, isEmpty);
