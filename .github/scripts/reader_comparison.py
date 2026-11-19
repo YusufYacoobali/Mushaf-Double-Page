@@ -20,7 +20,7 @@ rows = [
         ("max-100-bottom", "100% · bottom"),
     ),
     ("Half-open book", "duo-half-open-book", ("min-60", "60%"), ("max-100", "100%")),
-    ("iPad mini portrait", "ipad-mini", ("portrait", "80%"), ("portrait-after-18s", "80% · settled")),
+    ("iPad mini", "ipad-mini", ("portrait", "portrait · 100%"), ("landscape", "landscape · 100%")),
 ]
 cell_width, cell_height = 460, 392
 sheet = Image.new("RGB", (3 * cell_width, len(rows) * cell_height), "#f1eee8")

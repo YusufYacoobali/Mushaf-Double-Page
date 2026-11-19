@@ -5,6 +5,9 @@ timeout() { perl -e 'alarm shift; exec @ARGV or die "exec failed: $!\\n"' "$@"; 
 mkdir -p screenshots-ipad
 APP="ci-app/Runner.app"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+QA_PAGE="${READER_QA_PAGE:-6}"
+# Configure only the disposable simulator; production defaults remain intact.
+export READER_QA_PAGE="$QA_PAGE" READER_QA_SINGLE_ZOOM=100 READER_QA_SPREAD_ZOOM=100
 UDID=""
 cleanup() {
   local status=$?
@@ -26,6 +29,10 @@ timeout 600 xcrun simctl bootstatus "$UDID" -b
 echo "::endgroup::"
 echo "::group::Install and launch Quran"
 timeout 240 xcrun simctl install "$UDID" "$APP"
+# Clear any cached UserDefaults before writing the disposable app container.
+# Rendered geometry below must still confirm the requested page and both zooms.
+timeout 30 xcrun simctl spawn "$UDID" killall cfprefsd >/dev/null 2>&1 || true
+sleep 1
 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
 sleep 2
 launched_after="$(python3 -c 'import time; print(time.time())')"
@@ -50,13 +57,16 @@ for n in $(seq 1 45); do
 done
 [[ "$ready" -eq 1 ]] || { echo "::error::iPad did not load real Quran pages"; exit 1; }
 echo "::endgroup::"
-sleep 2
-python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geometry.json" \
-  screenshots-ipad/ipad-mini-portrait.png ipad-mini 80 "$launched_after" --udid "$UDID"
-# The initial intercession tip overlays Quran text. Capture a later state too
-# without altering application code, so reviewers can distinguish an
-# auto-dismissing overlay from a persistent layout issue.
 sleep 18
 python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geometry.json" \
-  screenshots-ipad/ipad-mini-portrait-after-18s.png ipad-mini 80 "$launched_after" --udid "$UDID"
-echo "iPad mini portrait: Quran images loaded, app screenshot captured" | tee screenshots-ipad/status.txt
+  screenshots-ipad/ipad-mini-portrait.png ipad-mini 100 "$launched_after" --udid "$UDID" --page "$QA_PAGE"
+# Rotate the actual running simulator. Both zoom preferences were seeded at
+# 100%, so rotation keeps the requested page without restarting the app.
+echo "::group::Rotate iPad mini to landscape"
+rotated_after="$(python3 -c 'import time; print(time.time())')"
+timeout 360 python3 .github/scripts/simulator_reader_input.py landscape "$UDID" \
+  2>&1 | tee screenshots-ipad/rotation.txt
+echo "::endgroup::"
+python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geometry.json" \
+  screenshots-ipad/ipad-mini-landscape.png ipad-mini-landscape 100 "$rotated_after" --udid "$UDID" --page "$QA_PAGE"
+echo "iPad mini: verified portrait and landscape at 100%, reader page=$QA_PAGE" | tee screenshots-ipad/status.txt

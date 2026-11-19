@@ -15,6 +15,7 @@ MODES = {
     "duo-unfolded-wide": "spread",
     "duo-half-open-book": "dualScreenBook",
     "ipad-mini": "single",
+    "ipad-mini-landscape": "spread",
 }
 
 
@@ -30,7 +31,7 @@ def same_rect(actual, expected):
     return all(math.isclose(actual[k], expected[k], abs_tol=0.5) for k in expected)
 
 
-def assert_capture_state(data, expected_zoom=None, expected_mode=None, after=None):
+def assert_capture_state(data, expected_zoom=None, expected_mode=None, after=None, expected_page=None):
     mode = data["mode"]
     assert mode in MODES.values() and (expected_mode is None or mode == expected_mode), (
         "wrong reading mode"
@@ -42,6 +43,13 @@ def assert_capture_state(data, expected_zoom=None, expected_mode=None, after=Non
         assert stamp.tzinfo and stamp.timestamp() >= after, "stale rendered geometry timestamp"
     assert len(data["pages"]) == (1 if mode == "single" else 2), "wrong rendered page count"
     assert str(data["focusedPage"]) in data["pages"], "focused page missing"
+    if expected_page is not None:
+        expected_pages = {str(expected_page)}
+        if mode != "single":
+            expected_pages.add(str(expected_page + 1))
+        assert data["focusedPage"] == expected_page and set(data["pages"]) == expected_pages, (
+            "wrong requested Quran pages"
+        )
     assert data.get("safeRegions"), "missing safe display regions"
 
 
@@ -94,7 +102,7 @@ def check_posture(data, posture, state):
     assert data["mode"] == mode
     w, h = (data["viewport"][k] for k in ("width", "height"))
     assert (w < h) == (mode == "single"), "wrong viewport orientation"
-    ipad = posture == "ipad-mini"
+    ipad = posture.startswith("ipad-mini")
     assert data["native"]["isIPad"] == ipad and data["fit"] != ipad
     if not ipad:
         folded = posture == "duo-folded"
@@ -148,15 +156,18 @@ def check_geometry(data, posture, phase="initial", state=None):
             # behind the iOS home swipe indicator. Safe panels and dock remain
             # inset so controls never enter that system gesture area.
             reading = (
-                dict(safe_panel, height=h - safe_panel["top"])
+                rect(0, 0, w, h)
+                if posture == "ipad-mini-landscape"
+                else dict(safe_panel, height=h - safe_panel["top"])
                 if posture == "duo-unfolded-wide"
                 else safe_panel
             )
-            half = (safe_panel["width"] - 1) / 2
+            region_half = (safe_panel["width"] - 1) / 2
             regions = [
-                dict(safe_panel, width=half),
-                dict(safe_panel, left=safe_panel["left"] + half + 1, width=half),
+                dict(safe_panel, width=region_half),
+                dict(safe_panel, left=safe_panel["left"] + region_half + 1, width=region_half),
             ]
+            half = (reading["width"] - 1) / 2
             width = half * z
             height = width / aspect
             scroll = data["scroll"]
@@ -181,9 +192,29 @@ def check_geometry(data, posture, phase="initial", state=None):
             left, right = panels
             assert left["top"] == right["top"] and left["height"] == right["height"]
             assert bounds(left)[2] <= right["left"] and int(pages[1][0]) == data["focusedPage"]
-            reading = dict(left, width=bounds(right)[2] - left["left"])
             regions = panels
-            width = min(min(p["width"], p["height"] * aspect) for p in panels) * z
+            # Preserve the real hinge and control-safe panels, but do not reserve
+            # the home-swipe strip beneath an otherwise unobstructed iOS book.
+            obstructions = [r for r in data["native"]["divisions"] if r["active"]]
+            obstructions.extend(
+                f["bounds"]
+                for f in data["frameworkFeatures"]
+                if f["type"] in ("hinge", "cutout")
+                or (f["type"] == "fold" and f["state"] == "postureHalfOpened")
+            )
+            def clear_extension(panel):
+                l, t, r, b = bounds(panel)
+                if abs(b - (h - data["padding"]["bottom"])) > 0.5:
+                    return False
+                return not any(
+                    x < r and xx > l and y < h and yy > b
+                    for x, y, xx, yy in map(bounds, obstructions)
+                )
+            if all(clear_extension(panel) for panel in panels):
+                regions = [dict(panel, height=h - panel["top"]) for panel in panels]
+            left, right = regions
+            reading = dict(left, width=bounds(right)[2] - left["left"])
+            width = min(min(p["width"], p["height"] * aspect) for p in regions) * z
             height = width / aspect
             expected = [
                 rect(
@@ -192,7 +223,7 @@ def check_geometry(data, posture, phase="initial", state=None):
                     width,
                     height,
                 )
-                for p in panels
+                for p in regions
             ]
             assert data["scroll"] is None
     assert same_rect(data["readingBounds"], reading), "incorrect reading bounds"
@@ -248,13 +279,14 @@ def verify(
     state=None,
     phase="initial",
     before=None,
+    expected_page=None,
 ):
     data = json.loads(Path(metadata).read_text())
-    assert_capture_state(data, expected_zoom, expected_mode, after)
+    assert_capture_state(data, expected_zoom, expected_mode, after, expected_page)
     # Older interactive control-check callers supply only the requested zoom.
     if posture is None:
         posture = (
-            "ipad-mini"
+            ("ipad-mini" if data["mode"] == "single" else "ipad-mini-landscape")
             if data["native"]["isIPad"]
             else "duo-folded"
             if data["native"]["closed"]
@@ -339,10 +371,12 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=set(MODES.values()))
     parser.add_argument("--posture", choices=MODES)
     parser.add_argument("--after", type=float)
+    parser.add_argument("--page", type=int)
     args = parser.parse_args()
     print(
         json.dumps(
-            verify(args.png, args.metadata, args.zoom, args.mode, args.after, posture=args.posture),
+            verify(args.png, args.metadata, args.zoom, args.mode, args.after, posture=args.posture,
+                   expected_page=args.page),
             indent=2,
         )
     )

@@ -253,19 +253,59 @@ class ReaderLayout {
         : continuousPortrait
         ? portraitBand
         : single;
-    // Only the fully unfolded iOS foldable spread may draw beneath the
-    // bottom home-swipe safe inset. The dock still uses safe control bounds.
-    // Preserve the original layout for iPads, ordinary phones, and book mode.
+    // iOS foldable paper may draw beneath the bottom home-swipe safe inset.
+    // The dock still uses safe control bounds; iPads and ordinary phones keep
+    // their existing layout.
     final fullHeightUnfoldedIOSLandscape =
         fitPages &&
         iosPhoneWidePortrait &&
         size.shortestSide >= 600 &&
         continuousSpread &&
         !foldedCover;
+    // A half-open book retains its real hinge and each panel's horizontal
+    // bounds. Extend only clear bottom bands, never a physical obstruction
+    // that was hidden outside the original safe rectangle.
+    final fullHeightIOSBook =
+        canSpread &&
+        book &&
+        fitPages &&
+        iosPhoneWidePortrait &&
+        landscape &&
+        size.shortestSide >= 600 &&
+        spreadRegions.every((region) => region.bottom == safeBounds.bottom) &&
+        !displayFeatures.any(
+          (feature) =>
+              (feature.type == DisplayFeatureType.hinge ||
+                  feature.type == DisplayFeatureType.cutout ||
+                  (feature.type == DisplayFeatureType.fold &&
+                      feature.state ==
+                          DisplayFeatureState.postureHalfOpened)) &&
+              spreadRegions.any(
+                (region) => feature.bounds.overlaps(
+                  Rect.fromLTRB(
+                    region.left,
+                    region.bottom,
+                    region.right,
+                    size.height,
+                  ),
+                ),
+              ),
+        );
+    final readingSpreadRegions = fullHeightIOSBook
+        ? [
+            for (final region in spreadRegions)
+              Rect.fromLTRB(region.left, region.top, region.right, size.height),
+          ]
+        : spreadRegions;
     final spreadBounds = originalLandscapeBounds
         ? Offset.zero & size
-        : fullHeightUnfoldedIOSLandscape
-        ? Rect.fromLTRB(combined.left, combined.top, combined.right, size.height)
+        : fullHeightUnfoldedIOSLandscape || fullHeightIOSBook
+        ? Rect.fromLTRB(
+            combined.left,
+            combined.top,
+            combined.right,
+            size.height,
+          )
         : combined;
     return ReaderLayout(
       pageMode: canSpread
@@ -275,7 +315,7 @@ class ReaderLayout {
       dockPlacement: bottom ? DockPlacement.bottom : DockPlacement.side,
       usableContentBounds: canSpread ? spreadBounds : singleBounds,
       pageRegions: List.unmodifiable(
-        canSpread ? spreadRegions : [singleBounds],
+        canSpread ? readingSpreadRegions : [singleBounds],
       ),
       sizing: originalPortraitBounds || continuousPortrait
           ? ReaderPageSizing.portraitHeight

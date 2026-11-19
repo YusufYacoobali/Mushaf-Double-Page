@@ -6,10 +6,11 @@ import re
 from pathlib import Path
 import runpy
 import shutil
-import struct
 import subprocess
 import tempfile
 import time
+
+from PIL import Image, ImageOps
 
 from inspect_reader_frame import inspect_frame
 
@@ -72,7 +73,10 @@ def rendered_landscape():
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / 'rotation-check.png'
         capture_png(path)
-        width, height = struct.unpack('>II', path.read_bytes()[16:24])
+        # Some iPad simulator PNGs encode landscape via EXIF orientation while
+        # retaining portrait pixel storage. Check the displayed image size.
+        with Image.open(path) as image:
+            width, height = ImageOps.exif_transpose(image).size
         print(f'Rotation rendered PNG: {width}x{height}', flush=True)
         return width > height
 

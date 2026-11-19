@@ -8,6 +8,7 @@ if [[ "$#" != 3 ]]; then echo "Usage: $0 <state> <min-percent> <max-percent>" >&
 LABEL="$1"
 MIN="$2"
 MAX="$3"
+QA_PAGE="${READER_QA_PAGE:-4}"
 UDID="$DUOCTL_UDID"
 APP="ci-app/Runner.app"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
@@ -22,14 +23,16 @@ capture_at() {
   echo "$LABEL: configuring actual app zoom $percent%"
   xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
   sleep 2
-  python3 - "$PREFS" "$LABEL" "$percent" "$name-preference.txt" <<'PY'
+  python3 - "$PREFS" "$LABEL" "$percent" "$name-preference.txt" "$QA_PAGE" <<'PY'
 import math
 import os
 import plistlib
 import sys
 
-path, posture, percent_str, evidence_path = sys.argv[1:]
+path, posture, percent_str, evidence_path, page_str = sys.argv[1:]
 percent = int(percent_str)
+page = int(page_str)
+assert 1 <= page <= 851
 key = ("flutter.quran_single_page_scale"
        if posture in ("duo-folded", "duo-unfolded-portrait") else "flutter.quran_landscape_page_scale")
 data = {}
@@ -38,7 +41,7 @@ if os.path.exists(path):
         data = plistlib.load(f)
 data.update({
     key: percent / 100,
-    "flutter.CurrentPage1": 4,
+    "flutter.CurrentPage1": page,
     "flutter.reader_controls_arrow_only": False,
     "flutter.review_prompt_rate_chosen": True,
 })
@@ -48,7 +51,7 @@ with open(path, "rb") as f:
     actual = plistlib.load(f)[key]
 assert math.isclose(actual, percent / 100, abs_tol=1e-6)
 with open(evidence_path, "w") as f:
-    f.write(f"Real app SharedPreferences {key}={actual}; reader page=4\n")
+    f.write(f"Real app SharedPreferences {key}={actual}; reader page={page}\n")
 print(f"Verified on disk {key} = {actual}")
 PY
   # Editing the plist file alone is NOT sufficient: iOS cfprefsd caches the
@@ -80,12 +83,12 @@ PY
   # pending daemon writes stop. Rendered geometry below remains the proof.
   xcrun simctl spawn "$UDID" killall cfprefsd >/dev/null 2>&1 || true
   sleep 1
-  python3 - "$PREFS" "$key" "$value" <<'PY'
+  python3 - "$PREFS" "$key" "$value" "$QA_PAGE" <<'PY'
 import plistlib, sys
-path, key, value = sys.argv[1:]
+path, key, value, page = sys.argv[1:]
 with open(path, 'rb') as f:
     data = plistlib.load(f)
-data.update({key: float(value), 'flutter.CurrentPage1': 4,
+data.update({key: float(value), 'flutter.CurrentPage1': int(page),
              'flutter.reader_controls_arrow_only': False,
              'flutter.review_prompt_rate_chosen': True})
 with open(path, 'wb') as f:
@@ -107,13 +110,13 @@ PY
     pair=(--before "screenshots/$LABEL-min-$MIN.layout.json")
   fi
   python3 .github/scripts/capture_reader_endpoint.py "$source" "$name.png" "$LABEL" "$percent" "$launched_after" \
-    --state "$name-state.json" ${pair[@]+"${pair[@]}"} | tee "$name-verification.txt"
+    --page "$QA_PAGE" --state "$name-state.json" ${pair[@]+"${pair[@]}"} | tee "$name-verification.txt"
   if [[ "$tag" == max && ( "$LABEL" == duo-folded || "$LABEL" == duo-unfolded-wide ) ]]; then
     local phase=collapsed
     [[ "$LABEL" != duo-unfolded-wide ]] || phase=bottom
     duoctl state > "$name-$phase-state.json"
     python3 .github/scripts/capture_reader_endpoint.py "$source" "$name-$phase.png" "$LABEL" "$percent" "$launched_after" \
-      --state "$name-$phase-state.json" --phase "$phase" --before "$name.layout.json" | tee "$name-$phase-verification.txt"
+      --page "$QA_PAGE" --state "$name-$phase-state.json" --phase "$phase" --before "$name.layout.json" | tee "$name-$phase-verification.txt"
   fi
   echo "PASS: real $LABEL reader at $percent% ($name.png)" | tee -a "screenshots/$LABEL-result.txt"
 }

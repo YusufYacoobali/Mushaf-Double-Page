@@ -60,41 +60,115 @@ void main() {
     expect(ipadWithHints.pageMode, ReaderPageMode.single);
   });
 
-  test('unfolded Duo landscape reaches the physical bottom behind swipe area', () {
-    const size = Size(951, 669);
-    const padding = EdgeInsets.only(bottom: 34);
-    final duo = ReaderLayout.resolve(
-      size: size,
-      padding: padding,
-      iosPhoneWidePortrait: true,
-    );
-    expect(duo.sizing, ReaderPageSizing.spreadWidth);
-    expect(duo.safeRegions.single.bottom, 635);
-    expect(duo.usableContentBounds, const Rect.fromLTWH(0, 0, 951, 669));
-    expect(duo.controlsRegion.bottom, 635);
+  test(
+    'unfolded Duo landscape reaches the physical bottom behind swipe area',
+    () {
+      const size = Size(951, 669);
+      const padding = EdgeInsets.only(bottom: 34);
+      final duo = ReaderLayout.resolve(
+        size: size,
+        padding: padding,
+        iosPhoneWidePortrait: true,
+      );
+      expect(duo.sizing, ReaderPageSizing.spreadWidth);
+      expect(duo.safeRegions.single.bottom, 635);
+      expect(duo.usableContentBounds, const Rect.fromLTWH(0, 0, 951, 669));
+      expect(duo.controlsRegion.bottom, 635);
 
-    final book = ReaderLayout.resolve(
-      size: size,
-      padding: padding,
-      iosPhoneWidePortrait: true,
-      displayFeatures: const [hinge],
-    );
-    expect(book.pageMode, ReaderPageMode.dualScreenBook);
-    expect(book.pageRegions.every((r) => r.bottom == 635), isTrue);
+      final book = ReaderLayout.resolve(
+        size: size,
+        padding: padding,
+        iosPhoneWidePortrait: true,
+        displayFeatures: const [hinge],
+      );
+      expect(book.pageMode, ReaderPageMode.dualScreenBook);
+      expect(book.pageRegions.every((r) => r.bottom == 669), isTrue);
+      expect(book.safeRegions.every((r) => r.bottom == 635), isTrue);
+      expect(book.controlsRegion.bottom, 635);
 
-    final android = ReaderLayout.resolve(
-      size: size,
-      padding: padding,
-      displayFeatures: const [
-        DisplayFeature(
-          bounds: Rect.fromLTWH(455.5, 0, 40, 669),
-          type: DisplayFeatureType.fold,
-          state: DisplayFeatureState.postureFlat,
-        ),
-      ],
-    );
-    expect(android.usableContentBounds.bottom, 635);
-  });
+      final android = ReaderLayout.resolve(
+        size: size,
+        padding: padding,
+        displayFeatures: const [
+          DisplayFeature(
+            bounds: Rect.fromLTWH(455.5, 0, 40, 669),
+            type: DisplayFeatureType.fold,
+            state: DisplayFeatureState.postureFlat,
+          ),
+        ],
+      );
+      expect(android.usableContentBounds.bottom, 635);
+    },
+  );
+
+  test(
+    'Duo book extends clear paper panels while preserving native safety',
+    () {
+      const nativeHinge = DisplayFeature(
+        bounds: Rect.fromLTWH(455.5, 0, 40, 669),
+        type: DisplayFeatureType.fold,
+        state: DisplayFeatureState.postureHalfOpened,
+      );
+      const padding = EdgeInsets.only(top: 12, bottom: 34);
+      ReaderLayout resolve({
+        bool iosPhone = true,
+        bool ipad = false,
+        DisplayFeature? obstruction,
+      }) => ReaderLayout.resolve(
+        size: window,
+        padding: padding,
+        iosPhoneWidePortrait: iosPhone,
+        preserveLegacyIPadPortrait: ipad,
+        displayFeatures: [nativeHinge, ?obstruction],
+      );
+      final book = resolve();
+      expect(book.pageMode, ReaderPageMode.dualScreenBook);
+      expect(book.sizing, ReaderPageSizing.regionFit);
+      expect(book.pageRegions, const [
+        Rect.fromLTRB(0, 12, 455.5, 669),
+        Rect.fromLTRB(495.5, 12, 951, 669),
+      ]);
+      expect(book.usableContentBounds, const Rect.fromLTRB(0, 12, 951, 669));
+      expect(book.safeRegions, const [
+        Rect.fromLTRB(0, 12, 455.5, 635),
+        Rect.fromLTRB(495.5, 12, 951, 635),
+      ]);
+      expect(book.controlsRegion, book.safeRegions.last);
+      expect(
+        book.pageRegions.any((r) => r.overlaps(nativeHinge.bounds)),
+        isFalse,
+      );
+
+      final android = resolve(iosPhone: false);
+      expect(android.pageRegions.every((r) => r.bottom == 635), isTrue);
+      expect(android.controlsRegion.bottom, 635);
+      final ipad = resolve(ipad: true);
+      expect(ipad.fitPagesToViewport, isFalse);
+      // The legacy tablet gutter is preserved even with foldable hints.
+      expect(ipad.pageRegions.every((r) => r.bottom == 635 - 142), isTrue);
+      expect(ipad.controlsRegion.bottom, 635);
+      for (final type in [
+        DisplayFeatureType.hinge,
+        DisplayFeatureType.cutout,
+        DisplayFeatureType.fold,
+      ]) {
+        final obstruction = DisplayFeature(
+          bounds: const Rect.fromLTWH(0, 650, 455.5, 19),
+          type: type,
+          state: type == DisplayFeatureType.cutout
+              ? DisplayFeatureState.unknown
+              : DisplayFeatureState.postureHalfOpened,
+        );
+        final obstructed = resolve(obstruction: obstruction);
+        expect(obstructed.pageMode, ReaderPageMode.dualScreenBook);
+        expect(obstructed.pageRegions.every((r) => r.bottom == 635), isTrue);
+        expect(
+          obstructed.pageRegions.any((r) => r.overlaps(obstruction.bounds)),
+          isFalse,
+        );
+      }
+    },
+  );
 
   test('foldable bounds and page sizing are selected independently', () {
     final folded = ReaderLayout.resolve(
@@ -707,19 +781,30 @@ void main() {
   }
 
   for (final edition in ['indopak_tajweed', 'madani']) {
-    for (final scale in [.6, 1.0]) {
+    for (final (scale, iosBook) in [
+      for (final scale in [.6, 1.0])
+        for (final iosBook in [false, true]) (scale, iosBook),
+    ]) {
       testWidgets(
-        '$edition book at $scale fits complete RTL pages in actual panels',
+        '$edition ${iosBook ? 'Duo' : 'Android'} book at $scale fits complete RTL pages in actual panels',
         (tester) async {
           tester.view.devicePixelRatio = 1;
           tester.view.physicalSize = window;
           addTearDown(tester.view.resetDevicePixelRatio);
           addTearDown(tester.view.resetPhysicalSize);
           final paging = ReaderPaging(initialPage: 4, lastPage: 851);
+          final bookHinge = iosBook
+              ? const DisplayFeature(
+                  bounds: Rect.fromLTWH(455.5, 0, 40, 669),
+                  type: DisplayFeatureType.fold,
+                  state: DisplayFeatureState.postureHalfOpened,
+                )
+              : hinge;
           final layout = ReaderLayout.resolve(
             size: window,
-            padding: insets,
-            displayFeatures: [hinge],
+            padding: iosBook ? const EdgeInsets.only(bottom: 34) : insets,
+            displayFeatures: [bookHinge],
+            iosPhoneWidePortrait: iosBook,
           );
           final aspect = QuranPageView.aspectRatioForMushaf(edition);
           await tester.pumpWidget(
@@ -754,7 +839,7 @@ void main() {
             expect(frame.center.dx, closeTo(panel.center.dx, .001));
             expect(frame.center.dy, closeTo(panel.center.dy, .001));
             expect(frame.width / frame.height, closeTo(aspect, .001));
-            expect(frame.overlaps(hinge.bounds), isFalse);
+            expect(frame.overlaps(bookHinge.bounds), isFalse);
             expect(
               find.descendant(
                 of: find.byKey(ValueKey('quran-page-$page')),
@@ -771,6 +856,12 @@ void main() {
           );
           expect(next.width, closeTo(current.width, .001));
           expect(next.height, closeTo(current.height, .001));
+          if (iosBook) {
+            expect(current.width, closeTo(455.5 * scale, .001));
+            expect(current.height, closeTo(455.5 * scale / aspect, .001));
+            expect(current.center.dy, closeTo(window.height / 2, .001));
+            expect(layout.controlsRegion.bottom, 635);
+          }
           expect(find.byType(SingleChildScrollView), findsNothing);
           final short = await tester.startGesture(const Offset(540, 300));
           await short.moveTo(const Offset(600, 300));

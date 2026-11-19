@@ -15,26 +15,31 @@ rect = capture.rect
 ASPECT = 721 / 1058
 
 
-def snapshot(posture="duo-folded", z=1, bottom=False):
+def snapshot(posture="duo-folded", z=1, bottom=False, page=4, centered_book=False):
     mode = capture.MODES[posture]
     folded = posture == "duo-folded"
-    w, h = (466, 678) if folded else (669, 951) if mode == "single" else (951, 669)
+    ipad = posture.startswith("ipad-mini")
+    w, h = (
+        (744, 1133) if mode == "single" else (1133, 744)
+    ) if ipad else (466, 678) if folded else (669, 951) if mode == "single" else (951, 669)
     pad = dict(left=0, right=84 if folded else 0, top=0, bottom=34)
     native = dict(
-        viewport=dict(width=w, height=h), divisions=[], closed=folded, isIPad=posture == "ipad-mini"
+        viewport=dict(width=w, height=h), divisions=[], closed=folded, isIPad=ipad
     )
     safe = [rect(0, 0, w - pad["right"], h - 34)]
     band = safe[0]
     if mode == "dualScreenBook":
-        native["divisions"] = [dict(rect(400, 0, 24, h), active=True)]
-        safe = [rect(0, 0, 400, h - 34), rect(424, 0, w - 424, h - 34)]
+        hinge_left, hinge_width = (455.5, 40) if centered_book else (400, 24)
+        right_left = hinge_left + hinge_width
+        native["divisions"] = [dict(rect(hinge_left, 0, hinge_width, h), active=True)]
+        safe = [rect(0, 0, hinge_left, h - 34), rect(right_left, 0, w - right_left, h - 34)]
     reading = band
     scroll = None
     if mode == "single":
         sizing = "portraitHeight"
         reading = rect(0, 0, band["width"], h)
         regions = [reading]
-        pages = {"4": rect(0, h * (1 - z) / 2, band["width"], h * z)}
+        pages = {str(page): rect(0, h * (1 - z) / 2, band["width"], h * z)}
     elif mode == "spread":
         sizing = "spreadWidth"
         reading = dict(band, height=h - band["top"])
@@ -45,17 +50,18 @@ def snapshot(posture="duo-folded", z=1, bottom=False):
         regions = [dict(band, width=half), dict(band, left=half + 1, width=half)]
         scroll = dict(viewport=reading, min=0, max=maximum, offset=offset, settled=True)
         pages = {
-            "4": rect(half + 1, -offset, width, height),
-            "5": rect(half - width, -offset, width, height),
+            str(page): rect(half + 1, -offset, width, height),
+            str(page + 1): rect(half - width, -offset, width, height),
         }
     else:
         sizing = "regionFit"
-        regions = safe
-        width = min(400, (h - 34) * ASPECT) * z
+        regions = [dict(panel, height=h) for panel in safe]
+        reading = rect(0, 0, w, h)
+        width = min(min(r["width"], r["height"] * ASPECT) for r in regions) * z
         height = width / ASPECT
         pages = {
             str(p): rect(r["left"] + (r["width"] - width) / 2, (r["height"] - height) / 2, width, height)
-            for p, r in zip([5, 4], regions)
+            for p, r in zip([page + 1, page], regions)
         }
     tab = (
         rect((band["width"] - 72) / 2, h - 40, 72, 24)
@@ -68,7 +74,7 @@ def snapshot(posture="duo-folded", z=1, bottom=False):
         mode=mode,
         fit=not native["isIPad"],
         zoom=z,
-        focusedPage=4,
+        focusedPage=page,
         edition="indopak_tajweed",
         safeRegions=safe,
         scroll=scroll,
@@ -116,7 +122,7 @@ class CaptureTests(unittest.TestCase):
 
     def test_all_endpoints(self):
         for posture, mode in capture.MODES.items():
-            for zoom in [0.8] if posture == "ipad-mini" else [0.7 if mode == "single" else 0.6, 1]:
+            for zoom in [1] if posture.startswith("ipad-mini") else [0.7 if mode == "single" else 0.6, 1]:
                 with self.subTest(posture=posture, zoom=zoom):
                     frame = snapshot(posture, zoom)
                     self.save(frame)
@@ -125,6 +131,61 @@ class CaptureTests(unittest.TestCase):
                             "verified"
                         ]
                     )
+
+    def test_requested_pages_are_not_the_previous_spread(self):
+        for posture in capture.MODES:
+            with self.subTest(posture=posture):
+                frame = snapshot(posture, page=6)
+                self.save(frame)
+                capture.verify(self.png, self.metadata, 100, posture=posture, expected_page=6)
+                with self.assertRaisesRegex(AssertionError, "wrong requested Quran pages"):
+                    capture.assert_capture_state(snapshot(posture), expected_page=6)
+                wrong_neighbor = copy.deepcopy(frame)
+                if len(frame["pages"]) == 2:
+                    wrong_neighbor["pages"]["5"] = wrong_neighbor["pages"].pop("7")
+                    with self.assertRaisesRegex(AssertionError, "wrong requested Quran pages"):
+                        capture.assert_capture_state(wrong_neighbor, expected_page=6)
+
+    def test_ipad_landscape_keeps_legacy_full_viewport_at_100(self):
+        frame = snapshot("ipad-mini-landscape", page=6)
+        self.save(frame)
+        capture.verify(self.png, self.metadata, 100, posture="ipad-mini-landscape", expected_page=6)
+        self.assertFalse(frame["fit"])
+        self.assertEqual(frame["readingBounds"], rect(0, 0, 1133, 744))
+        self.assertEqual(frame["pages"]["6"]["width"], 566)
+        self.assertGreater(frame["scroll"]["max"], 0)
+        frame["zoom"] = .8
+        with self.assertRaisesRegex(AssertionError, "wrong actual rendered zoom"):
+            capture.assert_capture_state(frame, expected_zoom=100)
+
+    def test_duo_book_uses_bottom_strip_without_crossing_hinge(self):
+        frame = snapshot("duo-half-open-book", page=6, centered_book=True)
+        self.save(frame)
+        capture.verify(self.png, self.metadata, 100, posture="duo-half-open-book", expected_page=6)
+        self.assertEqual(frame["safeRegions"][0]["height"], 635)
+        self.assertTrue(all(r["height"] == 669 for r in frame["regions"]))
+        for page in frame["pages"].values():
+            self.assertLess(669 - capture.bounds(page)[3], 1 / 3)
+            self.assertAlmostEqual(page["width"] / page["height"], ASPECT)
+        old_gutter = copy.deepcopy(frame)
+        old_gutter["readingBounds"]["height"] -= 34
+        for r in old_gutter["regions"]:
+            r["height"] -= 34
+        with self.assertRaisesRegex(AssertionError, "reading bounds"):
+            capture.check_geometry(old_gutter, "duo-half-open-book")
+
+    def test_duo_book_extension_does_not_cover_a_real_footer_cutout(self):
+        frame = snapshot("duo-half-open-book", centered_book=True)
+        frame["frameworkFeatures"] = [dict(
+            bounds=rect(0, 650, 455.5, 19), type="cutout", state="unknown"
+        )]
+        frame["regions"] = copy.deepcopy(frame["safeRegions"])
+        frame["readingBounds"] = rect(0, 0, 951, 635)
+        width = 635 * ASPECT
+        for page, panel in zip(["5", "4"], frame["regions"]):
+            frame["pages"][page] = rect(panel["left"] + (panel["width"] - width) / 2, 0, width, 635)
+        self.save(frame)
+        capture.verify(self.png, self.metadata, 100, posture="duo-half-open-book")
 
     def test_fresh_scrolled_capture_uses_visible_edges(self):
         before = snapshot("duo-unfolded-wide")

@@ -14,7 +14,7 @@ def read(path):
     return json.loads(path.read_text())
 
 
-def capture(source, png, posture, percent, after, phase, before, state, udid):
+def capture(source, png, posture, percent, after, phase, before, state, udid, expected_page=None):
     layout = png.with_suffix(".layout.json")
     previous = read(before) if before else None
     mode = MODES[posture]
@@ -23,7 +23,7 @@ def capture(source, png, posture, percent, after, phase, before, state, udid):
     while time.monotonic() < deadline:
         try:
             frame = read(source)
-            assert_capture_state(frame, percent, mode, after)
+            assert_capture_state(frame, percent, mode, after, expected_page)
             check_geometry(frame, posture, phase, state)
             if previous:
                 check_pair(previous, frame, phase)
@@ -38,7 +38,7 @@ def capture(source, png, posture, percent, after, phase, before, state, udid):
                 continue
             command = (
                 ["xcrun", "simctl", "io", udid, "screenshot"]
-                if posture == "ipad-mini"
+                if posture.startswith("ipad-mini")
                 else ["duoctl", "screenshot"]
             )
             subprocess.run(command + [str(png)], check=True, timeout=30)
@@ -57,6 +57,7 @@ def capture(source, png, posture, percent, after, phase, before, state, udid):
                 phase=phase,
                 before=previous,
                 state=state,
+                expected_page=expected_page,
             )
             print(
                 json.dumps(
@@ -122,8 +123,9 @@ if __name__ == "__main__":
     parser.add_argument("--before", type=Path)
     parser.add_argument("--state", type=Path)
     parser.add_argument("--udid")
+    parser.add_argument("--page", type=int)
     args = parser.parse_args()
-    assert args.state or args.posture == "ipad-mini", "Duo capture requires external native state"
+    assert args.state or args.posture.startswith("ipad-mini"), "Duo capture requires external native state"
     if args.phase != "initial":
         assert args.before and args.state
         if args.phase == "bottom":
@@ -141,4 +143,5 @@ if __name__ == "__main__":
         args.before,
         read(args.state) if args.state else None,
         args.udid,
+        args.page,
     )
