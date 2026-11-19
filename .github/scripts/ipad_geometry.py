@@ -23,16 +23,23 @@ def paper_bounds(im, landscape, scale):
         return [[0, rows[0], w, rows[-1] + 1]]
     columns = [x for x in range(w - round(140 * scale)) if
                sum(max(pixels[x, y]) > 80 for y in range(0, h, 4)) > h / 4 * .1]
-    groups = []
-    for x in columns:
-        if not groups or x != groups[-1][-1] + 1: groups.append([])
-        groups[-1].append(x)
-    groups = [g for g in groups if len(g) > 80]
-    assert len(groups) == 2, f'Expected two rendered Quran papers, got {len(groups)}'
+    # Ornamental Quran page borders contain 1-3 pixel dark vertical strips.
+    # Counting every bright-column run as a separate page is wrong on the
+    # higher-resolution 13-inch iPad (six runs across TWO visible pages).
+    # The actual book spread is two equal halves separated at the centre.
+    # Independently measure each half; don't assume the expected boundaries.
+    centre = w // 2
+    halves = [[x for x in columns if x < centre],
+              [x for x in columns if x > centre]]
+    assert all(len(xs) > 80 for xs in halves), (
+        f'Expected two distinct Quran papers split at {centre}; '
+        f'observed bright columns per half: {[len(xs) for xs in halves]}')
+    assert centre not in columns, 'Expected a real centre seam between pages'
     result = []
-    for xs in groups:
+    for xs in halves:
         rows = [y for y in range(h) if any(max(pixels[x, y]) > 80
                  for x in range(xs[0], xs[-1] + 1, 4))]
+        assert rows, 'Quran page has no visible paper rows'
         result.append([xs[0], rows[0], xs[-1] + 1, rows[-1] + 1])
     return result
 

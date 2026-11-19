@@ -29,8 +29,17 @@ def png(path, landscape=None):
     width, height = struct.unpack('>II', data[16:24])
     require(width >= 320 and height >= 320, f'Unexpected screenshot size: {path}: {width}x{height}')
     if landscape is not None:
-        require((width > height) == landscape,
-                f'Wrong screenshot orientation: {path}: {width}x{height}')
+        # XCUIScreen PNGs are physically encoded in the natural device
+        # orientation and carry EXIF orientation=8 in landscape. Check the
+        # displayed pixels after honouring EXIF, not the raw IHDR axes.
+        from PIL import Image, ImageOps
+        with Image.open(path) as original:
+            displayed = ImageOps.exif_transpose(original)
+            displayed.load()
+            visual_width, visual_height = displayed.size
+        require((visual_width > visual_height) == landscape,
+                f'Wrong displayed screenshot orientation: {path}: '
+                f'raw={width}x{height}, visual={visual_width}x{visual_height}')
     return hashlib.sha256(data).hexdigest()
 
 
