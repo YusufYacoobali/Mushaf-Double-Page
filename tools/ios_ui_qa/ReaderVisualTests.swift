@@ -169,11 +169,21 @@ final class ReaderVisualTests: XCTestCase {
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
     // Dismiss only this app's notification prompt on the disposable simulator.
     // Other permission prompts and unrelated alerts must remain test failures.
-    let notification = springboard.alerts.containing(NSPredicate(
-      format: "label CONTAINS[c] %@ AND label CONTAINS[c] %@",
-      "Quran Dual Page", "Send You Notifications"
-    )).firstMatch
+    // .containing(predicate) checks a DESCENDANT's label, but iOS 27
+    // splits the permission title into several accessibility elements.
+    // It therefore missed this genuine notification alert after rotation.
+    // Look at the alert itself plus its static texts, and reject any other
+    // permission/system alert rather than blindly dismissing it.
+    let notification = springboard.alerts.firstMatch
     guard notification.waitForExistence(timeout: timeout) else { return }
+    let alertText = ([notification.label] +
+      notification.staticTexts.allElementsBoundByIndex.map { $0.label }
+    ).joined(separator: " ")
+    guard alertText.localizedCaseInsensitiveContains("Quran Dual Page") &&
+          alertText.localizedCaseInsensitiveContains("Notifications") else {
+      XCTFail("notification: unexpected system alert: " + alertText)
+      return
+    }
     let deny = notification.buttons.matching(NSPredicate(
       format: "label == %@ OR label == %@", "Don't Allow", "Don’t Allow"
     )).firstMatch
