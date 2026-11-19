@@ -14,6 +14,7 @@ class AudioVerticalViewport extends StatefulWidget {
     required this.pages,
     required this.builder,
     this.follower,
+    this.onScrollFocus,
     this.transformed = false,
     this.transformationController,
     this.transformIdentity,
@@ -21,6 +22,7 @@ class AudioVerticalViewport extends StatefulWidget {
   final List<int> pages;
   final Widget Function(AudioViewportHandle) builder;
   final AudioVerticalFollower? follower;
+  final ValueChanged<int>? onScrollFocus;
   final bool transformed;
   final TransformationController? transformationController;
   final Object? transformIdentity;
@@ -321,20 +323,33 @@ class _AudioVerticalViewportState extends State<AudioVerticalViewport>
     },
     onPointerUp: (event) => widget.follower?.pointerUp(event.pointer),
     onPointerCancel: (event) => widget.follower?.pointerUp(event.pointer),
-    onPointerPanZoomStart: (event) => widget.follower?.pointerDown(event.pointer),
+    onPointerPanZoomStart: (event) =>
+        widget.follower?.pointerDown(event.pointer),
     onPointerPanZoomEnd: (event) => widget.follower?.pointerUp(event.pointer),
     onPointerSignal: (_) => widget.follower?.manualActivity(),
     child: NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         final follower = widget.follower;
-        if (notification.depth == 0 && follower != null) {
-          if (notification is ScrollStartNotification &&
-              notification.dragDetails != null) {
-            follower.userScroll(true);
-          } else if (notification is ScrollEndNotification &&
-              follower.userScrolling) {
-            follower.userScroll(false);
+        if (notification.depth != 0) return false;
+        if (notification is ScrollStartNotification &&
+            notification.dragDetails != null) {
+          follower?.userScroll(true);
+          // A vertical drag has won the gesture arena. A provisional
+          // horizontal swipe must leave focus and the saved page alone.
+          if (widget.onScrollFocus != null) {
+            final point = notification.dragDetails!.globalPosition;
+            for (final entry in _keys.entries) {
+              final box = _box(entry.value);
+              if (box != null &&
+                  (Offset.zero & box.size).contains(box.globalToLocal(point))) {
+                widget.onScrollFocus!(entry.key);
+                break;
+              }
+            }
           }
+        } else if (notification is ScrollEndNotification &&
+            (follower?.userScrolling ?? false)) {
+          follower!.userScroll(false);
         }
         return false;
       },

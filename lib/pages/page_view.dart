@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../utils/cache.dart';
 import '../utils/audio_vertical_follower.dart';
 import '../components/audio_vertical_viewport.dart';
+import '../components/quran_page_turn_view.dart';
 
 class QuranPageView {
   // Spread/adaptive pages use their printed image's native aspect ratio.
@@ -55,6 +56,7 @@ class QuranPageView {
     TransformationController? transformationController,
     AudioVerticalFollower? verticalFollower,
     ValueChanged<int>? onFocus,
+    Widget Function(int, Widget)? wrapLeaf,
     bool fullWidthPortrait = true,
     Rect? viewportBounds,
     bool fitToViewport = false,
@@ -98,12 +100,45 @@ class QuranPageView {
                     constraints.maxWidth,
                     constraints.maxHeight * clamped * aspectRatio,
                   );
+            final leaf = SizedBox(
+              key: ValueKey('quran-page-$logicalPage'),
+              width: width,
+              height: fullWidthPortrait
+                  ? constraints.maxHeight * clamped
+                  : width / aspectRatio,
+              child: _PageContent(
+                surfaceKey: pageSurfaceKey,
+                image: fullWidthPortrait
+                    ? FittedBox(fit: BoxFit.fill, child: image)
+                    : image,
+                aspectRatio: aspectRatio,
+                stretchToFit: true,
+                highlightRects: highlightRects,
+                highlightColor: highlightColor,
+                onTap: onTap == null && onFocus == null
+                    ? null
+                    : (nx, ny) {
+                        onFocus?.call(logicalPage);
+                        onTap?.call(logicalPage, nx, ny);
+                      },
+              ),
+            );
             return SizedBox.expand(
               child: InteractiveViewer(
                 key: ValueKey(clamped),
                 transformationController: viewport.transform,
+                onInteractionStart: (_) => QuranPageTurnView.singlePageGesture(
+                  context,
+                  viewport.transform,
+                ),
+                onInteractionUpdate: (_) => QuranPageTurnView.singlePageGesture(
+                  context,
+                  viewport.transform,
+                ),
                 constrained: false,
-                panEnabled: viewport.verticalPanEnabled,
+                panEnabled:
+                    viewport.verticalPanEnabled &&
+                    QuranPageTurnView.allowVerticalPan(context),
                 panAxis: PanAxis.vertical,
                 boundaryMargin: viewport.boundaryMargin,
                 minScale: 1,
@@ -112,29 +147,7 @@ class QuranPageView {
                   width: constraints.maxWidth,
                   height: constraints.maxHeight,
                   child: Center(
-                    child: SizedBox(
-                      key: ValueKey('quran-page-$logicalPage'),
-                      width: width,
-                      height: fullWidthPortrait
-                          ? constraints.maxHeight * clamped
-                          : width / aspectRatio,
-                      child: Listener(
-                        onPointerDown: (_) => onFocus?.call(logicalPage),
-                        child: _PageContent(
-                          surfaceKey: pageSurfaceKey,
-                          image: fullWidthPortrait
-                              ? FittedBox(fit: BoxFit.fill, child: image)
-                              : image,
-                          aspectRatio: aspectRatio,
-                          stretchToFit: true,
-                          highlightRects: highlightRects,
-                          highlightColor: highlightColor,
-                          onTap: onTap == null
-                              ? null
-                              : (nx, ny) => onTap(logicalPage, nx, ny),
-                        ),
-                      ),
-                    ),
+                    child: wrapLeaf?.call(logicalPage, leaf) ?? leaf,
                   ),
                 ),
               ),
@@ -157,6 +170,7 @@ class QuranPageView {
     void Function(int logicalPage, double nx, double ny)? onTap,
     VoidCallback? onBackgroundTap,
     ValueChanged<int>? onFocus,
+    Widget Function(int, Widget)? wrapLeaf,
     List<Rect>? pageRegions,
     int? bookFirstPage,
     bool centerShortLandscapeSpread = false,
@@ -177,25 +191,32 @@ class QuranPageView {
         image = ColorFiltered(colorFilter: invertFilter, child: image);
       }
 
-      return Listener(
-        onPointerDown: (_) => onFocus?.call(index),
-        child: _PageContent(
-          surfaceKey: surfaceKey,
-          image: image,
-          aspectRatio: aspectRatio,
-          highlightRects: highlightFor?.call(index) ?? const [],
-          highlightColor: highlightColor,
-          onTap: onTap == null ? null : (nx, ny) => onTap(index, nx, ny),
-        ),
+      return _PageContent(
+        surfaceKey: surfaceKey,
+        image: image,
+        aspectRatio: aspectRatio,
+        highlightRects: highlightFor?.call(index) ?? const [],
+        highlightColor: highlightColor,
+        onTap: onTap == null && onFocus == null
+            ? null
+            : (nx, ny) {
+                onFocus?.call(index);
+                if (onTap != null) {
+                  onTap(index, nx, ny);
+                } else {
+                  onBackgroundTap?.call();
+                }
+              },
       );
     }
 
     Widget framedPage(int index, AudioViewportHandle viewport) {
-      return AspectRatio(
+      final leaf = AspectRatio(
         key: ValueKey('quran-page-$index'),
         aspectRatio: aspectRatio,
         child: buildPage(index, viewport.pageKey(index)),
       );
+      return wrapLeaf?.call(index, leaf) ?? leaf;
     }
 
     return GestureDetector(
@@ -232,6 +253,7 @@ class QuranPageView {
                       child: AudioVerticalViewport(
                         pages: [pageAt(physical)],
                         follower: verticalFollower,
+                        onScrollFocus: onFocus,
                         transformIdentity: (
                           clamped,
                           aspectRatio,
@@ -277,6 +299,7 @@ class QuranPageView {
                 if (leftIndex >= 1 && leftIndex < totalPages) leftIndex,
               ],
               follower: verticalFollower,
+              onScrollFocus: onFocus,
               transformIdentity: (width, aspectRatio, constraints.biggest),
               builder: (viewport) => Center(
                 child: Row(
@@ -309,6 +332,7 @@ class QuranPageView {
               if (leftIndex >= 1 && leftIndex < totalPages) leftIndex,
             ],
             follower: verticalFollower,
+            onScrollFocus: onFocus,
             transformIdentity: (
               clamped,
               aspectRatio,

@@ -1,6 +1,5 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'quran_page_turn_view.dart';
 import '../pages/page_view.dart';
 import '../utils/reader_layout.dart';
 import '../utils/reader_paging.dart';
@@ -43,182 +42,107 @@ class AdaptiveQuranPages extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     paging.configure(layout.pageMode);
-    final generation = paging.generation;
-    verticalFollower?.configureView(
-      layoutIdentity: (
-        generation,
-        mushaf,
-        layout.pageMode,
-        layout.spreadLayout,
-        layout.sizing,
-        layout.centerShortLandscapeSpread,
-        layout.usableContentBounds,
-        Object.hashAll(layout.pageRegions),
-        MediaQuery.paddingOf(context),
-        singleScale,
-        spreadScale,
-        aspectRatio,
-      ),
-      visiblePages: paging.visiblePages,
-      settled: () {
-        if (generation != paging.generation || !paging.controller.hasClients) {
-          return false;
-        }
-        return !paging.controller.position.isScrollingNotifier.value &&
-            ((paging.controller.page ?? -1) -
-                        paging.indexFor(paging.focusedPage))
-                    .abs() <
-                .01;
-      },
+    final geometry = (
+      mushaf,
+      MediaQuery.sizeOf(context),
+      MediaQuery.paddingOf(context),
+      layout.pageMode,
+      layout.spreadLayout,
+      layout.sizing,
+      layout.centerShortLandscapeSpread,
+      layout.usableContentBounds,
+      Object.hashAll(layout.pageRegions),
+      Object.hashAll(layout.safeRegions),
+      singleScale,
+      spreadScale,
+      aspectRatio,
     );
-    void focus(int page) {
-      if (generation == paging.generation && paging.focus(page)) onFocus(page);
-    }
 
-    Widget spread(int index) {
-      final centered =
-          layout.spreadLayout == ReaderSpreadLayout.centeredLandscape;
-      final content = QuranPageView.doublePage(
-        spreadIndex: index,
-        totalPages: paging.lastPage + 1,
-        pageScale: spreadScale,
-        imagePath: imagePath,
-        isDarkMode: isDarkMode,
-        aspectRatio: aspectRatio,
-        highlightFor: highlightFor,
-        highlightColor: highlightColor,
-        onTap: onTap,
-        onFocus: focus,
-        onBackgroundTap: onBackgroundTap,
-        pageRegions: centered ? null : layout.pageRegions,
-        centerShortLandscapeSpread: layout.centerShortLandscapeSpread,
-        bookFirstPage: paging.book ? paging.firstPageAt(index) : null,
-        fitToViewport: layout.sizing == ReaderPageSizing.regionFit,
-        verticalFollower: verticalFollower,
-      );
-      return centered
-          ? Stack(
-              children: [
-                Positioned.fromRect(
-                  rect: layout.usableContentBounds,
-                  child: content,
-                ),
-              ],
-            )
-          : content;
-    }
-
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        final follower = verticalFollower;
-        if (notification.depth == 0 && follower != null) {
-          if (notification is ScrollStartNotification &&
-              notification.dragDetails != null) {
-            follower.userScroll(true);
-          } else if (notification is ScrollEndNotification &&
-              follower.userScrolling) {
-            follower.userScroll(false);
+    return QuranPageTurnView(
+      paging: paging,
+      layout: layout,
+      layoutIdentity: (geometry, isDarkMode),
+      isDarkMode: isDarkMode,
+      onUserTurn: verticalFollower?.userScroll,
+      onPageChanged: (page) {
+        verticalFollower?.invalidate();
+        onPageChanged(page);
+      },
+      buildSurface: (index, active, wrapLeaf) {
+        final generation = paging.generation;
+        final follower = active ? verticalFollower : null;
+        follower?.configureView(
+          layoutIdentity: (generation, geometry),
+          visiblePages: paging.visiblePages,
+          settled: () => generation == paging.generation && paging.settled,
+        );
+        void focus(int page) {
+          if (generation == paging.generation && paging.focus(page)) {
+            onFocus(page);
           }
         }
-        return false;
-      },
-      child: PageView.builder(
-        key: ValueKey('reader-pager-$generation'),
-        controller: paging.controller,
-        reverse: true,
-        pageSnapping: !paging.book,
-        physics: paging.book
-            ? _BookPagePhysics(
-                panelWidth: layout.pageRegions
-                    .map((r) => r.width)
-                    .reduce(math.min),
-                parent: const ClampingScrollPhysics(),
-              )
-            : const ClampingScrollPhysics(),
-        itemCount: paging.pageCount,
-        onPageChanged: (index) {
-          if (paging.changed(index, generation)) {
-            verticalFollower?.invalidate();
-            onPageChanged(paging.focusedPage);
-          }
-        },
-        itemBuilder: (context, index) => layout.singlePage
+
+        if (layout.singlePage) {
+          final page = paging.firstPageAt(index);
+          return Stack(
+            children: [
+              Positioned.fromRect(
+                rect: layout.pageRegions.single,
+                child: QuranPageView.singlePage(
+                  logicalPage: page,
+                  pageScale: singleScale,
+                  imagePath: imagePath,
+                  isDarkMode: isDarkMode,
+                  aspectRatio: aspectRatio,
+                  highlightRects: highlightFor(page),
+                  highlightColor: highlightColor,
+                  onTap: active ? onTap : null,
+                  onFocus: active ? focus : null,
+                  onBackgroundTap: active ? onBackgroundTap : null,
+                  fullWidthPortrait:
+                      layout.sizing == ReaderPageSizing.portraitHeight,
+                  viewportBounds: layout.usableContentBounds,
+                  fitToViewport: layout.sizing == ReaderPageSizing.regionFit,
+                  verticalFollower: follower,
+                  wrapLeaf: wrapLeaf,
+                ),
+              ),
+            ],
+          );
+        }
+
+        final centered =
+            layout.spreadLayout == ReaderSpreadLayout.centeredLandscape;
+        final content = QuranPageView.doublePage(
+          spreadIndex: index,
+          totalPages: paging.lastPage + 1,
+          pageScale: spreadScale,
+          imagePath: imagePath,
+          isDarkMode: isDarkMode,
+          aspectRatio: aspectRatio,
+          highlightFor: highlightFor,
+          highlightColor: highlightColor,
+          onTap: active ? onTap : null,
+          onFocus: active ? focus : null,
+          onBackgroundTap: active ? onBackgroundTap : null,
+          pageRegions: centered ? null : layout.pageRegions,
+          centerShortLandscapeSpread: layout.centerShortLandscapeSpread,
+          bookFirstPage: paging.book ? paging.firstPageAt(index) : null,
+          fitToViewport: layout.sizing == ReaderPageSizing.regionFit,
+          verticalFollower: follower,
+          wrapLeaf: wrapLeaf,
+        );
+        return centered
             ? Stack(
                 children: [
                   Positioned.fromRect(
-                    rect: layout.pageRegions.single,
-                    child: QuranPageView.singlePage(
-                      logicalPage: index + 1,
-                      pageScale: singleScale,
-                      imagePath: imagePath,
-                      isDarkMode: isDarkMode,
-                      aspectRatio: aspectRatio,
-                      highlightRects: highlightFor(index + 1),
-                      highlightColor: highlightColor,
-                      onTap: onTap,
-                      onFocus: focus,
-                      onBackgroundTap: onBackgroundTap,
-                      fullWidthPortrait:
-                          layout.sizing == ReaderPageSizing.portraitHeight,
-                      viewportBounds: layout.usableContentBounds,
-                      fitToViewport:
-                          layout.sizing == ReaderPageSizing.regionFit,
-                      verticalFollower: verticalFollower,
-                    ),
+                    rect: layout.usableContentBounds,
+                    child: content,
                   ),
                 ],
               )
-            : spread(index),
-      ),
+            : content;
+      },
     );
-  }
-}
-
-/// A deliberate drag within one leaf must turn the two-page book. Flutter's
-/// default distance threshold is half the combined viewport, beyond one panel.
-/// Keep its fling handling and spring; change only the slow-drag threshold.
-class _BookPagePhysics extends PageScrollPhysics {
-  const _BookPagePhysics({required this.panelWidth, super.parent});
-  final double panelWidth;
-
-  @override
-  _BookPagePhysics applyTo(ScrollPhysics? ancestor) =>
-      _BookPagePhysics(panelWidth: panelWidth, parent: buildParent(ancestor));
-
-  @override
-  Simulation? createBallisticSimulation(
-    ScrollMetrics position,
-    double velocity,
-  ) {
-    final tolerance = toleranceFor(position);
-    if (position is! ScrollPosition ||
-        position.viewportDimension <= 0 ||
-        position.outOfRange ||
-        velocity.abs() > tolerance.velocity ||
-        position.userScrollDirection == ScrollDirection.idle) {
-      return super.createBallisticSimulation(position, velocity);
-    }
-    final threshold = (panelWidth / 2 / position.viewportDimension).clamp(
-      0.0,
-      .5,
-    );
-    final shift =
-        (.5 - threshold) *
-        (position.userScrollDirection == ScrollDirection.reverse ? 1 : -1);
-    final target =
-        ((position.pixels / position.viewportDimension + shift)
-                    .roundToDouble() *
-                position.viewportDimension)
-            .clamp(position.minScrollExtent, position.maxScrollExtent)
-            .toDouble();
-    return target == position.pixels
-        ? null
-        : ScrollSpringSimulation(
-            spring,
-            position.pixels,
-            target,
-            velocity,
-            tolerance: tolerance,
-          );
   }
 }

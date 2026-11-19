@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/utils/audio_page_follower.dart';
 import 'package:mushaf_two_page/utils/page_ayah_index.dart';
-import 'package:mushaf_two_page/utils/page_mapper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,13 +17,12 @@ void main() {
       portrait: false,
       mushaf: 'indopak_tajweed',
       visiblePages: [5, 6],
-      sequentialBook: true,
     );
     final visible = PageAyahIndex.ayahsForPage(
       6,
       mushaf: 'indopak_tajweed',
     ).last;
-    expect(follow(visible.surah, visible.ayah), isNull);
+    expect(follow(visible.surah, visible.ayah), 6);
     final next = PageAyahIndex.ayahsForPage(7, mushaf: 'indopak_tajweed').last;
     expect(
       follow(next.surah, next.ayah),
@@ -59,17 +57,13 @@ void main() {
           );
           expect(follow(1, 1, 4), isNull);
           // 2:1 is on page 5, already visible in the landscape 4/5 spread.
-          expect(follow(2, 1, 4), portrait ? 5 : isNull);
+          expect(follow(2, 1, 4), 5);
           final next = PageAyahIndex.ayahsForPage(6, mushaf: mushaf).last;
-          final page = PageAyahIndex.pageOfAyah(
+          final expected = PageAyahIndex.pageOfAyah(
             next.surah,
             next.ayah,
             mushaf: mushaf,
           )!;
-          final expected = PageMapper.logicalFromPageIndex(
-            PageMapper.pageIndexFromLogical(page, portrait),
-            portrait,
-          );
           expect(follow(next.surah, next.ayah, 4), expected);
           // Unrelated notifications must not fight a manual page swipe.
           expect(follow(next.surah, next.ayah, 20), isNull);

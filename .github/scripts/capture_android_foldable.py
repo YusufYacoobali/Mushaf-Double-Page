@@ -6,10 +6,12 @@ They are not Samsung hardware or One UI. Every screenshot records that scope.
 """
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import io
 import json
 import math
+import os
 from pathlib import Path
 import re
 import shlex
@@ -30,6 +32,23 @@ PREFERENCES = "shared_prefs/FlutterSharedPreferences.xml"
 DOUBLE_PREFIX = "VGhpcyBpcyB0aGUgcHJlZml4IGZvciBEb3VibGUu"
 PROFILES = ("galaxy-z-fold8", "galaxy-z-fold8-ultra")
 POSTURES = ("folded", "unfolded-portrait", "unfolded-landscape", "half-open-book")
+TURN_POSTURES = ("folded", "unfolded-landscape")
+
+
+def turn_swipe(frame, forward):
+    """Drag across the outgoing sheet, inside the visible reading viewport."""
+    leaves = sorted(frame["pages"].values(), key=lambda rect: rect["left"])
+    leaf = leaves[0 if forward else -1]
+    bounds = frame["readingBounds"]
+    left, top = max(bounds["left"], leaf["left"]), max(bounds["top"], leaf["top"])
+    right = min(bounds["left"] + bounds["width"], leaf["left"] + leaf["width"])
+    bottom = min(bounds["top"] + bounds["height"], leaf["top"] + leaf["height"])
+    assert right > left and bottom > top, "No visible outgoing page"
+    start, end = left + .12 * (right - left), right - .12 * (right - left)
+    y = (top + bottom) / 2
+    if not forward:
+        start, end = end, start
+    return [round(v * frame["pixelRatio"]) for v in (start, y, end, y)]
 
 
 def write_json(path, data):
@@ -170,7 +189,7 @@ class Capture:
     def frame(self):
         return json.loads(self.run_as("cat", GEOMETRY))
 
-    def wait_frame(self, predicate=lambda frame: True, after=None, timeout=35):
+    def wait_frame(self, predicate=lambda frame: True, after=None, timeout=35, expected_page=None):
         deadline = time.monotonic() + timeout
         error, previous = "No reader geometry", None
         while time.monotonic() < deadline:
@@ -180,7 +199,8 @@ class Capture:
                     "single": "folded", "spread": "unfolded-landscape",
                     "dualScreenBook": "half-open-book",
                 }[frame["mode"]]
-                assert_capture_state(frame, posture=observed_mode, after=after, expected_page=self.page)
+                assert_capture_state(frame, posture=observed_mode, after=after,
+                                     expected_page=self.page if expected_page is None else expected_page)
                 assert predicate(frame), "Reader has not reached requested state"
                 assert frame.get("scroll") is None or frame["scroll"]["settled"], "Reader scroll is moving"
                 if frame == previous:
@@ -431,6 +451,80 @@ class Capture:
                 continue
         raise RuntimeError("Landscape did not reach its actual bottom scroll endpoint")
 
+    def record_turns(self, posture, source_name):
+        name = posture + "-page-turns"
+        video = self.output / (name + ".mp4")
+        remote = "/data/local/tmp/" + video.name
+        state = json.loads((self.output / (source_name + "-state.json")).read_text())
+        build = json.loads((self.output / "build.json").read_text())
+        installed = self.shell("pm", "path", PACKAGE).removeprefix("package:")
+        assert build["package"] == PACKAGE and re.fullmatch(r"[0-9a-f]{40}", build["commit"])
+        assert self.shell("sha256sum", installed).split()[0] == build["sha256"], "Installed APK differs from build.json"
+        mode = "single" if posture == "folded" else "spread"
+        step = 1 if mode == "single" else 2
+        # Reverse first when the seed is already at the end of the edition.
+        neighbour = self.page + step if self.page + step <= 851 else self.page - step
+        frame = self.dock(False)
+        frames = [frame]
+        width, height = state["pixelSize"]
+        ratio = min(1, 1280 / max(width, height))
+        size = [2 * round(v * ratio / 2) for v in (width, height)]
+        args = ["screenrecord", "--size", f"{size[0]}x{size[1]}", "--time-limit", "15"]
+        if state["physicalDisplayId"] is not None:
+            args.extend(["--display-id", state["physicalDisplayId"]])
+        setting = "animator_duration_scale"
+        old_scale = self.shell("settings", "get", "global", setting)
+        self.shell("rm", "-f", remote)
+        try:
+            self.shell("settings", "put", "global", setting, "1")
+            with ThreadPoolExecutor(max_workers=1) as worker:
+                recording = worker.submit(self.shell, *args, remote, timeout=21)
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    length = self.shell("stat", "-c", "%s", remote, check=False)
+                    if length.isdigit() and int(length) > 0:
+                        break
+                    if recording.done():
+                        recording.result()
+                        raise AssertionError("Screen recording ended before the first turn")
+                    time.sleep(.15)
+                else:
+                    raise RuntimeError("Screen recorder did not create its MP4 header")
+                time.sleep(.4)
+                for target in (neighbour, self.page):
+                    before = self.device_clock()
+                    self.shell("input", "-d", state["focusedDisplayId"], "swipe",
+                               *turn_swipe(frame, target > frame["focusedPage"]), 650)
+                    frame = self.wait_frame(lambda f: f["mode"] == mode and f["zoom"] == frames[0]["zoom"],
+                                            after=before, timeout=4, expected_page=target)
+                    frames.append(frame)
+                if recording.done():
+                    recording.result()
+                    raise AssertionError("Screen recording ended before both turns settled")
+                recording.result()
+            assert foreground_window(self.shell("dumpsys", "window")) == {
+                "displayId": state["focusedDisplayId"], "package": PACKAGE,
+            }, "Window focus changed during page turns"
+            self.adb("pull", remote, video)
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                 "stream=width,height,duration,nb_frames", "-of", "json", str(video)],
+                check=True, capture_output=True, timeout=15,
+            )
+            stream, = json.loads(probe.stdout)["streams"]
+            assert [stream["width"], stream["height"]] == size, "Unexpected turn recording dimensions"
+            assert 1 < float(stream["duration"]) <= 16 and int(stream["nb_frames"]) >= 8, "Missing turn video frames"
+            write_json(self.output / (name + ".json"), {
+                "video": video.name, "commit": build["commit"], "apkSha256": build["sha256"],
+                "sourceCapture": source_name, "stream": stream, "settledFrames": frames,
+            })
+        finally:
+            if old_scale == "null":
+                self.shell("settings", "delete", "global", setting)
+            else:
+                self.shell("settings", "put", "global", setting, old_scale)
+            self.shell("rm", "-f", remote)
+
     def diagnostics(self, label, error):
         path = self.output / ("failure-" + label)
         path.mkdir(exist_ok=True)
@@ -468,14 +562,21 @@ class Capture:
         except Exception as exc:
             (path / "screen.error.txt").write_text(str(exc) + "\n")
 
-    def run(self):
+    def run(self, record_turns=False):
+        if record_turns and (not 2 <= self.page <= 850 or self.page % 2):
+            raise ValueError("Use an even file page from 2–850 for a recording that returns to the exact seed by swipe")
         self.prepare()
+        recordings = []
         for posture in POSTURES:
             try:
                 after = self.posture(posture)
                 minimum = 70 if posture in ("folded", "unfolded-portrait") else 60
                 self.zoom(minimum)
-                initial = self.capture(f"{posture}-min-{minimum}", posture, minimum, after)
+                source_name = f"{posture}-min-{minimum}"
+                initial = self.capture(source_name, posture, minimum, after)
+                if record_turns and posture in TURN_POSTURES:
+                    self.record_turns(posture, source_name)
+                    recordings.append(posture)
                 self.zoom(100)
                 maximum = self.capture(f"{posture}-max-100", posture, 100, after, before=initial, expanded=True if posture == "folded" else None)
                 if posture == "folded":
@@ -498,6 +599,9 @@ class Capture:
             "page": self.page, "expectedCaptures": 10, "completed": self.completed,
             "failures": self.failures, "verified": not self.failures and len(self.completed) == 10,
         }
+        if record_turns:
+            report["turnRecordings"] = recordings
+            report["verified"] &= tuple(recordings) == TURN_POSTURES
         write_json(self.output / "qa-result.json", report)
         assert report["verified"], "Android foldable verification failed; see native diagnostics"
 
@@ -509,11 +613,14 @@ def main():
     parser.add_argument("--profile-metadata", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--page", type=int, default=6)
+    parser.add_argument("--record-turns", action="store_true",
+                        default=os.environ.get("READER_QA_RECORD_TURNS") == "1",
+                        help="Record both turn directions using an even seed page (READER_QA_RECORD_TURNS=1)")
     args = parser.parse_args()
     assert 1 <= args.page < 851
     capture = Capture(args.serial, args.profile, json.loads(args.profile_metadata.read_text()), args.output, args.page)
     try:
-        capture.run()
+        capture.run(record_turns=args.record_turns)
     except Exception as exc:
         capture.diagnostics("fatal", exc)
         raise

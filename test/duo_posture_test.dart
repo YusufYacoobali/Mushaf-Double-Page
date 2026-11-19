@@ -90,14 +90,19 @@ void main() {
       () {
         final paging = ReaderPaging(initialPage: page, lastPage: 851);
         paging.configure(ReaderPageMode.single);
-        final oldGeneration = paging.generation;
+        paging.attach(Object());
+        paging.startDrag(page < 851 ? 1 : -1);
+        final staleOperation = paging.operation;
+        paging.settleDrag(commit: true);
         paging.configure(ReaderPageMode.dualScreenBook);
         expect(paging.visiblePages, [page, if (page < 851) page + 1]);
         expect(paging.pagesFor(page), paging.visiblePages);
-        final index = paging.indexFor(page);
-        expect(paging.changed(index + 1, oldGeneration), isFalse);
+        expect(paging.completeTurn(staleOperation), isFalse);
         if (page + 2 <= 851) {
-          expect(paging.changed(index + 1, paging.generation), isTrue);
+          paging.startDrag(1);
+          final operation = paging.operation;
+          paging.settleDrag(commit: true);
+          expect(paging.completeTurn(operation), isTrue);
           expect(paging.visiblePages, [
             page + 2,
             if (page + 3 <= 851) page + 3,

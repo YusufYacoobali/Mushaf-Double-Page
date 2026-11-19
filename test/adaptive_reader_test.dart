@@ -26,6 +26,55 @@ void main() {
     picture.dispose();
   });
   tearDownAll(() async => dir.delete(recursive: true));
+  testWidgets(
+    'accessibility scroll actions turn RTL and stop at each boundary',
+    (tester) async {
+      const size = Size(390, 844);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final semantics = tester.ensureSemantics();
+      final paging = ReaderPaging(initialPage: 1, lastPage: 2);
+      final visits = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdaptiveQuranPages(
+            paging: paging,
+            layout: ReaderLayout.resolve(size: size),
+            singleScale: .8,
+            spreadScale: .7,
+            imagePath: (_) => image,
+            isDarkMode: false,
+            aspectRatio: QuranPageView.pageAspectRatio,
+            highlightFor: (_) => [],
+            highlightColor: Colors.amber,
+            onPageChanged: visits.add,
+            onFocus: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      const forward = ui.SemanticsAction.scrollRight;
+      const back = ui.SemanticsAction.scrollLeft;
+      for (final (action, unavailable, target) in [
+        (forward, back, 2),
+        (back, forward, 1),
+      ]) {
+        expect(find.semantics.byAction(unavailable), findsNothing);
+        final node = find.semantics.byAction(action).evaluate().single;
+        node.owner!.performAction(node.id, action);
+        await tester.pumpAndSettle();
+        expect(paging.visiblePages, [target]);
+      }
+      expect(find.semantics.byAction(back), findsNothing);
+      expect(visits, [2, 1]);
+      await tester.pumpWidget(const SizedBox());
+      semantics.dispose();
+      paging.dispose();
+    },
+  );
+
   for (final mushaf in ['indopak_tajweed', 'madani']) {
     testWidgets(
       '$mushaf compact 80 percent page stays near full width when the dock toggles',
@@ -172,7 +221,11 @@ void main() {
         await tester.pumpAndSettle();
         expect(paging.visiblePages, [237]);
         expect(visits, isEmpty);
-        final oldView = tester.widget<PageView>(find.byType(PageView));
+        final drag = await tester.startGesture(const Offset(80, 350));
+        await drag.moveBy(const Offset(60, 0));
+        await tester.pump();
+        expect(paging.settled, isFalse);
+        final staleOperation = paging.operation;
         tester.view.physicalSize = const Size(900, 900);
         await tester.pumpAndSettle();
         expect(layout!.singlePage, isFalse);
@@ -181,7 +234,9 @@ void main() {
         expect(paging.focusedPage, 237);
         expect(paging.visiblePages, [236, 237]);
         expect(visits, isEmpty);
-        oldView.onPageChanged!(0);
+        await drag.up();
+        await tester.pumpAndSettle();
+        expect(paging.completeTurn(staleOperation), isFalse);
         expect(paging.focusedPage, 237);
         expect(visits, isEmpty);
         final right = tester.getRect(
@@ -228,12 +283,12 @@ void main() {
         await tester.pumpAndSettle();
         expect(paging.visiblePages, [236]);
         expect(visits, isEmpty);
-        await tester.drag(find.byType(PageView), const Offset(300, 0));
+        await tester.dragFrom(const Offset(20, 300), const Offset(280, 0));
         await tester.pumpAndSettle();
         expect(paging.focusedPage, 237);
         expect(visits, [237]);
-        // Even a late callback from the old spread cannot persist a distant page.
-        oldView.onPageChanged!(400);
+        // Late animation completion cannot overwrite the newer visit.
+        expect(paging.completeTurn(staleOperation), isFalse);
         expect(paging.focusedPage, 237);
         expect(visits, [237]);
         expect(tester.takeException(), isNull);
@@ -354,7 +409,7 @@ void main() {
     },
   );
   testWidgets(
-    'rapid resizing during animated navigation rejects retired controllers',
+    'rapid resizing during an adjacent turn preserves the exact command target',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -384,8 +439,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final navigation = paging.goTo(600, animate: true);
+      final navigation = paging.goTo(238, animate: true);
       await tester.pump(const Duration(milliseconds: 50));
+      expect(paging.settled, isFalse);
+      expect(paging.focusedPage, 237);
+      final staleOperation = paging.operation;
       for (final size in [
         const Size(900, 900),
         const Size(340, 700),
@@ -396,7 +454,15 @@ void main() {
         await tester.pump();
       }
       await tester.pumpAndSettle();
-      await navigation;
+      expect(await navigation, isTrue);
+      expect(paging.focusedPage, 238);
+      expect(paging.visiblePages, [238]);
+      expect(paging.completeTurn(staleOperation), isFalse);
+      expect(visits, isEmpty);
+
+      await paging.goTo(600, animate: true);
+      expect(paging.settled, isTrue);
+      await tester.pumpAndSettle();
       expect(paging.focusedPage, 600);
       expect(paging.visiblePages, [600]);
       expect(visits, isEmpty);

@@ -380,7 +380,6 @@ void main() {
             portrait: paging.singlePage,
             mushaf: 'indopak_tajweed',
             visiblePages: paging.visiblePages,
-            sequentialBook: paging.book,
           ),
           isNull,
         );
@@ -841,6 +840,7 @@ void main() {
           addTearDown(tester.view.resetDevicePixelRatio);
           addTearDown(tester.view.resetPhysicalSize);
           final paging = ReaderPaging(initialPage: 4, lastPage: 851);
+          final visits = <int>[], focusChanges = <int>[];
           final bookHinge = iosBook
               ? const DisplayFeature(
                   bounds: Rect.fromLTWH(455.5, 0, 40, 669),
@@ -868,8 +868,8 @@ void main() {
                   aspectRatio: aspect,
                   highlightFor: (_) => const [Rect.fromLTWH(.2, .3, .4, .05)],
                   highlightColor: Colors.amber,
-                  onPageChanged: (_) {},
-                  onFocus: (_) {},
+                  onPageChanged: visits.add,
+                  onFocus: focusChanges.add,
                 ),
               ),
             ),
@@ -911,12 +911,16 @@ void main() {
             expect(layout.controlsRegion.bottom, 635);
           }
           expect(find.byType(SingleChildScrollView), findsNothing);
-          final short = await tester.startGesture(const Offset(540, 300));
-          await short.moveTo(const Offset(600, 300));
+          // Start on the unfocused left leaf. A cancelled turn cannot change focus.
+          final short = await tester.startGesture(next.center);
+          await short.moveBy(const Offset(60, 0));
           await tester.pump(const Duration(milliseconds: 250));
           await short.up();
           await tester.pumpAndSettle();
           expect(paging.visiblePages, [4, 5]);
+          expect(paging.focusedPage, 4);
+          expect(visits, isEmpty);
+          expect(focusChanges, isEmpty);
           // One screen cannot provide a drag across half the combined window.
           // Pause before releasing to check distance-based snapping, not fling.
           final swipe = await tester.startGesture(const Offset(540, 300));
@@ -926,12 +930,21 @@ void main() {
           await tester.pumpAndSettle();
           expect(paging.visiblePages, [6, 7]);
           expect(paging.focusedPage, 6);
+          final shortBack = await tester.startGesture(const Offset(780, 300));
+          await shortBack.moveBy(const Offset(-60, 0));
+          await tester.pump(const Duration(milliseconds: 250));
+          await shortBack.up();
+          await tester.pumpAndSettle();
+          expect(paging.visiblePages, [6, 7]);
+          expect(visits, [6]);
           final back = await tester.startGesture(const Offset(780, 300));
           await back.moveTo(const Offset(480, 300));
           await tester.pump(const Duration(milliseconds: 250));
           await back.up();
           await tester.pumpAndSettle();
           expect(paging.visiblePages, [4, 5]);
+          expect(visits, [6, 4]);
+          expect(focusChanges, isEmpty);
           await tester.pumpWidget(const SizedBox());
           paging.dispose();
         },

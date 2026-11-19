@@ -3,11 +3,17 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
 import 'package:mushaf_two_page/logic/audio_playback_backend.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/pages/tasbeeh.dart';
+import 'package:mushaf_two_page/utils/audio_page_follower.dart';
+import 'package:mushaf_two_page/utils/audio_vertical_follower.dart';
+import 'package:mushaf_two_page/utils/page_ayah_index.dart';
+import 'package:mushaf_two_page/utils/reader_layout.dart';
+import 'package:mushaf_two_page/utils/reader_paging.dart';
 import 'package:mushaf_two_page/utils/tasbeeh_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -452,6 +458,147 @@ void main() {
     expect(legacy.played.first.item.ayah, 3);
     expect(legacy.starts, 1);
   });
+
+  testWidgets(
+    'recitation advances through turns and reveals only the latest settled ayah',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 400);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.runAsync(() async {
+        await PageAyahIndex.load();
+        await controller.playPlan(plan(surah: 2, from: 5, to: 10));
+        await flush();
+      });
+      final paging = ReaderPaging(initialPage: 4, lastPage: 624);
+      final audioPages = AudioPageFollower();
+      final measured = <(int, int)>[], commands = <(int, bool)>[];
+      final manualCommits = <int>[];
+      final vertical = AudioVerticalFollower(
+        rectsFor: (page, surah, ayah, _) {
+          measured.add((page, ayah));
+          return page == 6 ? const [Rect.fromLTWH(.1, .9, .8, .06)] : [];
+        },
+      );
+      void follow() => audioPages.followReader(
+        audio: controller,
+        paging: paging,
+        vertical: vertical,
+        visible: true,
+        animate: true,
+        mushaf: 'madani',
+        onCommit: (page, changedSpread) => commands.add((page, changedSpread)),
+      );
+      void audioChanged() {
+        WidgetsBinding.instance.addPostFrameCallback((_) => follow());
+        WidgetsBinding.instance.ensureVisualUpdate();
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LayoutBuilder(
+            builder: (context, bounds) => AdaptiveQuranPages(
+              paging: paging,
+              layout: ReaderLayout.resolve(size: bounds.biggest),
+              singleScale: .8,
+              spreadScale: 1,
+              imagePath: (_) => 'assets/mushaf/madani_preview.png',
+              isDarkMode: false,
+              aspectRatio: .69,
+              highlightFor: (_) => [],
+              highlightColor: Colors.amber,
+              mushaf: 'madani',
+              verticalFollower: vertical,
+              onFocus: (_) {},
+              onPageChanged: manualCommits.add,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final transport = [
+        for (final action in ['prepare', 'play', 'pause', 'stop', 'seek'])
+          native.count(action),
+      ];
+      expect(transport.take(2), [1, 1]);
+      final pointer = await tester.startGesture(const Offset(540, 150));
+      await pointer.moveBy(const Offset(45, 0));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(paging.phase, PageTurnPhase.dragging);
+      controller.addListener(audioChanged);
+      native.clock(4800); // 2:5 is on the opposite leaf of the committed 4/5.
+      await tester.pump();
+      expect(controller.audible, isTrue);
+      expect(paging.focusedPage, 4);
+      await tester.pump(const Duration(milliseconds: 150));
+      await pointer.up();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+      expect(manualCommits, isEmpty);
+      expect(commands, [(5, false)]);
+      expect(paging.focusedPage, 5);
+
+      measured.clear();
+      native.clock(44100); // 2:6 starts a turn to 6/7.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 90));
+      expect(paging.phase, PageTurnPhase.settling);
+      expect(paging.visiblePages, [4, 5]);
+      expect(paging.pendingTarget, 6);
+      native.clock(88200 + 5000); // 2:7 is already playing during that turn.
+      await tester.pump();
+      expect(controller.currentAyah, 7);
+      expect(controller.playbackPosition, greaterThan(Duration.zero));
+      expect(measured, isEmpty);
+      await tester.pumpAndSettle();
+      expect(commands, [(5, false), (6, true)]);
+      expect(measured, contains((6, 7)));
+      expect(measured.every((measurement) => measurement.$2 == 7), isTrue);
+
+      // A new verse on the still-committed page can supersede an outward
+      // command without recording another visit to that same page.
+      final outward = paging.goTo(8, animate: true);
+      native.clock(132300); // 2:8 is also on page 6.
+      await tester.pumpAndSettle();
+      expect(await outward, isFalse);
+      expect(paging.focusedPage, 6);
+      expect(commands, [(5, false), (6, true)]);
+
+      await tester.dragFrom(const Offset(420, 120), const Offset(300, 0));
+      await tester.pumpAndSettle();
+      expect(manualCommits, [8]);
+      native.clock(132300 + 12000);
+      await tester.pump();
+      expect(
+        paging.focusedPage,
+        8,
+      ); // A position tick respects manual browsing.
+      await paging.goTo(20);
+      await tester.pumpAndSettle();
+      await tester.runAsync(flush); // Allow the next recording to enqueue.
+      native.clock(176400); // A distant audio target jumps directly.
+      expect(controller.currentAyah, 9);
+      await tester.pumpAndSettle();
+      expect(commands, [(5, false), (6, true), (6, true)]);
+      expect(paging.settled, isTrue);
+      expect(paging.focusedPage, 6);
+      expect(controller.audible, isTrue);
+      expect([
+        for (final action in ['prepare', 'play', 'pause', 'stop', 'seek'])
+          native.count(action),
+      ], transport);
+      expect(legacy.sourceLoads, 0);
+      await controller.pause();
+      expect(native.count('pause'), transport[2] + 1);
+      expect(controller.audible, isFalse);
+      controller.removeListener(audioChanged);
+      await tester.pumpWidget(const SizedBox());
+      paging.dispose();
+      vertical.dispose();
+    },
+  );
 
   testWidgets(
     'three short surahs keep their order through rapid Tasbeeh taps and transient buffering',
