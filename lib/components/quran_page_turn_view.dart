@@ -269,7 +269,7 @@ class _QuranPageTurnViewState extends State<QuranPageTurnView>
             !box.attached ||
             !box.hasSize ||
             box.size.isEmpty ||
-            !_hasDecodedImages(box)) {
+            !_hasPageImage(box)) {
           return null;
         }
         boxes.add(box);
@@ -329,13 +329,13 @@ class _QuranPageTurnViewState extends State<QuranPageTurnView>
     }
   }
 
-  static bool _hasDecodedImages(RenderObject root) {
+  static bool _hasPageImage(RenderObject root) {
     if (root is RenderImage) return root.image != null;
-    var ready = true;
+    var loaded = false;
     root.visitChildren((child) {
-      if (ready) ready = _hasDecodedImages(child);
+      if (!loaded) loaded = _hasPageImage(child);
     });
-    return ready;
+    return loaded;
   }
 
   void _tick() {

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
+import 'package:mushaf_two_page/components/quran_page_turn_painter.dart';
+import 'package:mushaf_two_page/components/quran_page_turn_view.dart';
 import 'package:mushaf_two_page/pages/page_view.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/reader_layout.dart';
@@ -74,6 +76,79 @@ void main() {
       paging.dispose();
     },
   );
+
+  for (final missing in [const RawImage(), const Placeholder()]) {
+    testWidgets(
+      'an unavailable ${missing.runtimeType} turn target recovers on the next decoded page',
+      (tester) async {
+        const size = Size(400, 800);
+        final layout = ReaderLayout.resolve(size: size);
+        final paging = ReaderPaging(initialPage: 1, lastPage: 3)
+          ..configure(layout.pageMode);
+        final loading = ValueNotifier(true);
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawColor(Colors.white, BlendMode.src);
+        final picture = recorder.endRecording();
+        final image = picture.toImageSync(8, 8);
+        picture.dispose();
+        final visits = <int>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: QuranPageTurnView(
+              paging: paging,
+              layout: layout,
+              layoutIdentity: size,
+              isDarkMode: false,
+              onPageChanged: visits.add,
+              buildSurface: (index, active, wrapLeaf) =>
+                  ValueListenableBuilder<bool>(
+                    valueListenable: loading,
+                    builder: (context, pending, _) => Center(
+                      child: wrapLeaf(
+                        index + 1,
+                        SizedBox(
+                          width: 200,
+                          height: 300,
+                          child: index == 1 && pending
+                              ? missing
+                              : RawImage(image: image),
+                        ),
+                      ),
+                    ),
+                  ),
+            ),
+          ),
+        );
+        final painter = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is QuranPageTurnPainter,
+        );
+        final cold = paging.goTo(2, animate: true);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(painter, findsNothing);
+        expect(paging.focusedPage, 1);
+        await tester.pumpAndSettle();
+        expect(await cold, isTrue);
+        expect(paging.focusedPage, 2);
+        loading.value = false;
+        await tester.pumpAndSettle();
+        final warm = paging.goTo(3, animate: true);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pump(const Duration(milliseconds: 85));
+        expect(painter, findsOneWidget);
+        expect(paging.progress, greaterThan(0));
+        await tester.pumpAndSettle();
+        expect(await warm, isTrue);
+        expect(paging.focusedPage, 3);
+        expect(visits, isEmpty);
+        await tester.pumpWidget(const SizedBox());
+        paging.dispose();
+        loading.dispose();
+        image.dispose();
+      },
+    );
+  }
 
   for (final mushaf in ['indopak_tajweed', 'madani']) {
     testWidgets(
