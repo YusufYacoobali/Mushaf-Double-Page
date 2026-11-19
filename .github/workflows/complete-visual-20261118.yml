@@ -1,5 +1,5 @@
 name: Proven Duo and iPad mini visual check
-run-name: Duo + iPad mini (replay last successful run 44304125390)
+run-name: Duo layout endpoints and iPad mini portrait
 on:
   push:
     branches: [v6]
@@ -110,6 +110,11 @@ jobs:
           mkdir -p ci-app
           tar -xzf ios-simulator-runner.tgz -C ci-app
           test -d ci-app/Runner.app
+      - name: Install capture verifier
+        run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
       - name: Capture iPad mini reader screenshot
         shell: bash
         run: bash .github/scripts/proven_ipad_simulator_qa.sh
@@ -120,4 +125,30 @@ jobs:
           name: quran-ipad-mini-visual-qa
           path: screenshots-ipad/
           if-no-files-found: warn
+          retention-days: 14
+
+  comparison:
+    name: Assemble verified screenshot comparison
+    needs: [iphone-duo, ipad-mini]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-duo-visual-qa
+          path: screenshots
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ipad-mini-visual-qa
+          path: screenshots-ipad
+      - run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          .qa-venv/bin/python .github/scripts/reader_comparison.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quran-layout-comparison
+          path: reader-comparison.png
+          if-no-files-found: error
           retention-days: 14

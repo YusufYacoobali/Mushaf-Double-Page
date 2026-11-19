@@ -56,6 +56,7 @@ class QuranPageView {
     AudioVerticalFollower? verticalFollower,
     ValueChanged<int>? onFocus,
     bool fullWidthPortrait = true,
+    Rect? viewportBounds,
     bool fitToViewport = false,
   }) {
     final clamped = pageScale.clamp(minPageScalePortrait, maxPageScalePortrait);
@@ -71,7 +72,13 @@ class QuranPageView {
       follower: verticalFollower,
       transformed: true,
       transformationController: transformationController,
-      transformIdentity: (clamped, aspectRatio, fullWidthPortrait),
+      transformIdentity: (
+        clamped,
+        aspectRatio,
+        fullWidthPortrait,
+        fitToViewport,
+        viewportBounds,
+      ),
       builder: (viewport) => _BackgroundTapListener(
         pageSurfaceKey: viewport.pageKey(logicalPage),
         onBackgroundTap: onBackgroundTap,
@@ -293,7 +300,7 @@ class QuranPageView {
             );
           }
           // Landscape toolbar zoom changes only the spread width. At minimum
-          // both full pages fit vertically; at maximum they nearly fill the
+          // the pages are narrower; at maximum they fill the
           // screen width. The spread always starts at the top and is centred.
           final pageWidth = (constraints.maxWidth - 1) / 2 * clamped;
 

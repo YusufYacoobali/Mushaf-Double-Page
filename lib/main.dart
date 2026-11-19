@@ -1171,6 +1171,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
               visiblePages: _paging!.visiblePages,
               edition: _mushaf,
               navigationKey: _readerDockGeometryKey,
+              native: _iosDisplayRegions,
+              isIPad: _isIPad,
               settled: () =>
                   _paging!.controller.hasClients &&
                   !_paging!.controller.position.isScrollingNotifier.value,

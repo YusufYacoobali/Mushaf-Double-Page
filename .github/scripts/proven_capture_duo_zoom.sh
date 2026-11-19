@@ -101,65 +101,20 @@ PY
   duoctl state > "$name-state.json"
   # Retain the actual screen even when posture/geometry validation fails.
   duoctl screenshot "$name.png"
-  python3 - "$name-state.json" "$LABEL" <<'PY'
-import json
-import sys
-state = json.load(open(sys.argv[1]))
-label = sys.argv[2]
-active = state.get("activeScreen")
-angle = float(state.get("hingeAngle", -1))
-if label == "duo-folded":
-    assert active == "cover" and angle <= 15, state
-else:
-    assert active != "cover", state
-    if label == "duo-half-open-book":
-        assert 60 <= angle <= 120, state
-        assert state.get("orientation") == "landscape", state
-    else:
-        assert angle >= 160, state
-    if label == "duo-unfolded-portrait":
-        assert state.get("orientation") == "portrait", state
-print(f"Validated display: {active}, hinge={angle}, orientation={state.get('orientation')}")
-PY
-  case "$LABEL" in
-    duo-folded|duo-unfolded-portrait) mode=single ;;
-    duo-unfolded-wide) mode=spread ;;
-    duo-half-open-book) mode=dualScreenBook ;;
-    *) echo "::error::Unknown posture $LABEL"; return 1 ;;
-  esac
-  # This bounded wait observes the app; it never substitutes the requested
-  # percentage for the rendered percentage. Keep the last snapshot on failure.
-  if ! python3 - "$DATA/Documents/reader-geometry.json" "$name.layout.json" "$percent" "$mode" "$launched_after" > "$name-geometry.txt" 2>&1 <<'PY'
-import json, sys, time
-from pathlib import Path
-sys.path.insert(0, '.github/scripts')
-from verify_fitted_capture import assert_capture_state
-source, destination, percent, mode, after = sys.argv[1:]
-deadline = time.monotonic() + 30
-last_error = 'No rendered geometry was written'
-while time.monotonic() < deadline:
-    try:
-        data = json.loads(Path(source).read_text())
-        Path(destination).write_text(json.dumps(data, indent=2) + '\n')
-        assert_capture_state(data, int(percent), mode, float(after))
-        print(f"Fresh rendered {mode} geometry at {data['zoom'] * 100:g}%")
-        break
-    except (OSError, ValueError, KeyError, TypeError, AssertionError) as error:
-        last_error = str(error)
-        time.sleep(.5)
-else:
-    raise RuntimeError(f'Rendered geometry did not match within 30s: {last_error}')
-PY
-  then
-    cat "$name-geometry.txt"
-    duoctl screenshot "$name.png" || true
-    return 1
+  local source="$DATA/Documents/reader-geometry.json"
+  local pair=()
+  if [[ "$tag" == max ]]; then
+    pair=(--before "screenshots/$LABEL-min-$MIN.layout.json")
   fi
-  cat "$name-geometry.txt"
-  duoctl screenshot "$name.png"
-  [[ -s "$name.png" ]] || { echo "::error::No screenshot created: $name.png"; return 1; }
-  sips -g pixelWidth -g pixelHeight "$name.png"
-  python3 .github/scripts/verify_fitted_capture.py "$name.png" "$name.layout.json" --zoom "$percent" --mode "$mode" --after "$launched_after" | tee "$name-verification.txt"
+  python3 .github/scripts/capture_reader_endpoint.py "$source" "$name.png" "$LABEL" "$percent" "$launched_after" \
+    --state "$name-state.json" ${pair[@]+"${pair[@]}"} | tee "$name-verification.txt"
+  if [[ "$tag" == max && ( "$LABEL" == duo-folded || "$LABEL" == duo-unfolded-wide ) ]]; then
+    local phase=collapsed
+    [[ "$LABEL" != duo-unfolded-wide ]] || phase=bottom
+    duoctl state > "$name-$phase-state.json"
+    python3 .github/scripts/capture_reader_endpoint.py "$source" "$name-$phase.png" "$LABEL" "$percent" "$launched_after" \
+      --state "$name-$phase-state.json" --phase "$phase" --before "$name.layout.json" | tee "$name-$phase-verification.txt"
+  fi
   echo "PASS: real $LABEL reader at $percent% ($name.png)" | tee -a "screenshots/$LABEL-result.txt"
 }
 echo "Running $LABEL at min=$MIN and max=$MAX"

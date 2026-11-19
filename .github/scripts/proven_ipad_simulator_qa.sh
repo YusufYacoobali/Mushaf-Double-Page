@@ -28,6 +28,7 @@ echo "::group::Install and launch Quran"
 timeout 240 xcrun simctl install "$UDID" "$APP"
 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
 sleep 2
+launched_after="$(python3 -c 'import time; print(time.time())')"
 launched=0
 for n in 1 2 3; do
   if timeout 90 xcrun simctl launch "$UDID" "$BUNDLE_ID"; then launched=1; break; fi
@@ -50,10 +51,12 @@ done
 [[ "$ready" -eq 1 ]] || { echo "::error::iPad did not load real Quran pages"; exit 1; }
 echo "::endgroup::"
 sleep 2
-timeout 60 xcrun simctl io "$UDID" screenshot screenshots-ipad/ipad-mini-portrait.png
+python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geometry.json" \
+  screenshots-ipad/ipad-mini-portrait.png ipad-mini 80 "$launched_after" --udid "$UDID"
 # The initial intercession tip overlays Quran text. Capture a later state too
 # without altering application code, so reviewers can distinguish an
 # auto-dismissing overlay from a persistent layout issue.
 sleep 18
-timeout 60 xcrun simctl io "$UDID" screenshot screenshots-ipad/ipad-mini-portrait-after-18s.png
+python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geometry.json" \
+  screenshots-ipad/ipad-mini-portrait-after-18s.png ipad-mini 80 "$launched_after" --udid "$UDID"
 echo "iPad mini portrait: Quran images loaded, app screenshot captured" | tee screenshots-ipad/status.txt

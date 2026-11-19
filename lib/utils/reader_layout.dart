@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 enum ReaderPageMode { single, spread, dualScreenBook }
 
+enum ReaderPageSizing { portraitHeight, spreadWidth, regionFit, adaptive }
+
 enum DockPlacement { bottom, side }
 
 enum ReaderSpreadLayout { centeredLandscape, separateRegions, widePortrait }
@@ -20,6 +22,7 @@ class ReaderLayout {
     required this.controlsRegion,
     required this.safeRegions,
     this.fullWidthPortrait = false,
+    this.sizing = ReaderPageSizing.adaptive,
     this.centerSideDock = false,
     this.fitPagesToViewport = false,
   });
@@ -38,9 +41,9 @@ class ReaderLayout {
   /// Insets belong to the controls themselves, not their enclosing viewport.
   final bool fullWidthPortrait;
   final bool centerSideDock;
+  final ReaderPageSizing sizing;
 
-  /// Foldable pages fit the safe display, behind the floating controls.
-  /// iPads retain their v5 geometry.
+  /// Identifies foldable viewports whose controls overlay the reading region.
   final bool fitPagesToViewport;
   bool get singlePage => pageMode == ReaderPageMode.single;
   bool get bottomDock => dockPlacement == DockPlacement.bottom;
@@ -209,7 +212,47 @@ class ReaderLayout {
         (size.width < 600 || legacyIPadPortrait) &&
         regions.length == 1 &&
         largest == safeDisplayRegions(size, padding, const []).single;
-    final singleBounds = originalPortraitBounds ? Offset.zero & size : single;
+    final continuous =
+        regions.length == 1 &&
+        largest.top == safeBounds.top &&
+        largest.bottom == safeBounds.bottom &&
+        !tabletop &&
+        !book;
+    // Extending through the top/bottom padding must not reintroduce a hinge
+    // that was outside the original safe rectangle (e.g. above a top inset).
+    final portraitBand = Rect.fromLTRB(
+      single.left,
+      0,
+      single.right,
+      size.height,
+    );
+    final continuousPortrait =
+        fitPages &&
+        !landscape &&
+        continuous &&
+        !displayFeatures.any(
+          (feature) =>
+              (feature.type == DisplayFeatureType.hinge ||
+                  (feature.type == DisplayFeatureType.fold &&
+                      feature.state ==
+                          DisplayFeatureState.postureHalfOpened)) &&
+              feature.bounds.width > feature.bounds.height &&
+              feature.bounds.left < portraitBand.right &&
+              feature.bounds.right > portraitBand.left &&
+              feature.bounds.top < portraitBand.bottom &&
+              feature.bounds.bottom > portraitBand.top,
+        );
+    final continuousSpread =
+        canSpread &&
+        centeredLandscape &&
+        continuous &&
+        !foldedCover &&
+        halfOpened.isEmpty;
+    final singleBounds = originalPortraitBounds
+        ? Offset.zero & size
+        : continuousPortrait
+        ? portraitBand
+        : single;
     final spreadBounds = originalLandscapeBounds
         ? Offset.zero & size
         : combined;
@@ -223,6 +266,13 @@ class ReaderLayout {
       pageRegions: List.unmodifiable(
         canSpread ? spreadRegions : [singleBounds],
       ),
+      sizing: originalPortraitBounds || continuousPortrait
+          ? ReaderPageSizing.portraitHeight
+          : continuousSpread
+          ? ReaderPageSizing.spreadWidth
+          : fitPages
+          ? ReaderPageSizing.regionFit
+          : ReaderPageSizing.adaptive,
       controlsRegion: controls,
       safeRegions: List.unmodifiable(regions),
       fullWidthPortrait: originalPortraitBounds,

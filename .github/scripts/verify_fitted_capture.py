@@ -1,140 +1,340 @@
 #!/usr/bin/env python3
-"""Cross-check real rendered page rectangles with the captured PNG pixels."""
-import argparse
+"""Check the measured reader and the visible paper against native inputs."""
+
 from datetime import datetime
 import json
 import math
 from pathlib import Path
+
 from PIL import Image, ImageDraw, ImageOps, ImageStat
 
 
+MODES = {
+    "duo-folded": "single",
+    "duo-unfolded-portrait": "single",
+    "duo-unfolded-wide": "spread",
+    "duo-half-open-book": "dualScreenBook",
+    "ipad-mini": "single",
+}
+
+
+def rect(left, top, width, height):
+    return dict(left=left, top=top, width=width, height=height)
+
+
 def bounds(r):
-    return r['left'], r['top'], r['left'] + r['width'], r['top'] + r['height']
-
-
-def assert_capture_state(data, expected_zoom=None, expected_mode=None, after=None):
-    """Reject cached preferences, stale files and incomplete rendered frames."""
-    if expected_mode is not None:
-        assert data['mode'] == expected_mode, 'wrong reading mode for requested posture'
-    if expected_zoom is not None:
-        assert math.isclose(data['zoom'] * 100, expected_zoom, abs_tol=.1), 'wrong actual rendered zoom'
-    if after is not None:
-        stamp = datetime.fromisoformat(data['timestamp'].replace('Z', '+00:00'))
-        assert stamp.tzinfo is not None and stamp.timestamp() >= after, 'stale rendered geometry timestamp'
-    assert data['mode'] in ('single', 'spread', 'dualScreenBook'), 'unknown reading mode'
-    assert len(data['pages']) == (1 if data['mode'] == 'single' else 2), 'wrong rendered page count'
-    assert data['fit'], 'foldable capture must use the fitted layout'
-    assert data.get('safeRegions'), 'missing independent safe display regions'
+    return r["left"], r["top"], r["left"] + r["width"], r["top"] + r["height"]
 
 
 def same_rect(actual, expected):
-    return all(math.isclose(actual[key], expected[key], abs_tol=.5)
-               for key in ('left', 'top', 'width', 'height'))
+    return all(math.isclose(actual[k], expected[k], abs_tol=0.5) for k in expected)
 
 
-def fitted_regions(data, aspect):
-    """Derive maximum fit from safe display panels, never dock-trimmed bounds."""
-    safe = data['safeRegions']
-    viewport = data['viewport']
-    for region in safe:
-        assert all(math.isfinite(value) for value in bounds(region)), 'invalid safe region'
-        left, top, right, bottom = bounds(region)
-        assert region['width'] > 0 and region['height'] > 0, 'empty safe region'
-        assert left >= -.5 and top >= -.5 and right <= viewport['width'] + .5 and bottom <= viewport['height'] + .5, 'safe region outside viewport'
-    largest = max(safe, key=lambda r: r['width'] * r['height'])
-    row = sorted((r for r in safe if abs(r['top'] - largest['top']) < 1 and
-                  abs(bounds(r)[3] - bounds(largest)[3]) < 1), key=lambda r: r['left'])
-    candidates = [row[0], row[-1]] if len(row) >= 2 else [largest]
-    if data['mode'] == 'single':
-        reading = max(candidates, key=lambda r: r['width'] * r['height'])
+def assert_capture_state(data, expected_zoom=None, expected_mode=None, after=None):
+    mode = data["mode"]
+    assert mode in MODES.values() and (expected_mode is None or mode == expected_mode), (
+        "wrong reading mode"
+    )
+    if expected_zoom is not None:
+        assert math.isclose(data["zoom"] * 100, expected_zoom, abs_tol=0.1), "wrong actual rendered zoom"
+    if after is not None:
+        stamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
+        assert stamp.tzinfo and stamp.timestamp() >= after, "stale rendered geometry timestamp"
+    assert len(data["pages"]) == (1 if mode == "single" else 2), "wrong rendered page count"
+    assert str(data["focusedPage"]) in data["pages"], "focused page missing"
+    assert data.get("safeRegions"), "missing safe display regions"
+
+
+def native_panels(data):
+    """Partition the raw view once, without trusting the reported reading or panel bounds."""
+    w, h = (data["viewport"][k] for k in ("width", "height"))
+    pad = data["padding"]
+    for source in (pad, data["viewPadding"]):
+        assert all(
+            math.isfinite(source[k]) and source[k] >= 0 for k in ("left", "top", "right", "bottom")
+        )
+    panels = [(pad["left"], pad["top"], w - pad["right"], h - pad["bottom"])]
+    native = data["native"]
+    dividers = [
+        f["bounds"]
+        for f in data["frameworkFeatures"]
+        if f["type"] in ("hinge", "cutout")
+        or (f["type"] == "fold" and f["state"] == "postureHalfOpened")
+    ]
+    if not native["isIPad"]:
+        assert all(abs(native["viewport"][k] - data["viewport"][k]) < 1 for k in ("width", "height")), (
+            "stale native source viewport"
+        )
+        dividers.extend(r for r in native["divisions"] if r["active"])
+    for divider in dividers:
+        x, y, xx, yy = bounds(divider)
+        if xx == x and yy == y:
+            continue
+        result = []
+        for l, t, r, b in panels:
+            if yy - y > xx - x and y <= t and yy >= b and x < r and xx >= l:
+                slices = [(l, t, x, b), (xx, t, r, b)]
+            elif xx - x > yy - y and x <= l and xx >= r and y < b and yy >= t:
+                slices = [(l, t, r, y), (l, yy, r, b)]
+            else:
+                slices = [(l, t, r, b)]
+            result.extend(s for s in slices if s[0] < s[2] and s[1] < s[3])
+        panels = result
+    expected = [rect(l, t, r - l, b - t) for l, t, r, b in sorted(panels)]
+    assert (
+        expected
+        and len(data["safeRegions"]) == len(expected)
+        and all(same_rect(a, b) for a, b in zip(sorted(data["safeRegions"], key=bounds), expected))
+    ), "safe regions disagree with raw native geometry"
+    return expected
+
+
+def check_posture(data, posture, state):
+    mode = MODES[posture]
+    assert data["mode"] == mode
+    w, h = (data["viewport"][k] for k in ("width", "height"))
+    assert (w < h) == (mode == "single"), "wrong viewport orientation"
+    ipad = posture == "ipad-mini"
+    assert data["native"]["isIPad"] == ipad and data["fit"] != ipad
+    if not ipad:
+        folded = posture == "duo-folded"
+        assert data["native"]["closed"] == folded, "native cover state disagrees with requested posture"
+        if state is not None:
+            angle = state["hingeAngle"]
+            assert (state["activeScreen"] == "cover") == folded, "wrong active native screen"
+            assert state["orientation"] == ("portrait" if mode == "single" else "landscape")
+            if folded:
+                assert angle <= 15
+            elif mode == "dualScreenBook":
+                assert 60 <= angle <= 120
+            else:
+                assert angle >= 160
+
+
+def check_geometry(data, posture, phase="initial", state=None):
+    check_posture(data, posture, state)
+    panels = native_panels(data)
+    w, h = (data["viewport"][k] for k in ("width", "height"))
+    mode, z = data["mode"], data["zoom"]
+    aspect = 2096 / 3008 if data["edition"] == "madani" else 721 / 1058
+    pages = sorted(data["pages"].items(), key=lambda item: item[1]["left"])
+    assert (
+        data["sizing"]
+        == {"single": "portraitHeight", "spread": "spreadWidth", "dualScreenBook": "regionFit"}[mode]
+    ), "wrong page sizing"
+    expanded = data["navigationExpanded"]
+    assert isinstance(expanded, bool)
+    tab = data["controls"]["Collapse navigation" if expanded else "Open navigation"]
+    assert data["navigation"] and tab["width"] > 0 and tab["height"] > 0
+    if not expanded:
+        assert same_rect(data["navigation"], tab), "collapsed footprint differs from tab"
+    if mode == "single":
+        assert len(panels) == 1
+        band = panels[0]
+        reading = rect(0, 0, w, h) if posture == "ipad-mini" else rect(band["left"], 0, band["width"], h)
         regions = [reading]
-        maximum = min(reading['width'], reading['height'] * aspect)
-    elif len(candidates) == 2:
-        regions = candidates
-        left = min(r['left'] for r in regions)
-        top = min(r['top'] for r in regions)
-        right = max(bounds(r)[2] for r in regions)
-        bottom = max(bounds(r)[3] for r in regions)
-        reading = {'left': left, 'top': top, 'width': right - left, 'height': bottom - top}
-        maximum = min(min(r['width'], r['height'] * aspect) for r in regions)
+        expected = [dict(reading, top=h * (1 - z) / 2, height=h * z)]
+        if phase == "collapsed":
+            assert not expanded, "navigation must be collapsed"
+        if not expanded:
+            assert math.isclose(bounds(tab)[3], h - 16, abs_tol=0.5), "wrong collapsed tab bottom"
+        assert data["scroll"] is None
     else:
-        assert data['mode'] == 'spread', 'book mode requires separated safe panels'
-        reading = largest
-        half = (reading['width'] - 1) / 2
-        regions = [dict(reading, width=half),
-                   dict(reading, left=reading['left'] + half + 1, width=half)]
-        maximum = min(half, reading['height'] * aspect)
-    assert same_rect(data['readingBounds'], reading), 'reading bounds must use the full safe display, including behind navigation'
-    assert len(data['regions']) == len(regions) and all(
-        same_rect(actual, expected) for actual, expected in zip(data['regions'], regions)
-    ), 'page regions were reduced from the safe display panels'
-    return maximum, regions, reading
+        assert int(pages[0][0]) == int(pages[1][0]) + 1, "wrong RTL page order"
+        if mode == "spread":
+            assert len(panels) == 1
+            reading = panels[0]
+            half = (reading["width"] - 1) / 2
+            regions = [
+                dict(reading, width=half),
+                dict(reading, left=reading["left"] + half + 1, width=half),
+            ]
+            width = half * z
+            height = width / aspect
+            scroll = data["scroll"]
+            assert scroll and scroll["settled"] and same_rect(scroll["viewport"], reading), (
+                "missing settled scroll viewport"
+            )
+            overflow = max(0, height - reading["height"])
+            assert abs(scroll["min"]) <= 0.5 and abs(scroll["max"] - overflow) <= 0.5, (
+                "incorrect scroll extent"
+            )
+            offset = scroll["offset"]
+            assert abs(offset - (overflow if phase == "bottom" else 0)) <= 0.5, "wrong scroll endpoint"
+            if phase == "bottom":
+                assert overflow > 0.5, "no vertical overflow to demonstrate"
+            x = reading["left"] + half - width
+            expected = [
+                rect(x, reading["top"] - offset, width, height),
+                rect(x + width + 1, reading["top"] - offset, width, height),
+            ]
+        else:
+            assert len(panels) == 2, "book needs two physical panels"
+            left, right = panels
+            assert left["top"] == right["top"] and left["height"] == right["height"]
+            assert bounds(left)[2] <= right["left"] and int(pages[1][0]) == data["focusedPage"]
+            reading = dict(left, width=bounds(right)[2] - left["left"])
+            regions = panels
+            width = min(min(p["width"], p["height"] * aspect) for p in panels) * z
+            height = width / aspect
+            expected = [
+                rect(
+                    p["left"] + (p["width"] - width) / 2,
+                    p["top"] + (p["height"] - height) / 2,
+                    width,
+                    height,
+                )
+                for p in panels
+            ]
+            assert data["scroll"] is None
+    assert same_rect(data["readingBounds"], reading), "incorrect reading bounds"
+    assert len(data["regions"]) == len(regions) and all(
+        same_rect(a, b) for a, b in zip(data["regions"], regions)
+    ), "incorrect page regions"
+    for (page, actual), target in zip(pages, expected):
+        assert same_rect(actual, target), f"page {page} bounds {actual} differ from {target}"
+    return reading
 
 
-def verify(png, metadata, expected_zoom=None, expected_mode=None, after=None):
-    image = ImageOps.exif_transpose(Image.open(png)).convert('RGB')
+def check_pair(before, after, phase):
+    for key in (
+        "viewport",
+        "pixelRatio",
+        "edition",
+        "safeRegions",
+        "readingBounds",
+        "sizing",
+        "focusedPage",
+    ):
+        assert before[key] == after[key], f"{key} changed between captures"
+    assert before["pages"].keys() == after["pages"].keys(), "pages changed during capture"
+    if phase == "initial":  # min to max
+        return
+    assert before["zoom"] == after["zoom"] and before["timestamp"] < after["timestamp"], (
+        "stale interaction metadata"
+    )
+    if phase == "collapsed":
+        assert before["navigationExpanded"] and not after["navigationExpanded"], (
+            "collapse transition missing"
+        )
+        assert before["pages"] == after["pages"], "collapse moved paper"
+    if phase == "bottom":
+        distance = after["scroll"]["offset"] - before["scroll"]["offset"]
+        assert distance > 0.5 and abs(before["scroll"]["offset"]) <= 0.5, (
+            "spread did not scroll from the top"
+        )
+        for page, frame in before["pages"].items():
+            assert same_rect(after["pages"][page], dict(frame, top=frame["top"] - distance)), (
+                "leaves did not scroll together"
+            )
+
+
+def verify(
+    png,
+    metadata,
+    expected_zoom=None,
+    expected_mode=None,
+    after=None,
+    *,
+    posture=None,
+    state=None,
+    phase="initial",
+    before=None,
+):
     data = json.loads(Path(metadata).read_text())
     assert_capture_state(data, expected_zoom, expected_mode, after)
-    dpr = data['pixelRatio']
-    assert image.size == (round(data['viewport']['width'] * dpr),
-                          round(data['viewport']['height'] * dpr)), 'stale viewport geometry'
-    pages = data['pages']
-    aspect = 2096 / 3008 if data['edition'] == 'madani' else 721 / 1058
-    maximum, region_list, _ = fitted_regions(data, aspect)
-    for page, r in pages.items():
-        assert math.isclose(r['width'] / r['height'], aspect, abs_tol=.001), 'page distorted'
-        assert math.isclose(r['width'], maximum * data['zoom'], abs_tol=.5), 'not scaled from maximum fit'
-        l, t, right, bottom = bounds(r)
-        region = next((x for x in region_list if x['left'] - .5 <= l and
-                       x['top'] - .5 <= t and x['left'] + x['width'] + .5 >= right and
-                       x['top'] + x['height'] + .5 >= bottom), None)
-        # Centred spreads fit within their virtual leaves; physical panels
-        # remain separate even when their posture is flat rather than a book.
-        assert region is not None and l >= region['left'] - .5 and t >= region['top'] - .5
-        assert right <= region['left'] + region['width'] + .5
-        assert bottom <= region['top'] + region['height'] + .5, 'page clipped'
-        crop_box = tuple(round(v * dpr) for v in (l, t, right, bottom))
+    # Older interactive control-check callers supply only the requested zoom.
+    if posture is None:
+        posture = (
+            "ipad-mini"
+            if data["native"]["isIPad"]
+            else "duo-folded"
+            if data["native"]["closed"]
+            else {
+                "single": "duo-unfolded-portrait",
+                "spread": "duo-unfolded-wide",
+                "dualScreenBook": "duo-half-open-book",
+            }[data["mode"]]
+        )
+    reading = check_geometry(data, posture, phase, state)
+    if before is not None:
+        check_pair(before, data, phase)
+    image = ImageOps.exif_transpose(Image.open(png)).convert("RGB")
+    dpr = data["pixelRatio"]
+    assert image.size == tuple(round(data["viewport"][k] * dpr) for k in ("width", "height")), (
+        "stale viewport geometry"
+    )
+    for page, frame in data["pages"].items():
+        l, t, r, b = bounds(frame)
+        cl, ct, cr, cb = bounds(reading)
+        crop_box = tuple(
+            round(v * dpr)
+            for v in (
+                max(l, cl, 0),
+                max(t, ct, 0),
+                min(r, cr, data["viewport"]["width"]),
+                min(b, cb, data["viewport"]["height"]),
+            )
+        )
         crop = image.crop(crop_box)
-        visible = Image.new('L', crop.size, 255)
-        navigation = data.get('navigation')
-        if navigation:
-            nl, nt, nr, nb = bounds(navigation)
-            # Floating controls may cover the fitted paper. Only their measured
-            # current footprint (plus antialiasing pixels) is excluded.
-            ImageDraw.Draw(visible).rectangle(
-                (math.floor(nl * dpr) - crop_box[0] - 2,
-                 math.floor(nt * dpr) - crop_box[1] - 2,
-                 math.ceil(nr * dpr) - crop_box[0] + 2,
-                 math.ceil(nb * dpr) - crop_box[1] + 2), fill=0)
-        assert visible.getbbox() is not None, f'paper fully obscured: page {page}'
-        assert sum(ImageStat.Stat(crop, visible).var) / 3 > 300, f'blank or unrendered paper: page {page}'
-        # The real Quran image has a white outer paper border. Require actual
-        # rendered content at all four edges; a blank PNG is not verification.
-        checked_edges = 0
-        for edge in [(0, 0, crop.width, 3), (0, crop.height - 3, crop.width, crop.height),
-                     (0, 0, 3, crop.height), (crop.width - 3, 0, crop.width, crop.height)]:
-            pixels = [p for p, mask in zip(crop.crop(edge).getdata(), visible.crop(edge).getdata()) if mask]
-            if not pixels:
-                continue
-            checked_edges += 1
-            assert sum(max(p) > 100 for p in pixels) / len(pixels) > .5, f'missing paper edge: page {page}'
-        assert checked_edges, f'no visible paper edge: page {page}'
-    if data['mode'] == 'dualScreenBook':
-        ordered = sorted(pages.items(), key=lambda pair: pair[1]['left'])
-        assert int(ordered[1][0]) == data['focusedPage'] and int(ordered[0][0]) == data['focusedPage'] + 1
-        assert abs(ordered[0][1]['width'] - ordered[1][1]['width']) < .01, 'book pages differ in size'
-    result = {'verified': True, 'zoom': data['zoom'], 'rendered_pages': pages,
-              'viewport_pixels': image.size, 'focused_page': data['focusedPage']}
-    Path(png).with_suffix('.verification.json').write_text(json.dumps(result, indent=2) + '\n')
+        visible = Image.new("L", crop.size, 255)
+        nl, nt, nr, nb = bounds(data["navigation"])
+        ImageDraw.Draw(visible).rectangle(
+            (
+                math.floor(nl * dpr) - crop_box[0] - 2,
+                math.floor(nt * dpr) - crop_box[1] - 2,
+                math.ceil(nr * dpr) - crop_box[0] + 2,
+                math.ceil(nb * dpr) - crop_box[1] + 2,
+            ),
+            fill=0,
+        )
+        assert visible.getbbox(), f"paper fully obscured: page {page}"
+        assert sum(ImageStat.Stat(crop, visible).var) / 3 > 300, (
+            f"blank or unrendered paper: page {page}"
+        )
+        edges = [(0, 0, 3, crop.height), (crop.width - 3, 0, crop.width, crop.height)]
+        if t >= ct - 0.5:
+            edges.append((0, 0, crop.width, 3))
+        if b <= cb + 0.5:
+            edges.append((0, crop.height - 3, crop.width, crop.height))
+        for edge in edges:
+            mask = visible.crop(edge)
+            assert mask.getbbox(), f"paper edge fully obscured: page {page}"
+            histogram = crop.crop(edge).convert("HSV").getchannel("V").histogram(mask)
+            assert sum(histogram[101:]) > sum(histogram) / 2, f"missing paper edge: page {page}"
+    if phase == "collapsed":
+        tab = data["controls"]["Open navigation"]
+        assert abs(tab["width"] - 72) < 0.5 and abs(tab["height"] - 24) < 0.5
+        x, y = tab["left"] + tab["width"] / 2, tab["top"] + tab["height"] / 2
+        glyph = image.crop(tuple(round(v * dpr) for v in (x - 6, y - 4, x + 6, y + 4)))
+        assert max(high - low for low, high in glyph.getextrema()) > 30, (
+            "missing visible navigation arrow"
+        )
+    result = {
+        "verified": True,
+        "zoom": data["zoom"],
+        "rendered_pages": data["pages"],
+        "viewport_pixels": image.size,
+        "focused_page": data["focusedPage"],
+    }
+    Path(png).with_suffix(".verification.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('png', type=Path)
-    parser.add_argument('metadata', type=Path)
-    parser.add_argument('--zoom', type=int)
-    parser.add_argument('--mode', choices=['single', 'spread', 'dualScreenBook'])
-    parser.add_argument('--after', type=float)
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("png", type=Path)
+    parser.add_argument("metadata", type=Path)
+    parser.add_argument("--zoom", type=int)
+    parser.add_argument("--mode", choices=set(MODES.values()))
+    parser.add_argument("--posture", choices=MODES)
+    parser.add_argument("--after", type=float)
     args = parser.parse_args()
-    print(json.dumps(verify(args.png, args.metadata, args.zoom, args.mode, args.after), indent=2))
+    print(
+        json.dumps(
+            verify(args.png, args.metadata, args.zoom, args.mode, args.after, posture=args.posture),
+            indent=2,
+        )
+    )

@@ -43,14 +43,18 @@ class ReaderDockOverlay extends StatelessWidget {
         (iPhoneLandscape && !layout.centerSideDock)) {
       return scoped;
     }
+    // The portrait reading band already owns the horizontal insets. Leave
+    // vertical insets to the dock, whose tab is positioned from the app edge.
+    final portraitBand =
+        layout.sizing == ReaderPageSizing.portraitHeight && layout.bottomDock;
     return Positioned.fromRect(
-      rect: layout.controlsRegion,
+      rect: portraitBand ? layout.usableContentBounds : layout.controlsRegion,
       child: MediaQuery.removePadding(
         context: context,
         removeLeft: true,
         removeRight: true,
-        removeTop: true,
-        removeBottom: true,
+        removeTop: !portraitBand,
+        removeBottom: !portraitBand,
         child: Stack(children: [scoped]),
       ),
     );

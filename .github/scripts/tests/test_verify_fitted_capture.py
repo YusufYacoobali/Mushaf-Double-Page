@@ -1,171 +1,265 @@
-import copy
 from datetime import datetime, timezone
-import importlib.util
+import copy
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 
 from PIL import Image, ImageDraw
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import verify_fitted_capture as capture
 
-spec = importlib.util.spec_from_file_location(
-    'fitted_capture', Path(__file__).parents[1] / 'verify_fitted_capture.py')
-capture = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(capture)
+rect = capture.rect
 ASPECT = 721 / 1058
 
 
-def rect(left, top, width, height):
-    return dict(left=left, top=top, width=width, height=height)
-
-
-def snapshot(posture='portrait', zoom=1):
-    if posture == 'folded':
-        viewport, safe, mode = (466, 678), [rect(0, 0, 382, 630)], 'single'
-    elif posture == 'portrait':
-        viewport, safe, mode = (669, 951), [rect(0, 0, 669, 930)], 'single'
-    elif posture == 'landscape':
-        viewport, safe, mode = (951, 669), [rect(8, 24, 931, 624)], 'spread'
+def snapshot(posture="duo-folded", z=1, bottom=False):
+    mode = capture.MODES[posture]
+    folded = posture == "duo-folded"
+    w, h = (466, 678) if folded else (669, 951) if mode == "single" else (951, 669)
+    pad = dict(left=0, right=84 if folded else 0, top=0, bottom=34)
+    native = dict(
+        viewport=dict(width=w, height=h), divisions=[], closed=folded, isIPad=posture == "ipad-mini"
+    )
+    safe = [rect(0, 0, w - pad["right"], h - 34)]
+    band = safe[0]
+    if mode == "dualScreenBook":
+        native["divisions"] = [dict(rect(400, 0, 24, h), active=True)]
+        safe = [rect(0, 0, 400, h - 34), rect(424, 0, w - 424, h - 34)]
+    reading = band
+    scroll = None
+    if mode == "single":
+        sizing = "portraitHeight"
+        reading = rect(0, 0, band["width"], h)
+        regions = [reading]
+        pages = {"4": rect(0, h * (1 - z) / 2, band["width"], h * z)}
+    elif mode == "spread":
+        sizing = "spreadWidth"
+        half = (w - 1) / 2
+        width, height = half * z, half * z / ASPECT
+        maximum = max(0, height - (h - 34))
+        offset = maximum if bottom else 0
+        regions = [dict(band, width=half), dict(band, left=half + 1, width=half)]
+        scroll = dict(viewport=band, min=0, max=maximum, offset=offset, settled=True)
+        pages = {
+            "4": rect(half + 1, -offset, width, height),
+            "5": rect(half - width, -offset, width, height),
+        }
     else:
-        viewport = (951, 669)
-        safe, mode = [rect(8, 24, 392, 624), rect(424, 24, 515, 624)], 'dualScreenBook'
-    data = dict(viewport=dict(width=viewport[0], height=viewport[1]),
-                pixelRatio=1, mode=mode, fit=True, zoom=zoom,
-                focusedPage=4, edition='indopak_tajweed', safeRegions=safe,
-                timestamp='2026-11-19T11:00:01Z', navigation=None)
-    if mode == 'single':
-        reading = safe[0]
-        width = min(reading['width'], reading['height'] * ASPECT) * zoom
-        height = width / ASPECT
-        pages = {'4': rect(reading['left'] + (reading['width'] - width) / 2,
-                           reading['top'] + (reading['height'] - height) / 2, width, height)}
+        sizing = "regionFit"
         regions = safe
-    elif mode == 'spread':
-        reading = safe[0]
-        half = (reading['width'] - 1) / 2
-        regions = [dict(reading, width=half), dict(reading, left=reading['left'] + half + 1, width=half)]
-        width = min(half, reading['height'] * ASPECT) * zoom
+        width = min(400, (h - 34) * ASPECT) * z
         height = width / ASPECT
-        left = reading['left'] + (reading['width'] - (2 * width + 1)) / 2
-        top = reading['top'] + (reading['height'] - height) / 2
-        pages = {'4': rect(left + width + 1, top, width, height),
-                 '5': rect(left, top, width, height)}
-    else:
-        regions = safe
-        reading = rect(8, 24, 931, 624)
-        width = min(min(r['width'], r['height'] * ASPECT) for r in safe) * zoom
-        height = width / ASPECT
-        pages = {str(page): rect(r['left'] + (r['width'] - width) / 2,
-                                 r['top'] + (r['height'] - height) / 2, width, height)
-                 for page, r in [(5, safe[0]), (4, safe[1])]}
-    return data | dict(readingBounds=reading, regions=regions, pages=pages)
+        pages = {
+            str(p): rect(r["left"] + (r["width"] - width) / 2, (r["height"] - height) / 2, width, height)
+            for p, r in zip([5, 4], regions)
+        }
+    tab = (
+        rect((band["width"] - 72) / 2, h - 40, 72, 24)
+        if mode == "single"
+        else rect(w - 26, h / 2 - 36, 22, 72)
+    )
+    return dict(
+        viewport=dict(width=w, height=h),
+        pixelRatio=1,
+        mode=mode,
+        fit=not native["isIPad"],
+        zoom=z,
+        focusedPage=4,
+        edition="indopak_tajweed",
+        safeRegions=safe,
+        scroll=scroll,
+        timestamp="2026-11-19T11:00:02Z" if bottom else "2026-11-19T11:00:01Z",
+        navigation=tab,
+        navigationExpanded=False,
+        controls={"Open navigation": tab},
+        readingBounds=reading,
+        regions=regions,
+        pages=pages,
+        sizing=sizing,
+        padding=pad,
+        viewPadding=pad.copy(),
+        frameworkFeatures=[],
+        native=native,
+    )
 
 
-class FittedCaptureTests(unittest.TestCase):
+class CaptureTests(unittest.TestCase):
     def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.png = Path(self.directory.name) / 'actual.png'
-        self.metadata = self.png.with_suffix('.layout.json')
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.png = Path(directory.name) / "reader.png"
+        self.metadata = self.png.with_suffix(".layout.json")
 
-    def save(self, data, blank=False):
-        image = Image.new('RGB', tuple(data['viewport'].values()), 'black')
-        draw = ImageDraw.Draw(image)
+    def save(self, frame, blank=False):
+        image = Image.new("RGB", tuple(frame["viewport"].values()), "black")
+        paper = Image.new("RGB", image.size, "black")
+        draw = ImageDraw.Draw(paper)
         if not blank:
-            for region in data['pages'].values():
-                left, top, right, bottom = map(round, capture.bounds(region))
-                draw.rectangle((left, top, right - 1, bottom - 1), fill='white')
-                draw.rectangle((left + 10, top + 10, right - 11, bottom - 11), fill=(20, 20, 20))
-        if data['navigation']:
-            left, top, right, bottom = capture.bounds(data['navigation'])
-            draw.rectangle((left, top, right - 1, bottom - 1), fill=(50, 50, 50))
+            for page in frame["pages"].values():
+                l, t, r, b = map(round, capture.bounds(page))
+                draw.rectangle((l, t, r - 1, b - 1), fill="white")
+                draw.rectangle((l + 12, t + 12, r - 13, b - 13), fill="#252525")
+        clip = tuple(map(round, capture.bounds(frame["readingBounds"])))
+        image.paste(paper.crop(clip), clip)
+        draw = ImageDraw.Draw(image)
+        draw.rectangle(capture.bounds(frame["navigation"]), fill="#303030")
+        tab = frame["controls"].get("Open navigation")
+        if tab:
+            x, y = tab["left"] + tab["width"] / 2, tab["top"] + tab["height"] / 2
+            draw.line([(x - 4, y + 2), (x, y - 2), (x + 4, y + 2)], fill="white", width=2)
         image.save(self.png)
-        self.metadata.write_text(json.dumps(data))
+        self.metadata.write_text(json.dumps(frame))
 
-    def test_all_four_postures_accept_real_maximum_and_minimum_geometry(self):
-        for posture, minimum in [('folded', .7), ('portrait', .7), ('landscape', .6), ('book', .6)]:
-            for zoom in [minimum, 1]:
+    def test_all_endpoints(self):
+        for posture, mode in capture.MODES.items():
+            for zoom in [0.8] if posture == "ipad-mini" else [0.7 if mode == "single" else 0.6, 1]:
                 with self.subTest(posture=posture, zoom=zoom):
-                    data = snapshot(posture, zoom)
-                    self.save(data)
-                    result = capture.verify(self.png, self.metadata, zoom * 100, data['mode'])
-                    self.assertTrue(result['verified'])
+                    frame = snapshot(posture, zoom)
+                    self.save(frame)
+                    self.assertTrue(
+                        capture.verify(self.png, self.metadata, 100 * zoom, mode, posture=posture)[
+                            "verified"
+                        ]
+                    )
 
-    def test_original_dock_trimmed_fit_cannot_pass_even_when_self_consistent(self):
+    def test_fresh_scrolled_capture_uses_visible_edges(self):
+        before = snapshot("duo-unfolded-wide")
+        after = snapshot("duo-unfolded-wide", bottom=True)
+        self.save(after)
+        capture.verify(
+            self.png,
+            self.metadata,
+            100,
+            "spread",
+            posture="duo-unfolded-wide",
+            phase="bottom",
+            before=before,
+        )
+        for error in (
+            "timestamp",
+            "page turn",
+            "one stationary leaf",
+            "no movement",
+            "short extent",
+            "unsettled",
+        ):
+            with self.subTest(error=error), self.assertRaises(AssertionError):
+                bad = copy.deepcopy(after)
+                if error == "timestamp":
+                    bad["timestamp"] = before["timestamp"]
+                if error == "page turn":
+                    bad["pages"] = {str(int(p) + 2): v for p, v in bad["pages"].items()}
+                if error == "one stationary leaf":
+                    bad["pages"]["5"]["top"] = 0
+                if error == "no movement":
+                    bad["scroll"]["offset"] = 0
+                if error == "short extent":
+                    bad["scroll"]["max"] /= 2
+                if error == "unsettled":
+                    bad["scroll"]["settled"] = False
+                capture.check_geometry(bad, "duo-unfolded-wide", "bottom")
+                capture.check_pair(before, bad, "bottom")
+
+    def test_wrong_sizing_or_raw_geometry(self):
+        for error in (
+            "proportional",
+            "narrow at minimum",
+            "safe height",
+            "dock trim",
+            "double right inset",
+            "stale native",
+            "hidden tab",
+            "wrong zoom",
+            "missing page",
+            "blank",
+            "wrong display",
+        ):
+            with self.subTest(error=error), self.assertRaises(AssertionError):
+                data = snapshot(z=0.7 if error == "narrow at minimum" else 1)
+                page = data["pages"]["4"]
+                if error == "proportional":
+                    page["height"] = page["width"] / ASPECT
+                if error == "narrow at minimum":
+                    page["width"] *= 0.7
+                if error == "safe height":
+                    page["height"] -= 34
+                if error == "dock trim":
+                    data["readingBounds"]["height"] -= 100
+                    page["height"] -= 100
+                if error == "double right inset":
+                    for r in [data["safeRegions"][0], data["readingBounds"], page]:
+                        r["width"] -= 84
+                if error == "stale native":
+                    data["native"]["viewport"]["width"] -= 50
+                if error == "hidden tab":
+                    data["controls"]["Open navigation"]["top"] -= 34
+                if error == "missing page":
+                    data["pages"].clear()
+                self.save(data, blank=error == "blank")
+                if error == "wrong display":
+                    Image.new("RGB", (100, 100)).save(self.png)
+                capture.verify(
+                    self.png,
+                    self.metadata,
+                    70 if error in ("wrong zoom", "narrow at minimum") else 100,
+                    "single",
+                    posture="duo-folded",
+                    phase="collapsed",
+                )
+
+    def test_landscape_fit_cap_and_missing_scroll(self):
+        for error in ("height cap", "no scroll", "dock trim"):
+            with self.subTest(error=error), self.assertRaises(AssertionError):
+                data = snapshot("duo-unfolded-wide")
+                if error == "height cap":
+                    for p in data["pages"].values():
+                        p.update(width=635 * ASPECT, height=635)
+                if error == "no scroll":
+                    data["scroll"] = None
+                if error == "dock trim":
+                    data["readingBounds"] = dict(data["readingBounds"], width=820)
+                capture.check_geometry(data, "duo-unfolded-wide")
+
+    def test_hinge_and_raw_divisions(self):
+        for error in ("cross hinge", "overflow panel", "missing division"):
+            with self.subTest(error=error), self.assertRaises(AssertionError):
+                data = snapshot("duo-half-open-book")
+                if error == "cross hinge":
+                    data["pages"]["4"]["left"] = 410
+                if error == "overflow panel":
+                    data["pages"]["5"]["top"] = -10
+                if error == "missing division":
+                    data["native"]["divisions"].clear()
+                capture.check_geometry(data, "duo-half-open-book")
+
+    def test_nav_mask_is_limited_to_measured_footprint(self):
         data = snapshot()
-        shrunk = rect(0, 0, 669, 800)
-        data['readingBounds'] = shrunk
-        data['regions'] = [shrunk]
-        data['pages'] = {'4': rect((669 - 800 * ASPECT) / 2, 0, 800 * ASPECT, 800)}
+        data.update(
+            navigation=rect(0, 550, 382, 94),
+            navigationExpanded=True,
+            controls={"Collapse navigation": rect(155, 550, 72, 24)},
+        )
         self.save(data)
-        with self.assertRaisesRegex(AssertionError, 'full safe display'):
-            capture.verify(self.png, self.metadata, 100)
-
-    def test_flat_physical_panels_cannot_accept_a_page_crossing_the_hinge(self):
-        data = snapshot('book')
-        data['mode'] = 'spread'
-        # Width, height and combined display containment remain plausible, but
-        # the right page crosses the physical hinge at x=400..424.
-        data['pages']['4']['left'] = 410
-        self.save(data)
-        with self.assertRaises(AssertionError):
-            capture.verify(self.png, self.metadata, 100, 'spread')
-
-    def test_floating_navigation_may_cover_bottom_paper_edge(self):
-        data = snapshot()
-        data['navigation'] = rect(0, 850, 669, 90)
-        self.save(data)
-        self.assertTrue(capture.verify(self.png, self.metadata, 100)['verified'])
-
-    def test_navigation_mask_does_not_hide_an_unrelated_missing_paper_edge(self):
-        data = snapshot()
-        data['navigation'] = rect(0, 850, 669, 90)
-        self.save(data)
+        capture.verify(self.png, self.metadata, 100)
         image = Image.open(self.png)
-        ImageDraw.Draw(image).rectangle((0, 0, 668, 4), fill='black')
+        ImageDraw.Draw(image).rectangle((0, 0, 381, 5), fill="black")
         image.save(self.png)
-        with self.assertRaisesRegex(AssertionError, 'missing paper edge'):
+        with self.assertRaisesRegex(AssertionError, "missing paper edge"):
             capture.verify(self.png, self.metadata, 100)
 
-    def test_blank_page_with_visible_navigation_cannot_pass(self):
-        data = snapshot()
-        data['navigation'] = rect(0, 850, 669, 90)
-        self.save(data, blank=True)
-        with self.assertRaisesRegex(AssertionError, 'blank or unrendered'):
-            capture.verify(self.png, self.metadata, 100)
-
-    def test_cached_seventy_percent_cannot_pass_as_requested_hundred(self):
-        data = snapshot(zoom=.7)
-        self.save(data)
-        with self.assertRaisesRegex(AssertionError, 'wrong actual rendered zoom'):
-            capture.verify(self.png, self.metadata, 100)
-
-    def test_stale_timestamp_and_wrong_posture_cannot_pass(self):
+    def test_state_and_freshness(self):
         data = snapshot()
         after = datetime(2026, 11, 19, 11, 0, 2, tzinfo=timezone.utc).timestamp()
-        with self.assertRaisesRegex(AssertionError, 'stale rendered geometry'):
-            capture.assert_capture_state(data, 100, 'single', after)
-        with self.assertRaisesRegex(AssertionError, 'wrong reading mode'):
-            capture.assert_capture_state(data, 100, 'dualScreenBook')
-
-    def test_viewport_from_a_different_display_cannot_pass(self):
-        data = snapshot()
-        self.save(data)
-        Image.new('RGB', (466, 678), 'white').save(self.png)
-        with self.assertRaisesRegex(AssertionError, 'stale viewport geometry'):
-            capture.verify(self.png, self.metadata, 100)
-
-    def test_safe_panel_geometry_is_required_and_must_be_inside_display(self):
-        data = snapshot()
-        missing = copy.deepcopy(data)
-        missing.pop('safeRegions')
-        with self.assertRaisesRegex(AssertionError, 'independent safe display'):
-            capture.assert_capture_state(missing, 100, 'single')
-        data['safeRegions'] = [rect(-30, 0, 669, 930)]
-        with self.assertRaisesRegex(AssertionError, 'outside viewport'):
-            capture.fitted_regions(data, ASPECT)
-
-
-if __name__ == '__main__':
-    unittest.main()
+        with self.assertRaisesRegex(AssertionError, "stale rendered"):
+            capture.assert_capture_state(data, 100, "single", after)
+        with self.assertRaises(AssertionError):
+            capture.check_posture(data, "duo-unfolded-portrait", None)
+        with self.assertRaises(AssertionError):
+            capture.check_posture(
+                data, "duo-folded", dict(activeScreen="main", hingeAngle=180, orientation="portrait")
+            )
+        with self.assertRaisesRegex(AssertionError, "reading mode"):
+            capture.assert_capture_state(data, 100, "spread")

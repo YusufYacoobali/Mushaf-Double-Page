@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import '../components/reader_dock.dart';
+import 'ios_display_regions.dart';
 import 'reader_layout.dart';
 
 /// Debug-build diagnostics for comparing actual rendered frames with PNGs.
@@ -17,6 +19,8 @@ class ReaderGeometryProbe extends StatefulWidget {
     required this.edition,
     required this.settled,
     this.navigationKey,
+    required this.native,
+    required this.isIPad,
   });
   final Widget child;
   final ReaderLayout layout;
@@ -26,6 +30,8 @@ class ReaderGeometryProbe extends StatefulWidget {
   final String edition;
   final bool Function() settled;
   final GlobalKey? navigationKey;
+  final IosDisplayRegions native;
+  final bool isIPad;
   @override
   State<ReaderGeometryProbe> createState() => _ReaderGeometryProbeState();
 }
@@ -53,9 +59,22 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
         'width': r.width,
         'height': r.height,
       };
+      Map<String, double> insets(EdgeInsets value) => {
+        'left': value.left,
+        'top': value.top,
+        'right': value.right,
+        'bottom': value.bottom,
+      };
+      bool? navigationExpanded;
+      bool moving = false;
+      Map<String, Object?>? scroll;
       void visit(Element element) {
         final current = element.widget;
         if (current is ExcludeSemantics && current.excluding) return;
+        if (current is NavigationPullTab) {
+          navigationExpanded = current.expanded;
+          moving |= current.reveal != (current.expanded ? 1.0 : 0.0);
+        }
         final label = current is IconButton
             ? current.tooltip
             : current is Tooltip
@@ -79,6 +98,32 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
           if (widget.visiblePages.contains(page) &&
               box is RenderBox &&
               box.hasSize) {
+            if (page == widget.focusedPage) {
+              final scrollable = Scrollable.maybeOf(
+                element,
+                axis: Axis.vertical,
+              );
+              final position = scrollable?.position;
+              final clip = scrollable?.context.findRenderObject();
+              if (position != null &&
+                  position.hasContentDimensions &&
+                  clip is RenderBox) {
+                final settled = !position.isScrollingNotifier.value;
+                moving |= !settled;
+                scroll = {
+                  'viewport': rect(
+                    MatrixUtils.transformRect(
+                      clip.getTransformTo(null),
+                      Offset.zero & clip.size,
+                    ),
+                  ),
+                  'offset': position.pixels,
+                  'min': position.minScrollExtent,
+                  'max': position.maxScrollExtent,
+                  'settled': settled,
+                };
+              }
+            }
             pages['$page'] = rect(
               MatrixUtils.transformRect(
                 box.getTransformTo(null),
@@ -91,6 +136,10 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
       }
 
       context.visitChildElements(visit);
+      if (moving) {
+        schedule();
+        return;
+      }
       // Measure controls only for QA evidence. They never reduce page bounds.
       final navigationBox = widget.navigationKey?.currentContext
           ?.findRenderObject();
@@ -106,7 +155,29 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
       final data = {
         'viewport': {'width': media.size.width, 'height': media.size.height},
         'pixelRatio': media.devicePixelRatio,
+        'padding': insets(media.padding),
+        'viewPadding': insets(media.viewPadding),
+        'frameworkFeatures': [
+          for (final feature in media.displayFeatures)
+            {
+              'bounds': rect(feature.bounds),
+              'type': feature.type.name,
+              'state': feature.state.name,
+            },
+        ],
+        'native': {
+          'viewport': {
+            'width': widget.native.size.width,
+            'height': widget.native.size.height,
+          },
+          'divisions': widget.native.rawDivisions,
+          'closed': widget.native.closed,
+          'isIPad': widget.isIPad,
+        },
         'mode': widget.layout.pageMode.name,
+        'sizing': widget.layout.sizing.name,
+        'scroll': scroll,
+        'navigationExpanded': navigationExpanded,
         'fit': widget.layout.fitPagesToViewport,
         'zoom': widget.zoom,
         'focusedPage': widget.focusedPage,
@@ -116,7 +187,11 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
         'regions': widget.layout.pageRegions.map(rect).toList(),
         'pages': pages,
         'controls': controls,
-        'navigation': navigationBounds == null ? null : rect(navigationBounds),
+        'navigation': navigationExpanded == false
+            ? controls['Open navigation']
+            : navigationBounds == null
+            ? null
+            : rect(navigationBounds),
       };
       final frame = jsonEncode(data);
       if (lastFrame != frame) {
@@ -154,5 +229,14 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    if (!const bool.fromEnvironment('READER_LAYOUT_QA')) return widget.child;
+    return NotificationListener<ScrollNotification>(
+      onNotification: (_) {
+        schedule();
+        return false;
+      },
+      child: widget.child,
+    );
+  }
 }

@@ -50,6 +50,7 @@ class AdaptiveQuranPages extends StatelessWidget {
         mushaf,
         layout.pageMode,
         layout.spreadLayout,
+        layout.sizing,
         layout.usableContentBounds,
         Object.hashAll(layout.pageRegions),
         MediaQuery.paddingOf(context),
@@ -90,7 +91,7 @@ class AdaptiveQuranPages extends StatelessWidget {
         onBackgroundTap: onBackgroundTap,
         pageRegions: centered ? null : layout.pageRegions,
         bookFirstPage: paging.book ? paging.firstPageAt(index) : null,
-        fitToViewport: layout.fitPagesToViewport,
+        fitToViewport: layout.sizing == ReaderPageSizing.regionFit,
         verticalFollower: verticalFollower,
       );
       return centered
@@ -155,8 +156,11 @@ class AdaptiveQuranPages extends StatelessWidget {
                       onTap: onTap,
                       onFocus: focus,
                       onBackgroundTap: onBackgroundTap,
-                      fullWidthPortrait: layout.fullWidthPortrait,
-                      fitToViewport: layout.fitPagesToViewport,
+                      fullWidthPortrait:
+                          layout.sizing == ReaderPageSizing.portraitHeight,
+                      viewportBounds: layout.usableContentBounds,
+                      fitToViewport:
+                          layout.sizing == ReaderPageSizing.regionFit,
                       verticalFollower: verticalFollower,
                     ),
                   ),

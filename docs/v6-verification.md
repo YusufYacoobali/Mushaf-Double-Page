@@ -4,23 +4,29 @@ Work stays on `v6`. No merge to `main` until final required checks pass.
 
 ## Page sizing
 
-For Duo/foldable readers, **100% is the largest complete, undistorted page that
-fits the usable reading area**. Compute the fit from both width and height,
-using the actual viewport, safe areas, native hinge regions and measured dock
-bounds. The limiting dimension wins. Smaller percentages multiply this fitted
-100% size; they do not change the image's aspect ratio. Both book pages use the
-same size, limited by the smaller available panel. The measured expanded dock
-footprint remains reserved during automatic hiding to avoid moving text.
+On the Duo cover and continuous open portrait display, a single page occupies
+the unobstructed horizontal band at every toolbar zoom. Height is the root app
+viewport height times zoom (70–100%). The page is vertically centred. At 100%
+it extends behind the floating controls and home indicator. The collapsed iOS
+tab ends 16 logical points above the app bottom. Expanded controls clear the
+larger of the bottom safe inset and 16 points.
 
-**iPad page sizing keeps v5 behaviour.** Only the requested landscape dock
-centring changes. Regular non-foldable phone sizing is also preserved.
+In continuous unfolded landscape, each page is `(readingWidth - 1) / 2 × zoom`
+wide (60–100%). The one-point gutter stays fixed. The two proportional pages
+share a top-aligned vertical scroll viewport. Half-open book pages use equal
+proportional fits in their separate physical panels. Folded landscape,
+tabletop, regular phones and the native iPad compatibility path retain their
+previous sizing. Navigation, selection and audio controls overlay the reader.
 
-QA simulator builds enable `READER_LAYOUT_QA`. This records actual rendered
-page/control rectangles in the simulator's Documents directory. Capture checks
-cross-check those rectangles against the PNG's visible paper edges, contrast,
-aspect ratio, maximum fit, zoom, page count and book ordering. A PNG file or a
-visible zoom label alone is never a visual pass. Ordinary builds do not record
-these diagnostics.
+The limited native check on v6 is **Proven Duo and iPad mini visual check**.
+It builds one simulator app with `READER_LAYOUT_QA`. The Duo artifact contains
+the eight zoom endpoints plus the folded collapsed tab and the same landscape
+spread after a real swipe. The mini artifact contains both 80% portrait frames,
+including the later settled capture. A Linux job assembles the comparison sheet
+from verified originals. Each endpoint pairs the PNG with stable measured
+geometry on both sides of capture. The verifier reconstructs the reading area
+from raw insets, display features and native division frames. The scroll extent,
+page order, visible paper edges and measured navigation footprint are checked.
 
 ## Verification levels
 

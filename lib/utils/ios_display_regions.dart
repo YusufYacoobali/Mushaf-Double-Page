@@ -9,6 +9,9 @@ class IosDisplayRegions {
     closed = event['closed'] == true;
     final divisions = event['divisions'];
     if (divisions is! List) return;
+    if (const bool.fromEnvironment('READER_LAYOUT_QA')) {
+      rawDivisions = divisions;
+    }
     if (!size.width.isFinite || !size.height.isFinite || size.isEmpty) return;
     features = [
       for (final region in divisions)
@@ -29,6 +32,7 @@ class IosDisplayRegions {
   }
   Size size = Size.zero;
   bool closed = false;
+  List<dynamic> rawDivisions = const [];
   List<DisplayFeature> features = const [];
   static bool _validRegion(Map region) {
     final values = ['left', 'top', 'width', 'height'].map((key) => region[key]);

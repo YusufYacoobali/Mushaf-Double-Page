@@ -39,31 +39,31 @@ both Mushaf editions, dock toggles, exact page frames, RTL facing pages,
 page focus preservation and unfolded 900 x 900 phone layouts. Existing v5
 hinge and split-screen tests remain unchanged.
 
-## v6: foldable zoom and floating controls
+## v6 foldable portrait, landscape and book
 
-Foldable 100% means the largest proportional page that fits the full safe
-display region. For one page, its width is
-`min(safeWidth, safeHeight * pageAspectRatio)`; lower zoom values scale both
-dimensions from that maximum. An unfolded portrait Duo uses one page.
-Unfolded landscape uses two facing pages. A physical separating hinge gives
-each book page its own safe panel, with equal page sizes on both sides.
+Folded and unfolded continuous portrait now use the iPad-style height-only
+zoom inside the safe horizontal reading band. At 70%, 85% and 100% the width
+is identical. Height uses the full app viewport, including the bottom safe
+inset. The floating collapsed tab ends 16 points above the iOS viewport edge.
+Expanded controls consume the native bottom inset once.
 
-The app's navigation bar and contextual audio/selection controls float over
-the pages. They do not subtract height or width from the fit. Opening,
-closing, or expanding controls must never resize or shift a page. Native
-safe insets and separating display regions still protect cameras, system
-areas, and physical hinges. A remaining margin on the non-limiting axis is
-expected; page artwork is not distorted to fill both axes.
+Fully unfolded landscape starts a centred two-page row at the top of its
+unobstructed viewport. Width sets the printed page height and both leaves
+scroll vertically together. Horizontal drags turn the spread. Half-open book
+keeps both pages at the smaller panel's proportional fit and leaves the hinge
+clear. Regular phones and iPads keep their established geometry.
 
-Ordinary phones and tablets keep their previous geometry, including iPad
-portrait's full-width, height-only zoom. The native iPad idiom guard takes
-precedence over foldable hints.
+The previous simulator run (44509939240, attempt 2) recorded a 466 × 678
+cover viewport and a 382-point reading width. Those older sidecars only
+identify the resolved 84-point exclusion. Current QA sidecars include the
+original MediaQuery padding and viewPadding, framework display features,
+UIKit divisions with their source viewport, and cover state. The page's left
+and right limits follow these inputs. No device width or camera inset is
+assumed.
 
-`foldable_layout_fixes_test.dart` checks both Mushaf editions at folded and
-unfolded portrait/landscape sizes, real dock transitions and contextual
-controls, proportional zoom, and physical book panels. Existing phone and
-iPad regressions remain required. Native verification uses only the proven
-Duo minimum/maximum captures in four postures and iPad mini portrait; those
-screenshots do not establish native intermediate-zoom or iPad-landscape
-coverage. A capture's filename is a requested zoom, not proof of the zoom
-actually rendered.
+The rendered widget suite exercises the recorded asymmetric cover geometry
+and a second inset combination, both editions, dock and contextual-control
+animations, taps, focus and audio, scrolling and physical book panels. In the
+limited native workflow, read the Duo PNGs with their matching layout JSON,
+the settled iPad mini 80% portrait PNG, and the labelled comparison artifact.
+The native checks cover endpoint zooms. Intermediate zooms are widget-tested.
