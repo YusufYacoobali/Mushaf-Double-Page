@@ -143,11 +143,19 @@ def check_geometry(data, posture, phase="initial", state=None):
         assert int(pages[0][0]) == int(pages[1][0]) + 1, "wrong RTL page order"
         if mode == "spread":
             assert len(panels) == 1
-            reading = panels[0]
-            half = (reading["width"] - 1) / 2
+            safe_panel = panels[0]
+            # Unfolded Duo renders all the way to the physical bottom edge
+            # behind the iOS home swipe indicator. Safe panels and dock remain
+            # inset so controls never enter that system gesture area.
+            reading = (
+                dict(safe_panel, height=h - safe_panel["top"])
+                if posture == "duo-unfolded-wide"
+                else safe_panel
+            )
+            half = (safe_panel["width"] - 1) / 2
             regions = [
-                dict(reading, width=half),
-                dict(reading, left=reading["left"] + half + 1, width=half),
+                dict(safe_panel, width=half),
+                dict(safe_panel, left=safe_panel["left"] + half + 1, width=half),
             ]
             width = half * z
             height = width / aspect

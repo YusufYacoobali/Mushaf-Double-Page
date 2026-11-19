@@ -60,6 +60,42 @@ void main() {
     expect(ipadWithHints.pageMode, ReaderPageMode.single);
   });
 
+  test('unfolded Duo landscape reaches the physical bottom behind swipe area', () {
+    const size = Size(951, 669);
+    const padding = EdgeInsets.only(bottom: 34);
+    final duo = ReaderLayout.resolve(
+      size: size,
+      padding: padding,
+      iosPhoneWidePortrait: true,
+    );
+    expect(duo.sizing, ReaderPageSizing.spreadWidth);
+    expect(duo.safeRegions.single.bottom, 635);
+    expect(duo.usableContentBounds, const Rect.fromLTWH(0, 0, 951, 669));
+    expect(duo.controlsRegion.bottom, 635);
+
+    final book = ReaderLayout.resolve(
+      size: size,
+      padding: padding,
+      iosPhoneWidePortrait: true,
+      displayFeatures: const [hinge],
+    );
+    expect(book.pageMode, ReaderPageMode.dualScreenBook);
+    expect(book.pageRegions.every((r) => r.bottom == 635), isTrue);
+
+    final android = ReaderLayout.resolve(
+      size: size,
+      padding: padding,
+      displayFeatures: const [
+        DisplayFeature(
+          bounds: Rect.fromLTWH(455.5, 0, 40, 669),
+          type: DisplayFeatureType.fold,
+          state: DisplayFeatureState.postureFlat,
+        ),
+      ],
+    );
+    expect(android.usableContentBounds.bottom, 635);
+  });
+
   test('foldable bounds and page sizing are selected independently', () {
     final folded = ReaderLayout.resolve(
       size: const Size(466, 678),
@@ -424,6 +460,8 @@ void main() {
           );
           final reading = portrait
               ? Rect.fromLTRB(safe.left, 0, safe.right, size.height)
+              : sharedScroll
+              ? Rect.fromLTRB(safe.left, safe.top, safe.right, size.height)
               : safe;
           (int, double, double)? tap;
           final aspect = QuranPageView.aspectRatioForMushaf(edition);

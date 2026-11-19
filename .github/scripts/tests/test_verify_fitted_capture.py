@@ -37,12 +37,13 @@ def snapshot(posture="duo-folded", z=1, bottom=False):
         pages = {"4": rect(0, h * (1 - z) / 2, band["width"], h * z)}
     elif mode == "spread":
         sizing = "spreadWidth"
+        reading = dict(band, height=h - band["top"])
         half = (w - 1) / 2
         width, height = half * z, half * z / ASPECT
-        maximum = max(0, height - (h - 34))
+        maximum = max(0, height - reading["height"])
         offset = maximum if bottom else 0
         regions = [dict(band, width=half), dict(band, left=half + 1, width=half)]
-        scroll = dict(viewport=band, min=0, max=maximum, offset=offset, settled=True)
+        scroll = dict(viewport=reading, min=0, max=maximum, offset=offset, settled=True)
         pages = {
             "4": rect(half + 1, -offset, width, height),
             "5": rect(half - width, -offset, width, height),
@@ -128,6 +129,9 @@ class CaptureTests(unittest.TestCase):
     def test_fresh_scrolled_capture_uses_visible_edges(self):
         before = snapshot("duo-unfolded-wide")
         after = snapshot("duo-unfolded-wide", bottom=True)
+        self.assertEqual(after["readingBounds"]["height"], after["viewport"]["height"])
+        for page in after["pages"].values():
+            self.assertAlmostEqual(page["top"] + page["height"], after["viewport"]["height"])
         self.save(after)
         capture.verify(
             self.png,
@@ -211,7 +215,7 @@ class CaptureTests(unittest.TestCase):
                 )
 
     def test_landscape_fit_cap_and_missing_scroll(self):
-        for error in ("height cap", "no scroll", "dock trim"):
+        for error in ("height cap", "no scroll", "dock trim", "bottom gesture gutter"):
             with self.subTest(error=error), self.assertRaises(AssertionError):
                 data = snapshot("duo-unfolded-wide")
                 if error == "height cap":
@@ -221,6 +225,10 @@ class CaptureTests(unittest.TestCase):
                     data["scroll"] = None
                 if error == "dock trim":
                     data["readingBounds"] = dict(data["readingBounds"], width=820)
+                if error == "bottom gesture gutter":
+                    data["readingBounds"]["height"] -= 34
+                    data["scroll"]["viewport"]["height"] -= 34
+                    data["scroll"]["max"] += 34
                 capture.check_geometry(data, "duo-unfolded-wide")
 
     def test_hinge_and_raw_divisions(self):

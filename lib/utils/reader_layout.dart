@@ -253,8 +253,19 @@ class ReaderLayout {
         : continuousPortrait
         ? portraitBand
         : single;
+    // Only the fully unfolded iOS foldable spread may draw beneath the
+    // bottom home-swipe safe inset. The dock still uses safe control bounds.
+    // Preserve the original layout for iPads, ordinary phones, and book mode.
+    final fullHeightUnfoldedIOSLandscape =
+        fitPages &&
+        iosPhoneWidePortrait &&
+        size.shortestSide >= 600 &&
+        continuousSpread &&
+        !foldedCover;
     final spreadBounds = originalLandscapeBounds
         ? Offset.zero & size
+        : fullHeightUnfoldedIOSLandscape
+        ? Rect.fromLTRB(combined.left, combined.top, combined.right, size.height)
         : combined;
     return ReaderLayout(
       pageMode: canSpread
