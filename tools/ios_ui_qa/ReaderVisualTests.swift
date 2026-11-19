@@ -46,7 +46,21 @@ final class ReaderVisualTests: XCTestCase {
     let open = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
     XCTAssertTrue(open.waitForExistence(timeout: 3), "navigation: missing collapsed tab")
     touch(open, in: reader)
-    XCTAssertTrue(collapse.waitForExistence(timeout: 3), "navigation: controls did not open")
+    if !collapse.waitForExistence(timeout: 3) {
+      // The large 13-inch iPad sometimes reports a valid Flutter AX button
+      // frame yet its first touch does not reach the narrow edge pull-tab.
+      // Try the tab's visible screen-edge location as a genuine XCTest tap.
+      reader.coordinate(withNormalizedOffset: CGVector(dx: 0.992, dy: 0.5)).tap()
+      Thread.sleep(forTimeInterval: 0.7)
+    }
+    if !collapse.waitForExistence(timeout: 3) {
+      // Last bounded attempt: use the normal accessibility activation point
+      // rather than a stale frame taken before the first animation.
+      let retry = reader.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Open navigation")).firstMatch
+      if retry.waitForExistence(timeout: 2) { retry.tap() }
+    }
+    XCTAssertTrue(collapse.waitForExistence(timeout: 4),
+                  "navigation: 13-inch screen stayed collapsed after actual tab and edge taps")
     try capture("navigation-open.png")
   }
 
