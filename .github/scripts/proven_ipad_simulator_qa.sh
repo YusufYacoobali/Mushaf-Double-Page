@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+# macOS does not provide GNU timeout; use Perl alarm around potentially hung simctl calls.
+timeout() { perl -e 'alarm shift; exec @ARGV or die "exec failed: $!\\n"' "$@"; }
 mkdir -p screenshots-ipad
 APP="ci-app/Runner.app"
 BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
