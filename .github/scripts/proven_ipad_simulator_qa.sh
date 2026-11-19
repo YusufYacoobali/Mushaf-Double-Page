@@ -23,8 +23,8 @@ UDID="$(timeout 90 xcrun simctl create "quran-ci-ipad-$GITHUB_RUN_ID" 'iPad mini
 echo "Fresh iPad mini: $UDID"
 timeout 90 xcrun simctl boot "$UDID"
 timeout 600 xcrun simctl bootstatus "$UDID" -b
- echo "::endgroup::"
- echo "::group::Install and launch Quran"
+echo "::endgroup::"
+echo "::group::Install and launch Quran"
 timeout 240 xcrun simctl install "$UDID" "$APP"
 bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID"
 sleep 2
@@ -33,7 +33,7 @@ for n in 1 2 3; do
   if timeout 90 xcrun simctl launch "$UDID" "$BUNDLE_ID"; then launched=1; break; fi
   sleep 4
 done
-$([[ "$launched" -eq 1 ]] || { echo "::error::iPad app launch failed"; exit 1; })
+[[ "$launched" -eq 1 ]] || { echo "::error::iPad app launch failed"; exit 1; }
 echo "::endgroup::"
 echo "::group::Wait for real Quran pages"
 DATA="$(timeout 90 xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
