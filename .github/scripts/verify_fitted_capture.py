@@ -183,9 +183,11 @@ def check_geometry(data, posture, phase="initial", state=None):
             if phase == "bottom":
                 assert overflow > 0.5, "no vertical overflow to demonstrate"
             x = reading["left"] + half - width
+            inset = max(0, (reading["height"] - height) / 2) if posture == "duo-unfolded-wide" else 0
+            top = reading["top"] + inset - offset
             expected = [
-                rect(x, reading["top"] - offset, width, height),
-                rect(x + width + 1, reading["top"] - offset, width, height),
+                rect(x, top, width, height),
+                rect(x + width + 1, top, width, height),
             ]
         else:
             assert len(panels) == 2, "book needs two physical panels"

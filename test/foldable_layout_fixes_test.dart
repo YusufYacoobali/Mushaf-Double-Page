@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:ui' show DisplayFeature, DisplayFeatureType, DisplayFeatureState;
 
@@ -47,6 +48,7 @@ void main() {
         isFalse,
         reason: '$size must use its unchanged non-foldable sizing',
       );
+      expect(layout.centerShortLandscapeSpread, isFalse);
       expect(layout.pageMode, mode, reason: '$size layout mode changed');
     }
     // The native iPad guard wins even if a device sends foldable hints.
@@ -81,6 +83,7 @@ void main() {
         iosPhoneWidePortrait: true,
         displayFeatures: const [hinge],
       );
+      expect(book.centerShortLandscapeSpread, isFalse);
       expect(book.pageMode, ReaderPageMode.dualScreenBook);
       expect(book.pageRegions.every((r) => r.bottom == 669), isTrue);
       expect(book.safeRegions.every((r) => r.bottom == 635), isTrue);
@@ -225,6 +228,7 @@ void main() {
         ],
       );
       expect(layout.pageMode, ReaderPageMode.single);
+      expect(layout.centerShortLandscapeSpread, isFalse);
       expect(layout.pageRegions.single.overlaps(obstruction), isFalse);
       expect(layout.controlsRegion.overlaps(obstruction), isFalse);
       expect(layout.pageRegions.single.height, greaterThan(260));
@@ -400,6 +404,7 @@ void main() {
       for (final stage in [
         (const Size(466, 678), false, true),
         (const Size(669, 951), false, false),
+        (const Size(954, 859), false, false),
         (window, false, false),
         (window, true, false),
       ]) {
@@ -497,25 +502,28 @@ void main() {
     }
   }
 
-  for (final scenario in [
-    ('folded portrait', const Size(466, 678), true),
-    ('asymmetric folded portrait', const Size(401, 755), true),
-    ('folded landscape', const Size(678, 466), true),
-    ('open portrait', const Size(669, 951), false),
-    ('open landscape', const Size(951, 669), false),
+  for (final (name, size, cover, android) in [
+    ('folded portrait', const Size(466, 678), true, false),
+    ('asymmetric folded portrait', const Size(401, 755), true, false),
+    ('folded landscape', const Size(678, 466), true, false),
+    ('open portrait', const Size(669, 951), false, false),
+    ('open landscape', const Size(951, 669), false, false),
+    ('passport landscape', const Size(933, 704), false, true),
+    ('tall landscape', const Size(954, 859), false, true),
   ]) {
     for (final edition in ['indopak_tajweed', 'madani']) {
       testWidgets(
-        '${scenario.$1} $edition uses posture-specific zoom behind the dock',
+        '$name $edition keeps page geometry and scroll endpoints when the dock changes',
         (tester) async {
-          final size = scenario.$2;
           tester.view.devicePixelRatio = 1;
           tester.view.physicalSize = size;
           addTearDown(tester.view.resetDevicePixelRatio);
           addTearDown(tester.view.resetPhysicalSize);
           final portrait = size.height > size.width;
-          final sharedScroll = !portrait && !scenario.$3;
-          final padding = scenario.$1 == 'folded portrait'
+          final sharedScroll = !portrait && !cover;
+          final padding = android
+              ? const EdgeInsets.only(bottom: 24)
+              : name == 'folded portrait'
               ? const EdgeInsets.only(right: 84, bottom: 34)
               : insets;
           tester.view.padding = tester.view.viewPadding = FakeViewPadding(
@@ -534,7 +542,7 @@ void main() {
           );
           final reading = portrait
               ? Rect.fromLTRB(safe.left, 0, safe.right, size.height)
-              : sharedScroll
+              : sharedScroll && !android
               ? Rect.fromLTRB(safe.left, safe.top, safe.right, size.height)
               : safe;
           (int, double, double)? tap;
@@ -548,15 +556,30 @@ void main() {
           late ReaderLayout layout;
           await tester.pumpWidget(
             MaterialApp(
-              theme: ThemeData(platform: TargetPlatform.iOS),
+              theme: ThemeData(
+                platform: android ? TargetPlatform.android : TargetPlatform.iOS,
+              ),
               home: StatefulBuilder(
                 builder: (context, update) {
                   refresh = update;
                   layout = ReaderLayout.resolve(
                     size: size,
                     padding: MediaQuery.paddingOf(context),
-                    foldedCover: scenario.$3,
-                    iosPhoneWidePortrait: true,
+                    foldedCover: cover,
+                    iosPhoneWidePortrait: !android,
+                    displayFeatures: [
+                      if (android)
+                        DisplayFeature(
+                          bounds: Rect.fromLTWH(
+                            size.width / 2,
+                            0,
+                            0,
+                            size.height,
+                          ),
+                          type: DisplayFeatureType.fold,
+                          state: DisplayFeatureState.postureFlat,
+                        ),
+                    ],
                     pageAspectRatio: aspect,
                   );
                   return Scaffold(
@@ -618,6 +641,36 @@ void main() {
             for (final page in layout.singlePage ? [4] : [4, 5])
               page: tester.getRect(find.byKey(ValueKey('quran-page-$page'))),
           };
+          final scroll = find.descendant(
+            of: find.byType(AdaptiveQuranPages),
+            matching: find.byType(SingleChildScrollView),
+          );
+          void expectSpreadPosition({bool atBottom = false}) {
+            final position = tester
+                .widget<SingleChildScrollView>(scroll)
+                .controller!
+                .position;
+            final height = (reading.width - 1) / 2 * zoom / aspect;
+            final overflow = math.max(0.0, height - reading.height);
+            final offset = atBottom ? overflow : 0.0;
+            expect(position.viewportDimension, closeTo(reading.height, .001));
+            expect(position.minScrollExtent, 0);
+            expect(position.maxScrollExtent, closeTo(overflow, .001));
+            expect(position.pixels, closeTo(offset, .001));
+            for (final frame in pages().values) {
+              if (overflow == 0) {
+                expect(
+                  frame.top - reading.top,
+                  closeTo(reading.bottom - frame.bottom, .001),
+                );
+              } else {
+                expect(frame.top, closeTo(reading.top - offset, .001));
+                if (atBottom)
+                  expect(frame.bottom, closeTo(reading.bottom, .001));
+              }
+            }
+          }
+
           final maximum = pages();
           void expectMaximumUnchanged() {
             expect(layout.usableContentBounds, reading);
@@ -629,16 +682,18 @@ void main() {
           }
 
           expect(layout.fitPagesToViewport, isTrue);
+          expect(layout.centerShortLandscapeSpread, sharedScroll);
+          expect(scroll, sharedScroll ? findsOneWidget : findsNothing);
           expect(layout.safeRegions, [safe]);
           expect(layout.usableContentBounds, reading);
           if (portrait) {
             expect(maximum[4], reading);
           } else if (sharedScroll) {
+            expectSpreadPosition();
             expect(maximum[5]!.left, safe.left);
             expect(maximum[4]!.right, safe.right);
             expect(maximum[4]!.left - maximum[5]!.right, 1);
             for (final page in maximum.values) {
-              expect(page.top, safe.top);
               expect(page.width, (safe.width - 1) / 2);
               expect(page.height, closeTo(page.width / aspect, .001));
             }
@@ -701,6 +756,7 @@ void main() {
           for (final value in [layout.singlePage ? .7 : .6, .85, .95]) {
             refresh(() => zoom = value);
             await tester.pumpAndSettle();
+            if (sharedScroll) expectSpreadPosition();
             for (final entry in pages().entries) {
               expect(
                 entry.value.width,
@@ -715,7 +771,6 @@ void main() {
                   lessThan(.001),
                 );
               } else if (sharedScroll) {
-                expect(entry.value.top, reading.top);
                 expect(
                   pages()[4]!.expandToInclude(pages()[5]!).center.dx,
                   closeTo(reading.center.dx, .001),
@@ -731,22 +786,10 @@ void main() {
           refresh(() => zoom = 1);
           await tester.pumpAndSettle();
           expectMaximumUnchanged();
-          final scroll = find.descendant(
-            of: find.byType(AdaptiveQuranPages),
-            matching: find.byType(SingleChildScrollView),
-          );
-          expect(scroll, sharedScroll ? findsOneWidget : findsNothing);
           if (sharedScroll) {
-            final initial = pages();
-            await tester.dragFrom(initial[4]!.center, const Offset(0, -200));
+            await tester.dragFrom(pages()[4]!.center, const Offset(0, -200));
             await tester.pumpAndSettle();
-            for (final entry in pages().entries) {
-              expect(
-                initial[entry.key]!.top - entry.value.top,
-                closeTo(entry.value.height - reading.height, .001),
-              );
-              expect(entry.value.bottom, closeTo(reading.bottom, .001));
-            }
+            expectSpreadPosition(atBottom: true);
             expect(paging.focusedPage, 4);
             expect(paging.visiblePages, [4, 5]);
           }
@@ -764,6 +807,10 @@ void main() {
           expect(tap?.$2, closeTo(.25, .001));
           expect(tap?.$3, closeTo(.35, .001));
           if (sharedScroll) {
+            // Zoom out while the controller is still at the lower limit.
+            refresh(() => zoom = .6);
+            await tester.pumpAndSettle();
+            expectSpreadPosition();
             await tester.flingFrom(
               const Offset(200, 300),
               const Offset(550, 0),

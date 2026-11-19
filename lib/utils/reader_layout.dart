@@ -24,6 +24,7 @@ class ReaderLayout {
     this.fullWidthPortrait = false,
     this.sizing = ReaderPageSizing.adaptive,
     this.centerSideDock = false,
+    this.centerShortLandscapeSpread = false,
     this.fitPagesToViewport = false,
   });
   final ReaderPageMode pageMode;
@@ -41,6 +42,7 @@ class ReaderLayout {
   /// Insets belong to the controls themselves, not their enclosing viewport.
   final bool fullWidthPortrait;
   final bool centerSideDock;
+  final bool centerShortLandscapeSpread;
   final ReaderPageSizing sizing;
 
   /// Identifies foldable viewports whose controls overlay the reading region.
@@ -328,6 +330,7 @@ class ReaderLayout {
       safeRegions: List.unmodifiable(regions),
       fullWidthPortrait: originalPortraitBounds,
       fitPagesToViewport: fitPages,
+      centerShortLandscapeSpread: fitPages && continuousSpread,
       centerSideDock:
           landscape &&
           (preserveLegacyIPadPortrait ||

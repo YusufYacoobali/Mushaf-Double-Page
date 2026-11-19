@@ -68,8 +68,9 @@ def snapshot(posture="folded", z=1, profile="galaxy-z-fold8", phase="initial", e
         maximum = max(0, height - reading["height"])
         offset = maximum if phase == "bottom" else 0
         regions = [capture.rect(0, 0, half, h - 24), capture.rect(half + 1, 0, half, h - 24)]
-        pages = {"7": capture.rect(half - width, -offset, width, height),
-                 "6": capture.rect(half + 1, -offset, width, height)}
+        top = max(0, (reading["height"] - height) / 2) - offset
+        pages = {"7": capture.rect(half - width, top, width, height),
+                 "6": capture.rect(half + 1, top, width, height)}
         scroll = dict(viewport=reading, min=0, max=maximum, offset=offset, settled=True)
         sizing = "spreadWidth"
     else:
@@ -206,6 +207,16 @@ class AndroidCaptureTests(unittest.TestCase):
         data["readingBounds"]["height"] += 24
         with self.assertRaisesRegex(AssertionError, "Android reading bounds"):
             capture.check_geometry(data, "half-open-book", state=state)
+
+    def test_rejects_pinned_fitting_spread_and_padded_overflow(self):
+        for profile in capture.PROFILES:
+            for zoom, phase in [(.6, "initial"), (1, "initial"), (1, "bottom")]:
+                data, state = snapshot("unfolded-landscape", zoom, profile, phase)
+                capture.check_geometry(data, "unfolded-landscape", phase, state)
+                for page in data["pages"].values():
+                    page["top"] = 0 if data["scroll"]["max"] == 0 else page["top"] + 8
+                with self.subTest(profile=profile, zoom=zoom, phase=phase), self.assertRaises(AssertionError):
+                    capture.check_geometry(data, "unfolded-landscape", phase, state)
 
     def test_bottom_endpoint_can_have_real_overflow_or_zero_range(self):
         for profile in capture.PROFILES:

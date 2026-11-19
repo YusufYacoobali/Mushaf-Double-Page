@@ -13,7 +13,8 @@ larger of the bottom safe inset and 16 points.
 
 In continuous unfolded landscape, each page is `(readingWidth - 1) / 2 × zoom`
 wide (60–100%). The one-point gutter stays fixed. The two proportional pages
-share a top-aligned vertical scroll viewport. Half-open book pages use equal
+are vertically centred when they fit. Taller pages share one scroll viewport
+with the first and last paper edges at its limits. Half-open book pages use equal
 proportional fits in their separate physical panels. Folded landscape,
 tabletop, regular phones and the native iPad compatibility path retain their
 previous sizing. Navigation, selection and audio controls overlay the reader.

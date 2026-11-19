@@ -3,3 +3,4 @@ Verify pages 6–7 at minimum and 100% zoom on Samsung Galaxy Z Fold8 passport a
 Rerun with required Linux emulator libraries, verified native boot transitions and reuse of an unchanged, hash-verified Android app build.
 Load the native Samsung fold configuration from the Android 16 scanned system_ext overlay partition.
 Verify foreground focus from the active Android display and retain valid per-display failure screenshots.
+Verify centred fitting unfolded landscape spreads and the exact scroll endpoints on pages 6–7 with the updated app build.

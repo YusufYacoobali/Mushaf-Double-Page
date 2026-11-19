@@ -49,9 +49,10 @@ def snapshot(posture="duo-folded", z=1, bottom=False, page=4, centered_book=Fals
         offset = maximum if bottom else 0
         regions = [dict(band, width=half), dict(band, left=half + 1, width=half)]
         scroll = dict(viewport=reading, min=0, max=maximum, offset=offset, settled=True)
+        top = (max(0, (h - height) / 2) if not ipad else 0) - offset
         pages = {
-            str(page): rect(half + 1, -offset, width, height),
-            str(page + 1): rect(half - width, -offset, width, height),
+            str(page): rect(half + 1, top, width, height),
+            str(page + 1): rect(half - width, top, width, height),
         }
     else:
         sizing = "regionFit"
@@ -131,6 +132,22 @@ class CaptureTests(unittest.TestCase):
                             "verified"
                         ]
                     )
+
+    def test_duo_centres_only_fitting_spreads(self):
+        for zoom, phase in [(.6, "initial"), (1, "initial"), (1, "bottom")]:
+            frame = snapshot("duo-unfolded-wide", zoom, bottom=phase == "bottom")
+            capture.check_geometry(frame, "duo-unfolded-wide", phase)
+            for page in frame["pages"].values():
+                page["top"] = 0 if zoom < 1 else page["top"] + 8
+            with self.subTest(zoom=zoom, phase=phase), self.assertRaisesRegex(AssertionError, "bounds"):
+                capture.check_geometry(frame, "duo-unfolded-wide", phase)
+
+        ipad = snapshot("ipad-mini-landscape", .6)
+        capture.check_geometry(ipad, "ipad-mini-landscape")
+        for page in ipad["pages"].values():
+            page["top"] = (ipad["readingBounds"]["height"] - page["height"]) / 2
+        with self.assertRaisesRegex(AssertionError, "bounds"):
+            capture.check_geometry(ipad, "ipad-mini-landscape")
 
     def test_requested_pages_are_not_the_previous_spread(self):
         for posture in capture.MODES:

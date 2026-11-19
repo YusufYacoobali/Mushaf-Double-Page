@@ -239,8 +239,9 @@ def check_geometry(data, posture, phase="initial", state=None):
             offset = overflow if phase == "bottom" else 0
             close(scroll["offset"], offset, "wrong scroll endpoint")
             x = reading["left"] + half - width
-            expected = [rect(x, reading["top"] - offset, width, height),
-                        rect(x + width + 1, reading["top"] - offset, width, height)]
+            top = reading["top"] + max(0, (reading["height"] - height) / 2) - offset
+            expected = [rect(x, top, width, height),
+                        rect(x + width + 1, top, width, height)]
         else:
             assert len(panels) == 2, "book requires two physical Android panels"
             left, right = panels

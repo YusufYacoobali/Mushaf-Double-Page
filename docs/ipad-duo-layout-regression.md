@@ -47,8 +47,8 @@ is identical. Height uses the full app viewport, including the bottom safe
 inset. The floating collapsed tab ends 16 points above the iOS viewport edge.
 Expanded controls consume the native bottom inset once.
 
-Fully unfolded landscape starts a centred two-page row at the top of its
-unobstructed viewport. Width sets the printed page height and both leaves
+Fully unfolded landscape centres a fitting two-page row vertically in its
+reading viewport. Taller spreads start at the top and scroll to the bottom edge. Width sets the printed page height and both leaves
 scroll vertically together. Horizontal drags turn the spread. Half-open book
 keeps both pages at the smaller panel's proportional fit and leaves the hinge
 clear. Regular phones and iPads keep their established geometry.

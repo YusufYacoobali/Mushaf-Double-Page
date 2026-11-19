@@ -159,6 +159,7 @@ class QuranPageView {
     ValueChanged<int>? onFocus,
     List<Rect>? pageRegions,
     int? bookFirstPage,
+    bool centerShortLandscapeSpread = false,
     bool fitToViewport = false,
     AudioVerticalFollower? verticalFollower,
   }) {
@@ -299,9 +300,7 @@ class QuranPageView {
               ),
             );
           }
-          // Landscape toolbar zoom changes only the spread width. At minimum
-          // the pages are narrower; at maximum they fill the
-          // screen width. The spread always starts at the top and is centred.
+          // Width-based zoom keeps both pages at their printed aspect ratio.
           final pageWidth = (constraints.maxWidth - 1) / 2 * clamped;
 
           return AudioVerticalViewport(
@@ -310,7 +309,12 @@ class QuranPageView {
               if (leftIndex >= 1 && leftIndex < totalPages) leftIndex,
             ],
             follower: verticalFollower,
-            transformIdentity: (clamped, aspectRatio, constraints.biggest),
+            transformIdentity: (
+              clamped,
+              aspectRatio,
+              constraints.biggest,
+              centerShortLandscapeSpread,
+            ),
             builder: (viewport) {
               Widget? leftPage;
               Widget? rightPage;
@@ -328,20 +332,29 @@ class QuranPageView {
                 );
               }
 
-              // Only vertical scrolling belongs to the spread. Horizontal gestures
-              // must reach the enclosing PageView to turn the page.
+              final row = Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leftPage ?? SizedBox(width: pageWidth),
+                  const SizedBox(width: 1),
+                  rightPage ?? SizedBox(width: pageWidth),
+                ],
+              );
+
+              // Only vertical scrolling belongs to the spread. A minimum
+              // height centres short foldable pages without padding tall ones.
               return SingleChildScrollView(
                 controller: viewport.scroll,
                 scrollDirection: Axis.vertical,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    leftPage ?? SizedBox(width: pageWidth),
-                    const SizedBox(width: 1),
-                    rightPage ?? SizedBox(width: pageWidth),
-                  ],
-                ),
+                child: centerShortLandscapeSpread
+                    ? ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Center(child: row),
+                      )
+                    : row,
               );
             },
           );
