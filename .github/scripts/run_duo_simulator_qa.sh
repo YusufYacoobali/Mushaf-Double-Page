@@ -73,16 +73,16 @@ if [[ "$STARTUP_READY" != 1 ]]; then
   exit 1
 fi
 op download 540 python3 .github/scripts/reader_asset_cache.py wait --data "$DATA"
-# The app is installed, started, and its 851 real page assets exist before
-# calling the slow duoctl guest helper. This is the previously proven order.
-op display-ready 135 bash -c 'duoctl state > screenshots/duo-reader-start-state.json'
+# A first-run iOS permission alert obscures the REAL reader, even when all
+# 851 pages are loaded. Previously 'duoctl state' hung before we ever reached
+# the code intended to dismiss that dialog. Capture the lit panel FIRST, use
+# OCR to locate the real "Don't Allow" button, send a physical Duo touch, and
+# require a subsequent clean screenshot (never an unconditional blind tap).
+op permission 320 python3 .github/scripts/dismiss_duo_notification.py "$UDID" screenshots/permission
+# Only query hinge/CoreMotion after the simulator's SpringBoard dialog has
+# been physically dismissed. Capture a separate state for posture validation.
+op display-ready 155 bash -c 'duoctl state > screenshots/duo-reader-start-state.json'
 op display-capture 110 duoctl screenshot screenshots/duo-reader-start.png
-# Dismiss the actual first-run iOS permission prompt only if it is visible;
-# blindly tapping these coordinates on an already-ready reader is unsafe.
-if command -v tesseract >/dev/null && tesseract screenshots/duo-reader-start.png stdout 2>/dev/null | grep -Eiq 'Don.t Allow|Notifications'; then
-  op permission 75 duoctl tap 120 385 || true
-  op after-permission 100 duoctl screenshot screenshots/duo-after-permission.png || true
-fi
 CASE="${READER_TEST_CASE:-layout}"
 TARGET="${DUO_TARGET:-duo-smoke}"
 PROFILE="${READER_CAPTURE_PROFILE:-smoke}"
