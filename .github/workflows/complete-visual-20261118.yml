@@ -187,6 +187,11 @@ jobs:
         with:
           name: ipad-pro13-all
           path: qa/ipad-pro13
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install screenshot EXIF orientation validator
+        run: python3 -m pip install --quiet Pillow
       - name: Verify every posture, intermediate zoom, navigation and RTL page turn
         run: |
           python3 .github/scripts/verify_visual_evidence.py \
