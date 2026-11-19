@@ -33,6 +33,13 @@ import xml.etree.ElementTree as ET
 
 CATALOG = Path(__file__).with_name("samsung_foldable_profiles.json")
 OVERLAY_PACKAGE = "com.mushaf.qa.samsung_foldable"
+# Android16 PackagePartitions deliberately does not scan /system/overlay.
+# /system_ext/overlay is scanned by PackageManager and zygote and retains the
+# POLICY_SYSTEM policy needed by this preinstalled framework configuration.
+OVERLAY_PARTITION = "system_ext"
+OVERLAY_ROOT = f"/{OVERLAY_PARTITION}/overlay"
+OVERLAY_DIRECTORY = f"{OVERLAY_ROOT}/MushafSamsungLayout"
+OVERLAY_APK_PATH = f"{OVERLAY_DIRECTORY}/MushafSamsungLayout.apk"
 # These are the AOSP emulator's built-in panel addresses, not Samsung identifiers.
 INNER_ADDRESS = "4619827259835644672"
 COVER_ADDRESS = "4619827551948147201"
@@ -85,7 +92,8 @@ def build_profile(profile_id: str) -> dict:
     profile["nativeConfiguration"] = {
         "engineFeature": "SupportPixelFold",
         "overlayPackage": OVERLAY_PACKAGE,
-        "overlayInstallPartition": "system",
+        "overlayInstallPartition": OVERLAY_PARTITION,
+        "overlayApkPath": OVERLAY_APK_PATH,
         "overlayTargetSdk": 28,
         "displayFeatures": f"fold-[{inner['width'] // 2},0,{inner['width'] // 2},{inner['height']}]",
         "stateToPosture": {"0": 1, "1": 2, "2": 3},
@@ -386,20 +394,20 @@ def initialize_guest(args: argparse.Namespace) -> None:
             diagnostics.append(f"remount attempt {attempt}: {output}")
             needs_reboot = verity_reboot_pending or requests_reboot(output)
             if not needs_reboot:
-                probe = "/system/overlay/MushafSamsungLayout/.qa-write-probe"
+                probe = f"{OVERLAY_DIRECTORY}/.qa-write-probe"
                 try:
-                    command("shell", "mkdir", "-p", "/system/overlay/MushafSamsungLayout")
+                    command("shell", "mkdir", "-p", OVERLAY_DIRECTORY)
                     command("shell", "touch", probe)
                     command("shell", "rm", "-f", probe)
                     return "\n".join(diagnostics)
                 except RuntimeError as error:
                     diagnostics.append(f"write probe failed: {error}")
             if attempt < 4:
-                print(f"Preparing writable emulator system: reboot after remount attempt {attempt}", flush=True)
+                print(f"Preparing writable emulator /{OVERLAY_PARTITION}: reboot after remount attempt {attempt}", flush=True)
                 reboot_and_wait()
                 root()
                 verity_reboot_pending = False
-        raise RuntimeError("System partition is not writable after four remount attempts and at most three reboots. Start with -writable-system.\n" + "\n".join(diagnostics))
+        raise RuntimeError(f"Overlay partition /{OVERLAY_PARTITION} is not writable after four remount attempts and at most three reboots. Start with -writable-system.\n" + "\n".join(diagnostics))
 
     wait_boot()
     root()
@@ -410,19 +418,20 @@ def initialize_guest(args: argparse.Namespace) -> None:
         raise RuntimeError(f"Refusing to configure unexpected AVD {avd_name!r}")
     apk = build_overlay(profile)
     remount_output = ensure_writable_system()
-    destination = "/system/overlay/MushafSamsungLayout/MushafSamsungLayout.apk"
+    destination = OVERLAY_APK_PATH
     try:
-        command("shell", "mkdir", "-p", "/system/overlay/MushafSamsungLayout")
+        command("shell", "mkdir", "-p", OVERLAY_DIRECTORY)
+        command("shell", "chmod", "755", OVERLAY_DIRECTORY)
         command("push", str(apk), destination)
     except RuntimeError as error:
         raise RuntimeError(f"Cannot install native layout overlay. Start the disposable emulator with -writable-system.\n{remount_output}\n{error}") from error
     command("shell", "chmod", "644", destination)
-    command("shell", "restorecon", "-RF", "/system/overlay/MushafSamsungLayout")
+    command("shell", "restorecon", "-RF", OVERLAY_DIRECTORY)
     # Android11+ ignores isStatic/priority if the partition has an overlay
     # configuration file. Keep our early-boot framework overlay immutable and
     # place it before every existing entry/merge: an included file may already
     # contain mutable overlays, after which immutable entries are invalid.
-    overlay_config_path = "/system/overlay/config/config.xml"
+    overlay_config_path = f"{OVERLAY_ROOT}/config/config.xml"
     try:
         existing_overlay_config = command("shell", "cat", overlay_config_path)
     except RuntimeError as error:
@@ -431,12 +440,12 @@ def initialize_guest(args: argparse.Namespace) -> None:
     else:
         config_root = ET.fromstring(existing_overlay_config)
         if config_root.tag != "config":
-            raise RuntimeError("Unrecognized system overlay configuration; refusing to replace it")
+            raise RuntimeError(f"Unrecognized {OVERLAY_PARTITION} overlay configuration; refusing to replace it")
         for item in list(config_root):
             if item.tag == "overlay" and item.get("package") == OVERLAY_PACKAGE:
                 config_root.remove(item)
         config_root.insert(0, ET.Element("overlay", {"package": OVERLAY_PACKAGE, "enabled": "true", "mutable": "false"}))
-        local_config = Path(profile["runtime"]["overlaySourceDirectory"]) / "system-overlay-config.xml"
+        local_config = Path(profile["runtime"]["overlaySourceDirectory"]) / f"{OVERLAY_PARTITION}-overlay-config.xml"
         xml_write(local_config, config_root)
         command("push", str(local_config), overlay_config_path)
         command("shell", "chmod", "644", overlay_config_path)
@@ -446,6 +455,10 @@ def initialize_guest(args: argparse.Namespace) -> None:
     command("shell", "settings", "delete", "global", "device_posture")
     initialized_boot_id = reboot_and_wait()
     root()
+    package_path = command("shell", "pm", "path", OVERLAY_PACKAGE, check=False)
+    if not re.search(r"^package:/(?:system/)?system_ext/overlay/MushafSamsungLayout/MushafSamsungLayout\.apk\s*$", package_path, re.MULTILINE):
+        installed_file = command("shell", "ls", "-lZ", destination, check=False)
+        raise RuntimeError(f"Native layout APK was not registered as a preinstalled system_ext overlay.\nPackageManager: {package_path}\nFile: {installed_file}")
     overlays = command("shell", "cmd", "overlay", "list", "android")
     if not re.search(r"\[x\]\s+" + re.escape(OVERLAY_PACKAGE) + r"(?:\s|$)", overlays):
         raise RuntimeError(f"Native Samsung layout overlay was not enabled:\n{overlays}")
@@ -466,6 +479,7 @@ def initialize_guest(args: argparse.Namespace) -> None:
         raise RuntimeError(f"Native hinge sensor unavailable: {sensor}")
     profile["runtime"].update({
         "initialized": True, "overlayApkSha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+        "nativeOverlayPackagePath": package_path,
         "nativeGeometryLookup": geometry, "nativeStateMapLookup": state_map,
         "nativeConcurrentInternalDisplaysLookup": concurrent_displays,
         "nativeSupportedStates": states, "nativeHingeSensor": sensor,

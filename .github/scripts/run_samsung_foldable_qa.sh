@@ -18,11 +18,15 @@ mkdir -p "$OUT"
 cleanup() {
   local status=$?
   if [[ "$status" -ne 0 ]]; then
-    timeout 15 adb -s "$SERIAL" logcat -d -t 1500 > "$OUT/logcat-on-error.txt" 2>&1 || true
+    timeout 15 adb -s "$SERIAL" logcat -d > "$OUT/logcat-on-error.txt" 2>&1 || true
+    timeout 15 adb -s "$SERIAL" shell cmd overlay list > "$OUT/overlays-on-error.txt" 2>&1 || true
+    timeout 15 adb -s "$SERIAL" shell dumpsys package com.mushaf.qa.samsung_foldable > "$OUT/overlay-package-on-error.txt" 2>&1 || true
     timeout 15 adb -s "$SERIAL" shell dumpsys display > "$OUT/display-on-error.txt" 2>&1 || true
     timeout 15 adb -s "$SERIAL" shell dumpsys window > "$OUT/window-on-error.txt" 2>&1 || true
     timeout 15 adb -s "$SERIAL" shell dumpsys device_state > "$OUT/device-state-on-error.txt" 2>&1 || true
     timeout 15 adb -s "$SERIAL" exec-out screencap -p > "$OUT/screenshot-on-error.png" 2>/dev/null || true
+    timeout 15 adb -s "$SERIAL" exec-out screencap -p -d 4619827259835644672 > "$OUT/inner-on-error.png" 2>/dev/null || true
+    timeout 15 adb -s "$SERIAL" exec-out screencap -p -d 4619827551948147201 > "$OUT/cover-on-error.png" 2>/dev/null || true
   fi
   timeout 15 adb -s "$SERIAL" emu kill >/dev/null 2>&1 || true
   if [[ -n "$EMU_PID" ]]; then kill "$EMU_PID" 2>/dev/null || true; fi
