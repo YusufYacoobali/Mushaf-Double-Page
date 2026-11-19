@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "emulation": {
+    "kind": "samsung-dimensions-stock-android",
+    "os": "stock-android",
+    "oneUi": false,
+    "realSamsungDevice": false,
+    "label": "Samsung dimensions on stock Android — layout emulation"
+  },
+  "sources": [
+    {
+      "url": "https://news.samsung.com/global/samsung-galaxy-z-fold8-ultra-fold8-and-flip8foldables-perfected-for-every-way-of-living",
+      "purpose": "Samsung launch specifications: inner/cover resolutions, physical dimensions and pixel densities; published 2026-07-22."
+    },
+    {
+      "url": "https://www.samsung.com/uk/support/mobile-devices/what-is-the-difference-between-the-galaxy-z-fold-models/",
+      "purpose": "Independent Samsung product comparison confirms Fold8 1848×2448 and Fold8 Ultra 2256×2504 panels."
+    },
+    {
+      "url": "https://developer.samsung.com/galaxy-emulator-skin/guide.html",
+      "purpose": "Samsung confirms emulator skins run stock Android and do not reproduce One UI."
+    },
+    {
+      "url": "https://android.googlesource.com/platform/external/qemu/+/emu-master-dev/android/android-emu/android/hw-sensors.cpp",
+      "purpose": "Native foldable engine selection, physical hinge sensor and fold/unfold commands. SupportPixelFold is an internal emulator engine flag, not the emulated product identity."
+    },
+    {
+      "url": "https://android.googlesource.com/platform/external/qemu/+/emu-master-dev/android/android-emu/android/userspace-boot-properties.cpp",
+      "purpose": "The dual-panel engine creates the cover panel from hw.displayRegion.0.1 and uses hw.lcd.density on both panels."
+    },
+    {
+      "url": "https://android.googlesource.com/platform/external/qemu/+/emu-master-dev/android-qemu2-glue/main.cpp",
+      "purpose": "prepareSkinConfig loads per-device guest XML from system-image/data/misc/<hw.device.name> on fresh userdata creation."
+    },
+    {
+      "url": "https://android.googlesource.com/device/generic/goldfish/+/refs/heads/main/pixel_fold/display_layout_configuration.xml",
+      "purpose": "AOSP emulator display-address and guest XML schema reference only; no Pixel screen size, device profile, cutout or OEM layout is copied."
+    },
+    {
+      "url": "https://android.googlesource.com/platform/frameworks/base/+/android16-release/libs/WindowManager/Jetpack/src/androidx/window/common/DeviceStateManagerFoldingFeatureProducer.java",
+      "purpose": "Native WindowManager state-to-posture mapping; CLOSED maps to no folding features, HALF_OPENED to half-open, OPENED to flat."
+    },
+    {
+      "url": "https://source.android.com/docs/core/runtime/rros",
+      "purpose": "Native runtime resource overlays and system-partition overlay configuration."
+    },
+    {
+      "url": "https://android.googlesource.com/platform/frameworks/base/+/android16-release/services/core/java/com/android/server/om/IdmapManager.java",
+      "purpose": "The generated preinstalled system RRO uses Android's legacy targetSdk28 device-overlay policy; it is confined to the disposable QA emulator."
+    }
+  ],
+  "assumptions": [
+    "420 logical dpi is a chosen stock-Android test density on both panels. Samsung publishes physical ppi, not the verified default Android logical density. These are different quantities.",
+    "The continuous inner display has an ideal zero-width vertical fold at its midpoint in book orientation. Exact Samsung fold bounds and angle thresholds have not been measured on hardware.",
+    "The native emulator uses closed 0–30 degrees, half-open 30–150 degrees, and open 150–180 degrees, with capture targets 0/90/180 degrees. These thresholds are test configuration, not verified Samsung firmware behavior.",
+    "The captures use stock Android system bars and rectangular display geometry. Samsung One UI taskbars, display zoom defaults, camera holes, rounded-corner masks and Flex Mode policy are not reproduced.",
+    "The native framework overlay configures static per-device geometry and the sensor-driven state map. No Dart geometry, wm-size override, simulated app display features or per-capture posture-setting override is used.",
+    "Product specifications list Android 17/One UI 9; this layout workflow uses the installed stock Android API 36 image and does not claim OS-version parity."
+  ],
+  "profiles": {
+    "galaxy-z-fold8": {
+      "displayName": "Galaxy Z Fold8 · passport shape",
+      "shape": "passport",
+      "displays": {
+        "inner": {"width": 2448, "height": 1848, "densityDpi": 420, "publishedPpi": 403, "diagonalInches": 7.6},
+        "cover": {"width": 1248, "height": 1972, "densityDpi": 420, "publishedPpi": 428, "diagonalInches": 5.5}
+      },
+      "naturalInnerOrientation": "landscape",
+      "specificationNote": "Use the 1848-pixel short edge in Samsung's launch specifications and product comparison. Samsung's skin catalogue instead says 1828; no skin archive is used. Unfolded physical dimensions 161.4×123.9 mm establish the landscape book orientation."
+    },
+    "galaxy-z-fold8-ultra": {
+      "displayName": "Galaxy Z Fold8 Ultra · regular fold",
+      "shape": "regular",
+      "displays": {
+        "inner": {"width": 2256, "height": 2504, "densityDpi": 420, "publishedPpi": 422, "diagonalInches": 8.0},
+        "cover": {"width": 1080, "height": 2520, "densityDpi": 420, "publishedPpi": 422, "diagonalInches": 6.5}
+      },
+      "naturalInnerOrientation": "portrait",
+      "specificationNote": "Samsung publishes the panel as 2504×2256. Unfolded physical dimensions 143.2×158.4 mm establish book orientation width2256/height2504."
+    }
+  }
+}
