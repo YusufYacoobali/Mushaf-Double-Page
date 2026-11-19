@@ -35,7 +35,10 @@ python3 .github/scripts/prepare_samsung_foldable_avd.py \
   --profile "$PROFILE" --avd-name "$AVD_NAME" \
   --metadata-output "$OUT/profile.json"
 cp android-qa-build/build.json "$OUT/build.json"
-emulator -version > "$OUT/emulator-version.txt" 2>&1
+if ! emulator -version > "$OUT/emulator-version.txt" 2>&1; then
+  cat "$OUT/emulator-version.txt" >&2
+  exit 1
+fi
 emulator -accel-check
 echo '::endgroup::'
 

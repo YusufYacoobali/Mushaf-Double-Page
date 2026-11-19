@@ -312,22 +312,94 @@ def initialize_guest(args: argparse.Namespace) -> None:
     def command(*argv: str, timeout: int = 120, check: bool = True) -> str:
         return run([adb, "-s", args.serial, *argv], timeout=timeout, check=check)
 
-    def wait_boot(timeout: int = 300) -> None:
+    boot_id_pattern = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.IGNORECASE)
+
+    def wait_boot(timeout: int = 300, previous_boot_id: str | None = None) -> str:
+        """Require a new kernel boot after reboot, completed Android boot and PM."""
         deadline = time.monotonic() + timeout
-        command("wait-for-device", timeout=timeout)
+        last_state = "ADB unavailable"
+
+        def remaining_timeout() -> int:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
+            return max(1, min(15, int(remaining)))
+
         while time.monotonic() < deadline:
-            if command("shell", "getprop", "sys.boot_completed", timeout=15, check=False).strip() == "1":
-                return
-            time.sleep(2)
-        raise RuntimeError(f"Emulator did not finish booting within {timeout} seconds")
+            try:
+                boot_id = command("shell", "cat", "/proc/sys/kernel/random/boot_id", timeout=remaining_timeout(), check=False).strip()
+                if not boot_id_pattern.fullmatch(boot_id):
+                    last_state = "ADB unavailable or kernel boot ID unreadable"
+                elif boot_id == previous_boot_id:
+                    # adb reboot can return before transport drops. The previous
+                    # boot's sys.boot_completed=1 must never satisfy this wait.
+                    last_state = f"still on previous kernel boot {boot_id}"
+                else:
+                    completed = command("shell", "getprop", "sys.boot_completed", timeout=remaining_timeout(), check=False).strip()
+                    last_state = f"kernel boot {boot_id}, sys.boot_completed={completed!r}"
+                    if completed == "1":
+                        package = command("shell", "pm", "path", "android", timeout=remaining_timeout(), check=False)
+                        if re.search(r"^package:/\S+", package, re.MULTILINE):
+                            return boot_id
+                        last_state += ", PackageManager not ready"
+            except (TimeoutError, subprocess.TimeoutExpired):
+                last_state = "timed out waiting for an ADB boot-readiness response"
+            time.sleep(min(2, max(0, deadline - time.monotonic())))
+        raise RuntimeError(f"Emulator did not reach a ready boot within {timeout} seconds: {last_state}")
+
+    def reboot_and_wait() -> str:
+        previous_boot_id = command("shell", "cat", "/proc/sys/kernel/random/boot_id", timeout=15).strip()
+        if not boot_id_pattern.fullmatch(previous_boot_id):
+            raise RuntimeError("Cannot verify reboot completion without a valid current kernel boot ID")
+        command("reboot")
+        return wait_boot(previous_boot_id=previous_boot_id)
 
     def root() -> None:
         output = command("root")
         if "cannot run as root" in output:
             raise RuntimeError("Use a google_apis userdebug image, not a Google Play image")
-        command("wait-for-device")
-        if command("shell", "id", "-u").strip() != "0":
-            raise RuntimeError("Native emulator configuration requires a rootable QA image")
+        # adbd itself may restart here without changing the kernel boot ID.
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            try:
+                timeout = max(1, min(10, int(deadline - time.monotonic())))
+                if command("shell", "id", "-u", timeout=timeout, check=False).strip() == "0":
+                    return
+            except subprocess.TimeoutExpired:
+                pass
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
+        raise RuntimeError("Native emulator configuration requires a rootable QA image; adbd was not root within 60 seconds")
+
+    def requests_reboot(output: str) -> bool:
+        for line in output.lower().splitlines():
+            if "reboot" in line and not re.search(r"\b(?:no|not)\b.*\breboot\b|\breboot\b.*\bnot\b", line):
+                return True
+        return False
+
+    def ensure_writable_system() -> str:
+        diagnostics = ["disable-verity: " + command("disable-verity", check=False)]
+        verity_reboot_pending = requests_reboot(diagnostics[0])
+        # Verity and overlayfs can each request a separate reboot. Four attempts
+        # allow those transitions while capping this path at three reboots.
+        for attempt in range(1, 5):
+            output = command("remount", check=False)
+            diagnostics.append(f"remount attempt {attempt}: {output}")
+            needs_reboot = verity_reboot_pending or requests_reboot(output)
+            if not needs_reboot:
+                probe = "/system/overlay/MushafSamsungLayout/.qa-write-probe"
+                try:
+                    command("shell", "mkdir", "-p", "/system/overlay/MushafSamsungLayout")
+                    command("shell", "touch", probe)
+                    command("shell", "rm", "-f", probe)
+                    return "\n".join(diagnostics)
+                except RuntimeError as error:
+                    diagnostics.append(f"write probe failed: {error}")
+            if attempt < 4:
+                print(f"Preparing writable emulator system: reboot after remount attempt {attempt}", flush=True)
+                reboot_and_wait()
+                root()
+                verity_reboot_pending = False
+        raise RuntimeError("System partition is not writable after four remount attempts and at most three reboots. Start with -writable-system.\n" + "\n".join(diagnostics))
 
     wait_boot()
     root()
@@ -337,13 +409,7 @@ def initialize_guest(args: argparse.Namespace) -> None:
     if avd_name != profile["runtime"]["avdName"]:
         raise RuntimeError(f"Refusing to configure unexpected AVD {avd_name!r}")
     apk = build_overlay(profile)
-    disable_output = command("disable-verity", check=False)
-    remount_output = command("remount", check=False)
-    if "reboot" in (disable_output + remount_output).lower():
-        command("reboot")
-        wait_boot()
-        root()
-        remount_output = command("remount")
+    remount_output = ensure_writable_system()
     destination = "/system/overlay/MushafSamsungLayout/MushafSamsungLayout.apk"
     try:
         command("shell", "mkdir", "-p", "/system/overlay/MushafSamsungLayout")
@@ -353,7 +419,9 @@ def initialize_guest(args: argparse.Namespace) -> None:
     command("shell", "chmod", "644", destination)
     command("shell", "restorecon", "-RF", "/system/overlay/MushafSamsungLayout")
     # Android11+ ignores isStatic/priority if the partition has an overlay
-    # configuration file. Preserve that file's existing entries and append ours.
+    # configuration file. Keep our early-boot framework overlay immutable and
+    # place it before every existing entry/merge: an included file may already
+    # contain mutable overlays, after which immutable entries are invalid.
     overlay_config_path = "/system/overlay/config/config.xml"
     try:
         existing_overlay_config = command("shell", "cat", overlay_config_path)
@@ -367,7 +435,7 @@ def initialize_guest(args: argparse.Namespace) -> None:
         for item in list(config_root):
             if item.tag == "overlay" and item.get("package") == OVERLAY_PACKAGE:
                 config_root.remove(item)
-        ET.SubElement(config_root, "overlay", {"package": OVERLAY_PACKAGE, "enabled": "true", "mutable": "false"})
+        config_root.insert(0, ET.Element("overlay", {"package": OVERLAY_PACKAGE, "enabled": "true", "mutable": "false"}))
         local_config = Path(profile["runtime"]["overlaySourceDirectory"]) / "system-overlay-config.xml"
         xml_write(local_config, config_root)
         command("push", str(local_config), overlay_config_path)
@@ -376,8 +444,7 @@ def initialize_guest(args: argparse.Namespace) -> None:
     # Ensure no older emulator setting can mask the native sensor/resource path.
     command("shell", "settings", "delete", "global", "display_features")
     command("shell", "settings", "delete", "global", "device_posture")
-    command("reboot")
-    wait_boot()
+    initialized_boot_id = reboot_and_wait()
     root()
     overlays = command("shell", "cmd", "overlay", "list", "android")
     if not re.search(r"\[x\]\s+" + re.escape(OVERLAY_PACKAGE) + r"(?:\s|$)", overlays):
@@ -388,6 +455,9 @@ def initialize_guest(args: argparse.Namespace) -> None:
     state_map = command("shell", "cmd", "overlay", "lookup", "android", "android:array/config_device_state_postures")
     if any(value not in state_map for value in ("0:1", "1:2", "2:3")):
         raise RuntimeError(f"Native closed/half/open state mapping mismatch: {state_map}")
+    concurrent_displays = command("shell", "cmd", "overlay", "lookup", "android", "android:bool/config_supportsConcurrentInternalDisplays")
+    if concurrent_displays.strip().lower() != "false":
+        raise RuntimeError(f"Native mutually exclusive inner/cover display policy mismatch: {concurrent_displays}")
     states = command("shell", "cmd", "device_state", "print-states")
     if any(name not in states for name in ("CLOSED", "HALF_OPENED", "OPENED")):
         raise RuntimeError(f"Native sensor-driven device states missing: {states}")
@@ -397,7 +467,9 @@ def initialize_guest(args: argparse.Namespace) -> None:
     profile["runtime"].update({
         "initialized": True, "overlayApkSha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
         "nativeGeometryLookup": geometry, "nativeStateMapLookup": state_map,
+        "nativeConcurrentInternalDisplaysLookup": concurrent_displays,
         "nativeSupportedStates": states, "nativeHingeSensor": sensor,
+        "initializedBootId": initialized_boot_id,
         "emulatorVersion": run([str(sdk / "emulator" / "emulator"), "-version"], check=False),
     })
     metadata_path.write_text(json.dumps(profile, indent=2, ensure_ascii=False) + "\n")

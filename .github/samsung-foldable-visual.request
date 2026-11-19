@@ -1,1 +1,3 @@
 Verify pages 6–7 at minimum and 100% zoom on Samsung Galaxy Z Fold8 passport and Galaxy Z Fold8 Ultra regular screen profiles: folded, unfolded portrait, unfolded landscape and half-open book. Use real Android emulator fold signals, fresh rendered geometry, original screenshots and a combined comparison. These are Samsung-dimension stock-Android layout simulations, not One UI or real-device certification.
+
+Rerun with required Linux emulator libraries, verified native boot transitions and reuse of an unchanged, hash-verified Android app build.
