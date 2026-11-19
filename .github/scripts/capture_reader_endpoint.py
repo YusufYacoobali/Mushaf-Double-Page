@@ -83,7 +83,9 @@ def capture(source, png, posture, percent, after, phase, before, state, udid):
             error = repr(exc)
             time.sleep(0.3)
     if source.exists():
-        layout.with_suffix(".failed.json").write_bytes(source.read_bytes())
+        diagnostic = source.read_text()
+        layout.with_suffix(".failed.json").write_text(diagnostic)
+        print(f"Last observed reader geometry: {diagnostic}", flush=True)
     raise RuntimeError(f"{png}: no matching stable capture within 35s: {error}")
 
 
@@ -92,25 +94,21 @@ def tap_tab(tab):
     subprocess.run(["duoctl", "tap", str(round(x)), str(round(y))], check=True, timeout=30)
 
 
-def interact(source, phase):
-    frame = read(source)
-    if phase == "bottom":
-        # Touch the currently focused leaf. Both leaves share this viewport.
-        page = frame["pages"][str(frame["focusedPage"])]
-        l, t, r, b = bounds(frame["scroll"]["viewport"])
-        x = round(page["left"] + page["width"] * 0.45)
-        y = round(t + (b - t) * 0.7)
-        target = round(t + (b - t) * 0.25)
-        assert l < x < r
-        nl, nt, nr, nb = bounds(frame["navigation"])
-        assert not (nl <= x <= nr and target <= nb and y >= nt), "gesture intersects dock"
-        subprocess.run(
-            ["duoctl", "swipe", str(x), str(y), str(x), str(target), "--duration", ".3"],
-            check=True,
-            timeout=30,
-        )
-    elif phase == "collapsed" and frame["navigationExpanded"]:
-        tap_tab(frame["controls"]["Collapse navigation"])
+def swipe_to_bottom(frame):
+    # Touch the currently focused leaf. Both leaves share this viewport.
+    page = frame["pages"][str(frame["focusedPage"])]
+    l, t, r, b = bounds(frame["scroll"]["viewport"])
+    x = round(page["left"] + page["width"] * 0.45)
+    y = round(t + (b - t) * 0.7)
+    target = round(t + (b - t) * 0.25)
+    assert l < x < r
+    nl, nt, nr, nb = bounds(frame["navigation"])
+    assert not (nl <= x <= nr and target <= nb and y >= nt), "gesture intersects dock"
+    subprocess.run(
+        ["duoctl", "swipe", str(x), str(y), str(x), str(target), "--duration", ".3"],
+        check=True,
+        timeout=30,
+    )
 
 
 if __name__ == "__main__":
@@ -130,7 +128,9 @@ if __name__ == "__main__":
         assert args.before and args.state
         if args.phase == "bottom":
             args.after = time.time()
-        interact(args.source, args.phase)
+            swipe_to_bottom(read(args.source))
+        # For the folded endpoint, observe the actual ten-second auto-hide.
+        # Sending an input while the tab moves can select the ayah underneath.
     capture(
         args.source,
         args.png,

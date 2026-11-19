@@ -53,13 +53,21 @@ scroll vertically together. Horizontal drags turn the spread. Half-open book
 keeps both pages at the smaller panel's proportional fit and leaves the hinge
 clear. Regular phones and iPads keep their established geometry.
 
-The previous simulator run (44509939240, attempt 2) recorded a 466 × 678
-cover viewport and a 382-point reading width. Those older sidecars only
-identify the resolved 84-point exclusion. Current QA sidecars include the
-original MediaQuery padding and viewPadding, framework display features,
-UIKit divisions with their source viewport, and cover state. The page's left
-and right limits follow these inputs. No device width or camera inset is
-assumed.
+On the native Duo cover, both Flutter padding and viewPadding reported right
+84 and bottom 34 logical points. The matching 466 × 678 UIKit viewport had no
+division frames and Flutter reported no display features. The reading band ran
+from x=0 to x=382. The full-height page therefore sat 42 points left of the app
+centre. These measurements establish the input that caused the offset; UIKit
+did not identify a hardware cause. In open portrait the page reached 669 × 951.
+In landscape both leaves measured 475 × 697.018 in a 951 × 635 scroll viewport.
+Swiping moved pages 4 and 5 together through 62.018 points. In half-open book
+the 40-point active division remained clear. The iPad mini's 80% portrait page
+measured 744 × 906.4 in its 744 × 1133 window in both native captures.
+
+[Native geometry and original screenshots from the first implementation run](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/44521258128).
+The folded collapsed-tab capture in that run raced the auto-hide timer. The
+capture script now waits for the rendered Open navigation tab before verifying
+its lower edge, visible arrow and unchanged page rectangle.
 
 The rendered widget suite exercises the recorded asymmetric cover geometry
 and a second inset combination, both editions, dock and contextual-control

@@ -28,6 +28,9 @@ geometry on both sides of capture. The verifier reconstructs the reading area
 from raw insets, display features and native division frames. The scroll extent,
 page order, visible paper edges and measured navigation footprint are checked.
 
+Native measurements for the cover inset, open portrait, scrolled spread, book
+hinge and iPad mini baseline are recorded in [the regression report](ipad-duo-layout-regression.md).
+
 ## Verification levels
 
 - Every code push: `Flutter release checks` runs analysis, Flutter tests and

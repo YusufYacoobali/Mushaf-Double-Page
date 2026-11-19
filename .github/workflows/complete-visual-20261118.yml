@@ -152,3 +152,24 @@ jobs:
           path: reader-comparison.png
           if-no-files-found: error
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reader-originals-portrait
+          path: |
+            screenshots/duo-folded-min-*.png
+            screenshots/duo-folded-max-*.png
+            screenshots/duo-unfolded-portrait-min-*.png
+            screenshots/duo-unfolded-portrait-max-*.png
+            screenshots-ipad/ipad-mini-portrait*.png
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reader-originals-landscape
+          path: |
+            screenshots/duo-unfolded-wide-min-*.png
+            screenshots/duo-unfolded-wide-max-*.png
+            screenshots/duo-half-open-book-min-*.png
+            screenshots/duo-half-open-book-max-*.png
+          if-no-files-found: error
+          retention-days: 14
