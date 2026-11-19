@@ -151,9 +151,11 @@ class QuranPageTurnPainter extends CustomPainter {
       columns,
       split,
       _strips,
-      single ? null : back.image,
+      // The portrait flap carries the incoming page, just like a spread's
+      // reverse face. Keep its text readable instead of showing blank paper.
+      back.image,
       mirror: !forward,
-      underside: single,
+      underside: single && back.image == null,
     );
 
     final edge = columns.last;

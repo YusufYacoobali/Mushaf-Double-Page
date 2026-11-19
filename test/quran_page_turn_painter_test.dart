@@ -191,30 +191,57 @@ void main() {
   }
 
   test(
-    'portrait curl rises into the reading margin with an opaque dark underside',
+    'portrait curl carries readable incoming content on its reverse face',
     () async {
       for (final forward in [true, false]) {
         final from = [PageTurnLeaf(bounds: _left, image: current[1].image)];
-        final to = [PageTurnLeaf(bounds: _left, image: next[0].image)];
+        final to = [PageTurnLeaf(bounds: _left, image: next[1].image)];
         for (final progress in [.25, .5, .75]) {
           final pixels = await _frame(from, to, progress, forward: forward);
           final row = [for (var x = 4; x < 108; x++) pixels.at(x, 97)];
           expect(
             row.where((p) => p == (80, 72, 62)),
-            isNotEmpty,
-            reason: 'Single page reverse is opaque paper at $progress',
+            isEmpty,
+            reason: 'The reverse must contain the incoming page at $progress',
           );
-          expect(row[forward ? 0 : row.length - 1], (0, 255, 0));
+          expect(
+            row[forward ? 0 : row.length - 1],
+            forward ? (255, 0, 255) : (0, 255, 255),
+            reason: 'The destination underneath retains its own orientation',
+          );
+          if (progress == .25) {
+            expect(
+              pixels.at(forward ? 48 : 64, 97),
+              forward ? (0, 255, 255) : (255, 0, 255),
+              reason: 'The raised reverse face uses readable, untinted content',
+            );
+            expect(
+              pixels.at(forward ? 92 : 20, 97),
+              (255, 0, 0),
+              reason: 'The outgoing printed face remains visible while curling',
+            );
+          }
           if (progress == .5) {
+            expect(
+              pixels.at(forward ? 97 : 14, 97),
+              forward ? (0, 255, 255) : (255, 0, 255),
+              reason: 'The reverse face does not mirror the page markings',
+            );
             final abovePage = [for (var x = 4; x < 108; x++) pixels.at(x, 19)];
             expect(
-              abovePage.any((rgb) => rgb.$1 > rgb.$2 && rgb.$2 > rgb.$3),
+              abovePage.any((rgb) => rgb.$3 > 140),
               isTrue,
               reason: 'The lifted paper silhouette rises above the flat page',
             );
             expect(pixels.at(forward ? 109 : 2, 97), (52, 52, 52));
           }
         }
+        final end = await _frame(from, to, 1, forward: forward);
+        final actualDestination = await _frame(to, from, 0);
+        expect(
+          end.bytes.buffer.asUint8List(),
+          actualDestination.bytes.buffer.asUint8List(),
+        );
       }
     },
   );
