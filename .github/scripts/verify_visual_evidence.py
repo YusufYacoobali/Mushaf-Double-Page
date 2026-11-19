@@ -85,12 +85,15 @@ def verify_duo(root):
         for value in range(minimum, 101, 5):
             shots.append(verify_fitted_image(folder, f'{label}-zoom-{value}', value, mode))
         require(len(set(shots)) == len(shots), f'Zoom screenshots not distinct at every 5%: {label}')
+        nav_hashes = []
         for state in ('closed', 'open'):
             name = f'{label}-navigation-{state}'
             shot = folder / (name + '.png')
-            png(shot)
+            nav_hashes.append(png(shot))
             require(load(folder / (name + '.verification.json')).get('verified') is True,
                     f'Navigation screenshot not verified: {name}')
+        require(nav_hashes[0] != nav_hashes[1],
+                f'Duo {label} navigation did not change screenshot')
         result['postures'][label] = {'min': minimum, 'max': 100,
                                       'zoom_captures': len(shots), 'navigation': 'verified'}
     verify_fitted_image(folder, 'duo-half-open-book-after-swipe', 100, 'dualScreenBook')

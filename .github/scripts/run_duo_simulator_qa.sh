@@ -135,7 +135,7 @@ PY
   op navigation 100 python3 .github/scripts/duo_controls.py navigation "$UDID" "$DATA/Documents/reader-geometry.json" "screenshots/$LABEL-navigation"
  fi
  if [[ "$CASE" == zoom || "$CASE" == all ]]; then
-  op zoom 240 python3 .github/scripts/duo_controls.py zoom "$UDID" "$DATA/Documents/reader-geometry.json" "screenshots/$LABEL-zoom"
+  op zoom 400 python3 .github/scripts/duo_controls.py zoom "$UDID" "$DATA/Documents/reader-geometry.json" "screenshots/$LABEL-zoom"
  fi
  echo "PASS $LABEL $CASE" | tee -a screenshots/case-results.txt
 done
