@@ -3,7 +3,7 @@ run-name: Pages 6–7 · verified Duo + iPad portrait and landscape at 100%
 
 on:
   push:
-    branches: [v6]
+    branches: [v6, v7]
     paths:
       - '.github/ipad-landscape-pages67-20261119.request'
 
@@ -18,8 +18,8 @@ concurrency:
 # This follow-up changes only the simulator harness. Reuse the exact app and
 # successful Duo captures, with explicit source checks, rather than rebuild it.
 env:
-  SOURCE_RUN_ID: '44581786080'
-  SOURCE_APP_SHA: '3bd6ca92b47f04bb051438c242a7da7e38cfb22d'
+  SOURCE_RUN_ID: '44751241720'
+  SOURCE_APP_SHA: 'd73d26410d6c1d728cb41b3bc37d36c2eafa5c10'
 
 jobs:
   ipad-mini:
@@ -38,7 +38,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git diff --exit-code "$SOURCE_APP_SHA" HEAD -- . ':(exclude).github/**' ':(exclude)tools/ios_ui_qa/**' ':(exclude)test/**'
+          # README/docs are not bundled app assets; pubspec and every app input remain checked.
+          git diff --exit-code "$SOURCE_APP_SHA" HEAD -- . ':(exclude).github/**' ':(exclude)tools/ios_ui_qa/**' ':(exclude)test/**' ':(exclude)README.md' ':(exclude)docs/**'
           python3 - <<'PY'
           import json, os, urllib.request
           base = 'https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY'] + '/'
@@ -54,8 +55,8 @@ jobs:
           run = api(f'actions/runs/{source}')
           assert run['head_sha'] == os.environ['SOURCE_APP_SHA'], 'source app revision mismatch'
           for job_id, name in [
-              (135764060691, 'Build iOS simulator application'),
-              (135767400553, 'Test clean iPhone Duo (min/max zoom)'),
+              (136339379250, 'Build iOS simulator application'),
+              (136342381867, 'Test clean iPhone Duo (min/max zoom)'),
           ]:
               job = api(f'actions/jobs/{job_id}')
               assert job['run_id'] == source and job['name'] == name
@@ -171,3 +172,4 @@ jobs:
             screenshots-ipad/ipad-mini-landscape.png
           if-no-files-found: error
           retention-days: 14
+

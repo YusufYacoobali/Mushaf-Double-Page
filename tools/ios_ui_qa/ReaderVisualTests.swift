@@ -2,6 +2,30 @@ import XCTest
 
 final class ReaderVisualTests: XCTestCase {
   @MainActor
+  func testPreparePortrait() throws {
+    continueAfterFailure = false
+    let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
+    // Prepare the already-installed reader without changing its page or zoom.
+    reader.activate()
+    XCTAssertTrue(reader.wait(for: .runningForeground, timeout: 20),
+                  "portrait: reader not foreground")
+    dismissNotification(timeout: 10)
+    XCUIDevice.shared.orientation = .portrait
+    waitForOrientation(reader, landscape: false)
+    dismissNotification(timeout: 10)
+    // Geometry can pass underneath a system sheet. Check the visible app before
+    // the workflow takes its separate, genuine portrait screenshot.
+    let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    for _ in 0..<5 {
+      XCTAssertFalse(springboard.alerts.firstMatch.exists,
+                     "portrait: a system alert still covers the reader")
+      XCTAssertFalse(reader.alerts.firstMatch.exists,
+                     "portrait: a reader alert still covers the page")
+      Thread.sleep(forTimeInterval: 0.5)
+    }
+  }
+
+  @MainActor
   func testRotateLandscape() throws {
     continueAfterFailure = false
     let reader = XCUIApplication(bundleIdentifier: ReaderAppIdentity.bundleID)
