@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
+import 'package:mushaf_two_page/components/audio_vertical_viewport.dart';
 import 'package:mushaf_two_page/components/quran_page_turn_view.dart';
 import 'package:mushaf_two_page/components/reader_audio_controls.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
@@ -253,7 +254,7 @@ void main() {
       },
     );
     testWidgets(
-      '$edition portrait reveals with exactly the same zoom and horizontal translation',
+      '$edition single-page audio preserves valid pinch zoom and manual panning',
       (tester) async {
         size(tester, const Size(400, 800));
         final f = follower(4)
@@ -285,19 +286,48 @@ void main() {
         );
         await tester.pumpAndSettle();
         final original = List<double>.of(transform.value.storage);
-        follow(f, 1, mushaf: edition);
+        final originalFrame = tester.getRect(
+          find.byKey(const ValueKey('quran-page-4')),
+        );
+        final viewer = tester.widget<InteractiveViewer>(
+          find.byType(InteractiveViewer),
+        );
+        expect(viewer.maxScale, greaterThanOrEqualTo(1.4));
+        expect(viewer.panEnabled, isTrue);
+        expect(viewer.boundaryMargin, EdgeInsets.zero);
+        for (final ayah in [1, 2, 3]) {
+          follow(f, ayah, mushaf: edition);
+          await tester.pumpAndSettle();
+          expect(transform.value.storage, orderedEquals(original));
+          expect(
+            tester.getRect(find.byKey(const ValueKey('quran-page-4'))),
+            originalFrame,
+          );
+        }
+
+        await tester.timedDragFrom(
+          const Offset(200, 400),
+          const Offset(0, -150),
+          const Duration(milliseconds: 300),
+        );
         await tester.pumpAndSettle();
-        expect(transform.value.storage[13], lessThan(0));
+        expect(transform.value.storage[13], lessThan(original[13]));
         for (var i = 0; i < 16; i++) {
           if (i != 13) expect(transform.value.storage[i], original[i]);
         }
+        final manuallyPositioned = List<double>.of(transform.value.storage);
+        await tester.pump(const Duration(milliseconds: 700));
+        follow(f, 4, mushaf: edition);
+        await tester.pumpAndSettle();
+        expect(transform.value.storage, orderedEquals(manuallyPositioned));
+        expect(
+          tester
+              .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+              .boundaryMargin,
+          EdgeInsets.zero,
+        );
         final frame = tester.getRect(
           find.byKey(const ValueKey('quran-page-4')),
-        );
-        expectFullyVisible(
-          paintedRect(tester, 4, const Rect.fromLTWH(.1, .88, .8, .05)),
-          top: 16,
-          bottom: 784,
         );
         await tester.tapAt(
           Offset(frame.left + frame.width * .5, frame.top + frame.height * .9),
@@ -667,7 +697,7 @@ void main() {
     f.dispose();
   });
   testWidgets(
-    'portrait reveal uses safe insets and bottom obstruction without changing scale',
+    'a fitted portrait page gains no audio offset or margin around safe insets and controls',
     (tester) async {
       size(tester, const Size(400, 800));
       final f = AudioVerticalFollower(
@@ -698,155 +728,292 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      follow(f, 1);
-      await tester.pumpAndSettle();
-      expectFullyVisible(
-        paintedRect(tester, 4, const Rect.fromLTWH(.1, .02, .8, .04)),
-        top: 75,
-        bottom: 660,
-      );
-      follow(f, 2);
-      await tester.pumpAndSettle();
-      expectFullyVisible(
-        paintedRect(tester, 4, const Rect.fromLTWH(.1, .9, .8, .04)),
-        top: 75,
-        bottom: 660,
-      );
-      expect(transform.value.getMaxScaleOnAxis(), 1);
-      expect(transform.value.storage[12], 0);
+      final frame = tester.getRect(find.byKey(const ValueKey('quran-page-4')));
+      final original = List<double>.of(transform.value.storage);
+      expect(frame.top, 0);
+      expect(frame.bottom, 800);
+      for (final ayah in [1, 2]) {
+        follow(f, ayah);
+        await tester.pumpAndSettle();
+        expect(transform.value.storage, orderedEquals(original));
+        expect(
+          tester.getRect(find.byKey(const ValueKey('quran-page-4'))),
+          frame,
+        );
+        final viewer = tester.widget<InteractiveViewer>(
+          find.byType(InteractiveViewer),
+        );
+        expect(viewer.boundaryMargin, EdgeInsets.zero);
+        expect(viewer.panEnabled, isFalse);
+      }
       await tester.pumpWidget(const SizedBox());
       f.dispose();
       transform.dispose();
     },
   );
-  testWidgets(
-    'floating reader controls leave first and last ayah lines readable at unchanged portrait zoom',
-    (tester) async {
-      size(tester, const Size(400, 800));
-      final dockGeometry = GlobalKey();
-      var expanded = true;
-      late StateSetter refresh;
-      List<Rect> obstructions() {
-        if (!expanded) return const [];
-        final box = dockGeometry.currentContext?.findRenderObject();
-        if (box is! RenderBox || !box.hasSize) return const [];
-        return [
-          MatrixUtils.transformRect(
-            box.getTransformTo(null),
-            Offset.zero & box.size,
-          ),
-        ];
-      }
+  for (final device in [
+    (name: 'phone', size: const Size(400, 800), folded: false),
+    (name: 'tablet', size: const Size(800, 1280), folded: false),
+    (name: 'flat fold', size: const Size(669, 951), folded: true),
+    (name: 'narrow landscape', size: const Size(500, 400), folded: false),
+  ]) {
+    testWidgets(
+      '${device.name} fitted single page stays fixed as audio and floating controls change',
+      (tester) async {
+        size(tester, device.size);
+        final dockGeometry = GlobalKey();
+        var expanded = true;
+        late StateSetter refresh;
+        List<Rect> obstructions() {
+          if (!expanded) return const [];
+          final box = dockGeometry.currentContext?.findRenderObject();
+          if (box is! RenderBox || !box.hasSize) return const [];
+          return [
+            MatrixUtils.transformRect(
+              box.getTransformTo(null),
+              Offset.zero & box.size,
+            ),
+          ];
+        }
 
-      const lastLine = Rect.fromLTWH(.1, .94, .8, .05);
-      const firstLine = Rect.fromLTWH(.1, .01, .8, .04);
-      final f = AudioVerticalFollower(
-        rectsFor: (page, surah, ayah, mushaf) =>
-            page == 4 ? [ayah == 2 ? firstLine : lastLine] : [],
-        obstructions: obstructions,
-      )..configureView(layoutIdentity: 'floating-controls', visiblePages: [4]);
-      final transform = TransformationController();
-      final layout = ReaderLayout.resolve(size: const Size(400, 800));
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppPalette.emerald.toThemeData().copyWith(
-            platform: TargetPlatform.android,
-          ),
-          home: StatefulBuilder(
-            builder: (context, update) {
-              refresh = update;
-              return Scaffold(
-                body: Stack(
-                  children: [
-                    QuranPageView.singlePage(
-                      logicalPage: 4,
-                      pageScale: 1,
-                      imagePath: (_) => image,
-                      isDarkMode: false,
-                      transformationController: transform,
-                      verticalFollower: f,
+        const lastLine = Rect.fromLTWH(.1, .94, .8, .05);
+        const firstLine = Rect.fromLTWH(.1, .01, .8, .04);
+        final f =
+            AudioVerticalFollower(
+              rectsFor: (page, surah, ayah, mushaf) =>
+                  page == 4 ? [ayah == 2 ? firstLine : lastLine] : [],
+              obstructions: obstructions,
+            )..configureView(
+              layoutIdentity: 'floating-controls',
+              visiblePages: [4],
+            );
+        final transform = TransformationController();
+        final layout = ReaderLayout.resolve(
+          size: device.size,
+          displayFeatures: device.folded
+              ? [
+                  ui.DisplayFeature(
+                    bounds: Rect.fromLTWH(
+                      device.size.width / 2,
+                      0,
+                      0,
+                      device.size.height,
                     ),
-                    ReaderDockOverlay(
-                      layout: layout,
-                      child: ReaderDock(
-                        geometryKey: dockGeometry,
-                        placement: layout.dockPlacement,
-                        expanded: expanded,
-                        onToggle: () => refresh(() => expanded = !expanded),
-                        palette: AppPalette.emerald,
-                        zoom: const SizedBox(width: 40, height: 40),
-                        actions: [
-                          IconButton(
-                            onPressed: () {},
-                            icon: const Icon(Icons.book),
-                          ),
-                        ],
-                        contextControls: ReaderAudioControls(
-                          portrait: true,
+                    type: ui.DisplayFeatureType.fold,
+                    state: ui.DisplayFeatureState.postureFlat,
+                  ),
+                ]
+              : const [],
+        );
+        expect(layout.singlePage, isTrue);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppPalette.emerald.toThemeData().copyWith(
+              platform: TargetPlatform.android,
+            ),
+            home: StatefulBuilder(
+              builder: (context, update) {
+                refresh = update;
+                return Scaffold(
+                  body: Stack(
+                    children: [
+                      QuranPageView.singlePage(
+                        logicalPage: 4,
+                        pageScale: 1,
+                        imagePath: (_) => image,
+                        isDarkMode: false,
+                        transformationController: transform,
+                        verticalFollower: f,
+                        fullWidthPortrait:
+                            layout.sizing == ReaderPageSizing.portraitHeight,
+                        fitToViewport:
+                            layout.sizing == ReaderPageSizing.regionFit,
+                        viewportBounds: layout.usableContentBounds,
+                      ),
+                      ReaderDockOverlay(
+                        layout: layout,
+                        child: ReaderDock(
+                          geometryKey: dockGeometry,
+                          placement: layout.dockPlacement,
+                          expanded: expanded,
+                          onToggle: () => refresh(() => expanded = !expanded),
                           palette: AppPalette.emerald,
-                          title: 'Al-Baqarah',
-                          reference: '2:7',
-                          subtitle: 'Recitation',
-                          playing: true,
-                          onPrevious: () {},
-                          onPlayPause: () {},
-                          onNext: () {},
-                          onStop: () {},
-                          onSettings: () {},
+                          zoom: const SizedBox(width: 40, height: 40),
+                          actions: [
+                            IconButton(
+                              onPressed: () {},
+                              icon: const Icon(Icons.book),
+                            ),
+                          ],
+                          contextControls: ReaderAudioControls(
+                            portrait: layout.bottomDock,
+                            palette: AppPalette.emerald,
+                            title: 'Al-Baqarah',
+                            reference: '2:7',
+                            subtitle: 'Recitation',
+                            playing: true,
+                            onPrevious: () {},
+                            onPlayPause: () {},
+                            onNext: () {},
+                            onStop: () {},
+                            onSettings: () {},
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final dock = obstructions().single;
+        final frame = tester.getRect(
+          find.byKey(const ValueKey('quran-page-4')),
+        );
+        final original = List<double>.of(transform.value.storage);
+        void expectUnchanged() {
+          expect(transform.value.storage, orderedEquals(original));
+          expect(
+            tester.getRect(find.byKey(const ValueKey('quran-page-4'))),
+            frame,
+          );
+          final viewer = tester.widget<InteractiveViewer>(
+            find.byType(InteractiveViewer),
+          );
+          expect(viewer.boundaryMargin, EdgeInsets.zero);
+          expect(viewer.panEnabled, isFalse);
+        }
+
+        expect(frame.top, closeTo(0, .01));
+        expect(frame.bottom, closeTo(device.size.height, .01));
+        expectUnchanged();
+        if (layout.bottomDock) {
+          expect(
+            dock.bottom,
+            lessThan(device.size.height - 3),
+            reason: 'Controls float above the edge',
+          );
+          expect(paintedRect(tester, 4, lastLine).overlaps(dock), isTrue);
+        }
+        for (final ayah in [1, 2]) {
+          follow(f, ayah);
+          await tester.pumpAndSettle();
+          expectUnchanged();
+        }
+
+        await tester.tap(find.byTooltip('Collapse navigation'));
+        await tester.pumpAndSettle();
+        expect(obstructions(), isEmpty);
+        expectUnchanged();
+        follow(f, 3);
+        await tester.pumpAndSettle();
+        expectUnchanged();
+        await tester.tap(find.byTooltip('Open navigation'));
+        await tester.pumpAndSettle();
+        expect(obstructions(), isNotEmpty);
+        expectUnchanged();
+        follow(f, 4);
+        await tester.pumpAndSettle();
+        expectUnchanged();
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        f.dispose();
+        transform.dispose();
+      },
+    );
+  }
+  for (final zoom in [1.0, 1.4]) {
+    testWidgets(
+      'disabling audio follow at ${zoom}x removes old clearance and preserves legal manual positioning',
+      (tester) async {
+        size(tester, const Size(400, 800));
+        final f = AudioVerticalFollower(
+          rectsFor: (page, surah, ayah, mushaf) => const [
+            Rect.fromLTWH(.1, .94, .8, .05),
+          ],
+          obstructions: () => const [Rect.fromLTWH(0, 680, 400, 120)],
+        )..configureView(layoutIdentity: 'toggle-follow', visiblePages: [4]);
+        final transform = TransformationController(
+          Matrix4.identity()
+            ..setEntry(0, 0, zoom)
+            ..setEntry(1, 1, zoom)
+            ..setEntry(0, 3, zoom == 1 ? 0 : -35)
+            ..setEntry(1, 3, zoom == 1 ? 0 : -150),
+        );
+        final original = List<double>.of(transform.value.storage);
+        var followAudio = true;
+        late StateSetter refresh;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StatefulBuilder(
+              builder: (context, update) {
+                refresh = update;
+                return Scaffold(
+                  body: AudioVerticalViewport(
+                    pages: const [4],
+                    transformed: true,
+                    followAudio: followAudio,
+                    follower: f,
+                    transformationController: transform,
+                    builder: (handle) => InteractiveViewer(
+                      transformationController: handle.transform,
+                      minScale: 1,
+                      maxScale: 1 / .7,
+                      panAxis: PanAxis.vertical,
+                      panEnabled: handle.verticalPanEnabled,
+                      boundaryMargin: handle.boundaryMargin,
+                      child: SizedBox(
+                        width: 400,
+                        height: 800,
+                        child: Center(
+                          child: SizedBox(
+                            key: handle.pageKey(4),
+                            width: 400,
+                            height: zoom == 1 ? 800 : 560,
+                            child: const ColoredBox(color: Colors.white),
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              );
-            },
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final dock = obstructions().single;
-      expect(
-        tester
-            .widget<InteractiveViewer>(find.byType(InteractiveViewer))
-            .panEnabled,
-        isTrue,
-        reason:
-            'Covered page lines must be manually reachable before audio follows',
-      );
-      expect(
-        dock.bottom,
-        lessThan(797),
-        reason: 'Controls float above the edge',
-      );
-      expect(paintedRect(tester, 4, lastLine).overlaps(dock), isTrue);
-      follow(f, 1);
-      await tester.pumpAndSettle();
-      expectFullyVisible(
-        paintedRect(tester, 4, lastLine),
-        bottom: dock.top - 4,
-      );
-      follow(f, 2);
-      await tester.pumpAndSettle();
-      expectFullyVisible(
-        paintedRect(tester, 4, firstLine),
-        bottom: dock.top - 4,
-      );
-      expect(transform.value.getMaxScaleOnAxis(), 1);
-      expect(transform.value.storage[12], 0);
+        );
+        await tester.pumpAndSettle();
+        if (zoom == 1) {
+          follow(f, 1);
+          await tester.pumpAndSettle();
+          expect(transform.value.storage[13], lessThan(0));
+          expect(
+            tester
+                .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+                .boundaryMargin
+                .bottom,
+            greaterThan(0),
+          );
+        }
 
-      await tester.tap(find.byTooltip('Collapse navigation'));
-      await tester.pumpAndSettle();
-      expect(obstructions(), isEmpty);
-      follow(f, 3);
-      await tester.pumpAndSettle();
-      expectFullyVisible(paintedRect(tester, 4, lastLine), bottom: 800);
-      expect(transform.value.getMaxScaleOnAxis(), 1);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      f.dispose();
-      transform.dispose();
-    },
-  );
+        refresh(() => followAudio = false);
+        await tester.pumpAndSettle();
+        expect(transform.value.storage, orderedEquals(original));
+        final viewer = tester.widget<InteractiveViewer>(
+          find.byType(InteractiveViewer),
+        );
+        expect(viewer.boundaryMargin, EdgeInsets.zero);
+        expect(viewer.panEnabled, zoom > 1);
+        follow(f, 2);
+        await tester.pumpAndSettle();
+        expect(transform.value.storage, orderedEquals(original));
+        await tester.pumpWidget(const SizedBox());
+        f.dispose();
+        transform.dispose();
+      },
+    );
+  }
   testWidgets(
     'a side obstruction uses a reachable clear band and extends the scroll boundary when needed',
     (tester) async {

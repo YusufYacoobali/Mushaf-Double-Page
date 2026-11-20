@@ -14,6 +14,7 @@ class AudioVerticalViewport extends StatefulWidget {
     required this.pages,
     required this.builder,
     this.follower,
+    this.followAudio = true,
     this.onScrollFocus,
     this.transformed = false,
     this.transformationController,
@@ -22,6 +23,10 @@ class AudioVerticalViewport extends StatefulWidget {
   final List<int> pages;
   final Widget Function(AudioViewportHandle) builder;
   final AudioVerticalFollower? follower;
+
+  /// Fitted single pages keep manual gestures but need no audio scrolling or
+  /// extra clearance around controls.
+  final bool followAudio;
   final ValueChanged<int>? onScrollFocus;
   final bool transformed;
   final TransformationController? transformationController;
@@ -94,7 +99,7 @@ class _AudioVerticalViewportState extends State<AudioVerticalViewport>
         page,
         () => _PageSurface(this, page),
       );
-      widget.follower?.attach(page, surface);
+      if (widget.followAudio) widget.follower?.attach(page, surface);
     }
   }
 
@@ -109,7 +114,8 @@ class _AudioVerticalViewportState extends State<AudioVerticalViewport>
     super.didUpdateWidget(oldWidget);
     final registrationChanged =
         !listEquals(oldWidget.pages, widget.pages) ||
-        !identical(oldWidget.follower, widget.follower);
+        !identical(oldWidget.follower, widget.follower) ||
+        oldWidget.followAudio != widget.followAudio;
     final geometryChanged =
         registrationChanged ||
         oldWidget.transformIdentity != widget.transformIdentity ||
@@ -144,6 +150,30 @@ class _AudioVerticalViewportState extends State<AudioVerticalViewport>
     }
     if (registrationChanged) _attach();
     if (geometryChanged) _scheduleMetrics();
+    if (oldWidget.followAudio && !widget.followAudio && widget.transformed) {
+      final controller = _transform;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            widget.followAudio ||
+            !widget.transformed ||
+            !identical(controller, _transform)) {
+          return;
+        }
+        final viewport = _box(_viewportKey);
+        if (viewport == null) return;
+        final matrix = _transform.value;
+        final minimum = math.min(
+          0.0,
+          viewport.size.height * (1 - matrix.getMaxScaleOnAxis()),
+        );
+        final y = matrix.storage[13].clamp(minimum, 0.0).toDouble();
+        // Discard only offsets into the old added clearance. Keep manual
+        // positioning within the scene, as well as its zoom and horizontal pan.
+        if ((y - matrix.storage[13]).abs() > .5) {
+          _transform.value = matrix.clone()..setEntry(1, 3, y);
+        }
+      });
+    }
   }
 
   @override
@@ -274,7 +304,7 @@ class _AudioVerticalViewportState extends State<AudioVerticalViewport>
           .abs();
 
   AudioVerticalGeometry? _measure(int page, List<Rect> normalized) {
-    if (_paddingPending) return null;
+    if (!widget.followAudio || _paddingPending) return null;
     final viewportBox = _box(_viewportKey), pageBox = _box(_keys[page]!);
     if (viewportBox == null || pageBox == null) return null;
     final transform = pageBox.getTransformTo(null);
@@ -366,7 +396,7 @@ class _AudioVerticalViewportState extends State<AudioVerticalViewport>
 
   void _move(double delta, bool Function() valid) {
     final viewport = _box(_viewportKey);
-    if (viewport == null || !valid()) return;
+    if (!widget.followAudio || viewport == null || !valid()) return;
     final scale = _screenScale(viewport);
     if (scale <= 0) return;
     _animation.stop();
@@ -411,6 +441,21 @@ class _AudioVerticalViewportState extends State<AudioVerticalViewport>
       if (!mounted) return;
       final page = _box(_keys.values.first), viewport = _box(_viewportKey);
       if (page == null || viewport == null) return;
+      if (!widget.followAudio) {
+        // Single-page pinch zoom may enlarge the surrounding scene, but its
+        // printed page is capped at the viewport's height. Only allow natural
+        // manual panning; controls and insets must not add blank edge space.
+        final overflow =
+            viewport.size.height * _transform.value.getMaxScaleOnAxis() >
+            viewport.size.height + .5;
+        if (overflow != _panEnabled || _boundaryMargin != EdgeInsets.zero) {
+          setState(() {
+            _panEnabled = overflow;
+            _boundaryMargin = EdgeInsets.zero;
+          });
+        }
+        return;
+      }
       final pageRect = _globalRect(page);
       final visible =
           _readingViewport ??

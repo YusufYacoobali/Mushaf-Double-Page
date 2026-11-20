@@ -72,6 +72,7 @@ class QuranPageView {
     return AudioVerticalViewport(
       pages: [logicalPage],
       follower: verticalFollower,
+      followAudio: false,
       transformed: true,
       transformationController: transformationController,
       transformIdentity: (
