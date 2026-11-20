@@ -306,6 +306,21 @@ def verify(
     assert image.size == tuple(round(data["viewport"][k] * dpr) for k in ("width", "height")), (
         "stale viewport geometry"
     )
+    near_white_fraction = None
+    if posture.startswith("ipad-mini") and math.isclose(data["zoom"], 1, abs_tol=0.001):
+        # A permission sheet can appear after XCTest exits while the underlying
+        # reader geometry remains valid. Check the final PNG itself. The seeded
+        # 100% iPad pages retain >30% near-white pixels after this downsampling;
+        # the observed notification sheet dims their white paper to about 204.
+        sample = image.resize((128, 128), Image.Resampling.BILINEAR)
+        pixels = sample.tobytes()
+        near_white_fraction = sum(
+            min(pixels[i:i + 3]) >= 245 for i in range(0, len(pixels), 3)
+        ) / (128 * 128)
+        assert near_white_fraction >= 0.20, (
+            "possible obscuring overlay on final iPad screenshot: "
+            f"near-white fraction {near_white_fraction:.3f} is below 0.200"
+        )
     for page, frame in data["pages"].items():
         l, t, r, b = bounds(frame)
         cl, ct, cr, cb = bounds(reading)
@@ -359,6 +374,8 @@ def verify(
         "viewport_pixels": image.size,
         "focused_page": data["focusedPage"],
     }
+    if near_white_fraction is not None:
+        result["near_white_fraction"] = near_white_fraction
     Path(png).with_suffix(".verification.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 

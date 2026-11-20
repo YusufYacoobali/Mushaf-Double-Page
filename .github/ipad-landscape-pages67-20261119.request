@@ -3,3 +3,4 @@ Retry page 6 iPad portrait and pages 6–7 iPad landscape at 100% on the exact s
 
 2026-11-20: Recapture iPad mini page 6 portrait and pages 6–7 landscape at 100% after adding a dedicated notification-free portrait preparation check before the first screenshot. Reuse the exact v7 app from run 44751241720 (d73d264), preserve and reverify its ten successful Duo captures, and reject any app-source difference. The concurrent README/docs update does not change bundled assets or application inputs.
 
+2026-11-20 follow-up: Retry the same v7 iPad endpoints with one bounded native screenshot-timeout retry, fresh geometry validation, native screenshot-based notification handling, and a final-PNG check that rejects the observed dimmed permission sheet. Keep the exact d73d264 app and successful Duo captures; no production application changes.

@@ -109,7 +109,11 @@ class CaptureTests(unittest.TestCase):
             for page in frame["pages"].values():
                 l, t, r, b = map(round, capture.bounds(page))
                 draw.rectangle((l, t, r - 1, b - 1), fill="white")
-                draw.rectangle((l + 12, t + 12, r - 13, b - 13), fill="#252525")
+                if frame["native"]["isIPad"]:
+                    for y in range(t + 12, b - 12, 32):
+                        draw.rectangle((l + 12, y, r - 13, y + 5), fill="#252525")
+                else:
+                    draw.rectangle((l + 12, t + 12, r - 13, b - 13), fill="#252525")
         clip = tuple(map(round, capture.bounds(frame["readingBounds"])))
         image.paste(paper.crop(clip), clip)
         draw = ImageDraw.Draw(image)
@@ -174,6 +178,21 @@ class CaptureTests(unittest.TestCase):
         frame["zoom"] = .8
         with self.assertRaisesRegex(AssertionError, "wrong actual rendered zoom"):
             capture.assert_capture_state(frame, expected_zoom=100)
+
+    def test_ipad_final_png_rejects_dimmed_overlay_despite_valid_geometry(self):
+        for posture in ("ipad-mini", "ipad-mini-landscape"):
+            with self.subTest(posture=posture):
+                frame = snapshot(posture, page=6)
+                self.save(frame)
+                result = capture.verify(self.png, self.metadata, 100, posture=posture, expected_page=6)
+                self.assertGreaterEqual(result["near_white_fraction"], 0.20)
+                with Image.open(self.png) as image:
+                    image.point(lambda channel: round(channel * 0.8)).save(self.png)
+                # A dimmed permission overlay leaves the page's geometry,
+                # texture and bright edges intact enough for the older checks.
+                capture.check_geometry(frame, posture)
+                with self.assertRaisesRegex(AssertionError, "possible obscuring overlay"):
+                    capture.verify(self.png, self.metadata, 100, posture=posture, expected_page=6)
 
     def test_duo_book_uses_bottom_strip_without_crossing_hinge(self):
         frame = snapshot("duo-half-open-book", page=6, centered_book=True)

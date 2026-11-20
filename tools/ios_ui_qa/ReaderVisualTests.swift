@@ -1,4 +1,7 @@
 import XCTest
+import Vision
+import UIKit
+import ImageIO
 
 final class ReaderVisualTests: XCTestCase {
   @MainActor
@@ -13,6 +16,7 @@ final class ReaderVisualTests: XCTestCase {
     XCUIDevice.shared.orientation = .portrait
     waitForOrientation(reader, landscape: false)
     dismissNotification(timeout: 10)
+    try dismissVisibleNotification(reader)
     // Geometry can pass underneath a system sheet. Check the visible app before
     // the workflow takes its separate, genuine portrait screenshot.
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
@@ -39,6 +43,7 @@ final class ReaderVisualTests: XCTestCase {
     XCUIDevice.shared.orientation = .landscapeLeft
     waitForOrientation(reader, landscape: true)
     dismissNotification(timeout: 10)
+    try dismissVisibleNotification(reader)
     // A system permission sheet can cover the reader while its geometry still
     // passes. Require a clear screen before the workflow takes its real PNG.
     let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
@@ -221,6 +226,120 @@ final class ReaderVisualTests: XCTestCase {
     )
     XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed,
                    "notification: the app's permission alert did not disappear")
+  }
+
+  @MainActor
+  private func dismissVisibleNotification(_ reader: XCUIApplication) throws {
+    // Only the two seeded 100% iPad endpoint tests use this optical guard.
+    // An absent AX alert is insufficient: inspect genuine screen pixels and
+    // touch only the observed denial button of this app's notification prompt.
+    print("Notification optical check on simulator " +
+          (ProcessInfo.processInfo.environment["SIMULATOR_UDID"] ?? "unknown"))
+    var clearFrames = 0
+    var taps = 0
+    for attempt in 0..<4 {
+      let shot = XCUIScreen.main.screenshot()
+      let attachment = XCTAttachment(screenshot: shot)
+      attachment.name = "notification-optical-\(attempt)"
+      attachment.lifetime = .keepAlways
+      add(attachment)
+      let image = shot.image
+      let pixels = try XCTUnwrap(image.cgImage, "notification: screenshot has no pixels")
+      // UIImage and CGImagePropertyOrientation have different raw values.
+      let orientation: CGImagePropertyOrientation
+      let swapsAxes: Bool
+      switch image.imageOrientation {
+      case .up: orientation = .up; swapsAxes = false
+      case .upMirrored: orientation = .upMirrored; swapsAxes = false
+      case .down: orientation = .down; swapsAxes = false
+      case .downMirrored: orientation = .downMirrored; swapsAxes = false
+      case .left: orientation = .left; swapsAxes = true
+      case .leftMirrored: orientation = .leftMirrored; swapsAxes = true
+      case .right: orientation = .right; swapsAxes = true
+      case .rightMirrored: orientation = .rightMirrored; swapsAxes = true
+      @unknown default:
+        XCTFail("notification: unsupported screenshot orientation")
+        return
+      }
+      let request = VNRecognizeTextRequest()
+      request.recognitionLevel = .accurate
+      request.recognitionLanguages = ["en-US"]
+      request.usesLanguageCorrection = false
+      try VNImageRequestHandler(cgImage: pixels, orientation: orientation, options: [:]).perform([request])
+      let candidates = (request.results ?? []).compactMap { $0.topCandidates(1).first }
+      let lines = candidates.map { $0.string }
+      let text = lines.joined(separator: " ").lowercased()
+      let compact = text.replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+      let denials: [CGRect] = try candidates.compactMap { candidate in
+        // Vision may put both button titles on one line. Use the exact denial
+        // substring's rectangle, never the centre of a combined line.
+        guard let range = candidate.string.range(of: "\\bdon['’]?t\\s+allow\\b",
+                                                options: [.regularExpression, .caseInsensitive]) else { return nil }
+        return try XCTUnwrap(candidate.boundingBox(for: range),
+                             "notification: denial text has no bounding box").boundingBox
+      }
+      let whiteFraction = try nearWhiteFraction(pixels)
+      let diagnostic = XCTAttachment(string: "nearWhiteFraction=\(whiteFraction)\n" + lines.joined(separator: "\n"))
+      diagnostic.name = "notification-optical-\(attempt)-text"
+      diagnostic.lifetime = .keepAlways
+      add(diagnostic)
+      let hasDialogText = compact.contains("notifications") || compact.contains("qurandualpage") ||
+        compact.contains("dontallow") || text.range(of: "\\ballow\\b", options: .regularExpression) != nil
+      if hasDialogText {
+        guard compact.contains("qurandualpage"), compact.contains("notifications"),
+              denials.count == 1, taps < 2 else {
+          XCTFail("notification: unexpected or unresolved dialog: " + lines.joined(separator: " | "))
+          return
+        }
+        let box = denials[0]
+        guard box.width > 0, box.height > 0, box.minX >= 0, box.minY >= 0,
+              box.maxX <= 1, box.maxY <= 1 else {
+          XCTFail("notification: invalid observed denial bounds: \(box)")
+          return
+        }
+        let frame = reader.frame
+        let width = CGFloat(swapsAxes ? pixels.height : pixels.width)
+        let height = CGFloat(swapsAxes ? pixels.width : pixels.height)
+        guard frame.width > 0, frame.height > 0, abs(frame.minX) < 1, abs(frame.minY) < 1,
+              abs(frame.width / frame.height - width / height) < 0.002 else {
+          XCTFail("notification: screenshot and full-screen reader coordinate frames disagree")
+          return
+        }
+        // Vision boxes start at the bottom-left; XCTest starts at the top-left.
+        reader.coordinate(withNormalizedOffset: CGVector(dx: box.midX, dy: 1 - box.midY)).tap()
+        taps += 1
+        clearFrames = 0
+        Thread.sleep(forTimeInterval: 1)
+      } else {
+        // On these 100% endpoints the real page has abundant white paper.
+        // The observed permission sheet dims it to ~204; clear references
+        // retain >26% near-white pixels even with bilinear downsampling.
+        XCTAssertGreaterThanOrEqual(whiteFraction, 0.20,
+          "notification: no clear white page; empty OCR cannot prove dismissal")
+        clearFrames += 1
+        if clearFrames == 2 { return }
+        Thread.sleep(forTimeInterval: 0.7)
+      }
+    }
+    XCTFail("notification: could not establish two clear reader screenshots")
+  }
+
+  private func nearWhiteFraction(_ image: CGImage) throws -> Double {
+    let side = 128
+    var samples = [UInt8](repeating: 0, count: side * side * 4)
+    return try samples.withUnsafeMutableBytes { bytes in
+      let context = try XCTUnwrap(CGContext(data: bytes.baseAddress, width: side, height: side,
+        bitsPerComponent: 8, bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
+        "notification: cannot sample screenshot pixels")
+      context.interpolationQuality = .low
+      context.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(side), height: CGFloat(side)))
+      let pixels = bytes.bindMemory(to: UInt8.self)
+      let white = stride(from: 0, to: pixels.count, by: 4).filter {
+        pixels[$0] >= 245 && pixels[$0 + 1] >= 245 && pixels[$0 + 2] >= 245
+      }.count
+      return Double(white) / Double(side * side)
+    }
   }
 
   @MainActor

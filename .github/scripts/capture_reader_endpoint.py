@@ -19,6 +19,8 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
     previous = read(before) if before else None
     mode = MODES[posture]
     deadline = time.monotonic() + 35
+    ipad = posture.startswith("ipad-mini")
+    screenshot_timeout_retry_used = False
     error = "No geometry available"
     while time.monotonic() < deadline:
         try:
@@ -38,10 +40,24 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
                 continue
             command = (
                 ["xcrun", "simctl", "io", udid, "screenshot"]
-                if posture.startswith("ipad-mini")
+                if ipad
                 else ["duoctl", "screenshot"]
             )
-            subprocess.run(command + [str(png)], check=True, timeout=30)
+            if ipad:
+                png.unlink(missing_ok=True)
+            try:
+                subprocess.run(command + [str(png)], check=True, timeout=30)
+            except subprocess.TimeoutExpired as exc:
+                if not ipad:
+                    raise
+                png.unlink(missing_ok=True)
+                if screenshot_timeout_retry_used:
+                    raise
+                screenshot_timeout_retry_used = True
+                deadline += 30
+                error = repr(exc)
+                print(f"{png}: iPad screenshot timed out after 30s; retrying once with fresh geometry", flush=True)
+                continue
             immediately_after = read(source)
             # Allow an in-progress hide/scroll to publish its settled state.
             time.sleep(0.5)
@@ -87,6 +103,9 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
         diagnostic = source.read_text()
         layout.with_suffix(".failed.json").write_text(diagnostic)
         print(f"Last observed reader geometry: {diagnostic}", flush=True)
+    if ipad:
+        window = 65 if screenshot_timeout_retry_used else 35
+        raise RuntimeError(f"{png}: stable capture retry window exhausted ({window}s): {error}")
     raise RuntimeError(f"{png}: no matching stable capture within 35s: {error}")
 
 
