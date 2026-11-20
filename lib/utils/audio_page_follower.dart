@@ -108,6 +108,7 @@ class AudioPageFollower {
       vertical.revealAfterNavigation(
         request,
         navigation,
+        preferredPage: page,
         currentNavigation: () =>
             paging.generation == generation &&
             paging.operation == operation &&

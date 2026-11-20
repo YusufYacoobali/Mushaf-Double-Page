@@ -36,41 +36,93 @@ void main() {
     maxDelta: max,
   );
 
-  test('fully and meaningfully partially visible ayahs do not move', () {
+  test('fully visible ayahs keep their position and near-full spans fit', () {
     for (final rect in [
       const Rect.fromLTWH(20, 20, 100, 20),
-      const Rect.fromLTWH(20, 85, 100, 30),
-      const Rect.fromLTWH(20, -10, 100, 30),
+      const Rect.fromLTWH(20, 4, 100, 92),
+      const Rect.fromLTWH(20, 0, 100, 100),
     ]) {
       expect(geometry([rect]).visible, isTrue);
       expect(geometry([rect]).delta, 0);
     }
   });
-  test('one visible line keeps the entire multi-rectangle ayah still', () {
-    expect(
-      geometry(const [
-        Rect.fromLTWH(20, -70, 100, 20),
-        Rect.fromLTWH(20, 40, 100, 20),
-        Rect.fromLTWH(20, 150, 100, 20),
-      ]).delta,
-      0,
-    );
+  test('partially visible lines are brought fully into the reading area', () {
+    for (final (rect, movement) in [
+      (const Rect.fromLTWH(20, 85, 100, 30), 50.0),
+      (const Rect.fromLTWH(20, -10, 100, 30), -45.0),
+    ]) {
+      final measured = geometry([rect]);
+      expect(measured.visible, isFalse);
+      expect(measured.delta, movement);
+      expect(
+        geometry([rect.shift(Offset(0, -measured.delta))]).visible,
+        isTrue,
+      );
+    }
   });
-  test('reveals the nearest line with sixteen pixels of breathing room', () {
-    expect(geometry(const [Rect.fromLTWH(20, 120, 100, 20)]).delta, 56);
-    expect(geometry(const [Rect.fromLTWH(20, -50, 100, 20)]).delta, -66);
+  test('a visible middle line cannot suppress the rest of a fitting ayah', () {
+    for (final rects in [
+      const [
+        Rect.fromLTWH(20, -15, 100, 20),
+        Rect.fromLTWH(20, 15, 100, 10),
+        Rect.fromLTWH(20, 45, 100, 10),
+      ],
+      const [
+        Rect.fromLTWH(20, 55, 100, 10),
+        Rect.fromLTWH(20, 75, 100, 10),
+        Rect.fromLTWH(20, 95, 100, 10),
+      ],
+    ]) {
+      final measured = geometry(rects);
+      expect(measured.visible, isFalse);
+      expect(measured.delta, isNot(0));
+      final revealed = rects
+          .map((rect) => rect.shift(Offset(0, -measured.delta)))
+          .toList();
+      expect(geometry(revealed).visible, isTrue);
+      expect(geometry(revealed).delta, 0);
+    }
+  });
+  test('one movement centres all lines of an off-screen ayah that fits', () {
+    final rects = const [
+      Rect.fromLTWH(20, 120, 100, 20),
+      Rect.fromLTWH(20, 145, 100, 20),
+      Rect.fromLTWH(20, 170, 100, 20),
+    ];
+    final movement = geometry(rects).delta;
+    expect(movement, 105);
     expect(
-      geometry(const [
-        Rect.fromLTWH(20, -50, 100, 20),
-        Rect.fromLTWH(20, 120, 100, 20),
-      ]).delta,
-      56,
+      geometry(
+        rects.map((rect) => rect.shift(Offset(0, -movement))).toList(),
+      ).visible,
+      isTrue,
     );
   });
   test(
-    'edge slivers are not meaningful visibility and extents are clamped',
+    'oversized ayahs start with their first line rather than the nearest',
     () {
-      expect(geometry(const [Rect.fromLTWH(20, 99, 100, 30)]).delta, 45);
+      // Deliberately unordered: the reading start comes from geometry, not the
+      // rectangle nearest the viewport or the first metadata entry.
+      final rects = const [
+        Rect.fromLTWH(20, 150, 100, 20),
+        Rect.fromLTWH(20, 40, 100, 20),
+        Rect.fromLTWH(20, -70, 100, 20),
+      ];
+      final movement = geometry(rects).delta;
+      expect(movement, -86);
+      final revealed = rects
+          .map((rect) => rect.shift(Offset(0, -movement)))
+          .toList();
+      expect(revealed.last.top, 16);
+      expect(revealed.last.bottom, 36);
+      expect(geometry(revealed).visible, isTrue);
+      expect(geometry(revealed).delta, 0);
+    },
+  );
+  test(
+    'edge slivers are revealed and unavailable scroll extents are respected',
+    () {
+      expect(geometry(const [Rect.fromLTWH(20, 99, 100, 30)]).delta, 64);
       expect(
         geometry(const [Rect.fromLTWH(20, 120, 100, 20)], max: 25).delta,
         25,
@@ -125,12 +177,12 @@ void main() {
     (tester) async {
       follower.reveal(request(1)!);
       await tester.pump();
-      expect(surface.moves, [56]);
+      expect(surface.moves, [80]);
       for (var tick = 0; tick < 50; tick++) {
         expect(request(1), isNull);
       }
       await tester.pump(const Duration(seconds: 1));
-      expect(surface.moves, [56]);
+      expect(surface.moves, [80]);
     },
   );
   testWidgets(
@@ -139,7 +191,7 @@ void main() {
       follower.reveal(request(1)!);
       follower.reveal(request(2)!);
       await tester.pump();
-      expect(surface.moves, [96]);
+      expect(surface.moves, [120]);
       expect(surface.valid!(), isTrue);
       follower.invalidate();
       expect(surface.valid!(), isFalse);
@@ -157,18 +209,22 @@ void main() {
     expect(surface.moves, isEmpty);
     await tester.pump(const Duration(milliseconds: 51));
     await tester.pump();
-    expect(surface.moves, [56]);
+    expect(surface.moves, [80]);
     // Manual motion after consumption must not pull that same ayah back.
     follower.manualActivity();
     expect(request(1), isNull);
     await tester.pump(const Duration(seconds: 1));
-    expect(surface.moves, [56]);
+    expect(surface.moves, [80]);
   });
   testWidgets('navigation finishes before measuring the destination page', (
     tester,
   ) async {
     final gate = Completer<bool>();
-    final done = follower.revealAfterNavigation(request(1)!, gate.future);
+    final done = follower.revealAfterNavigation(
+      request(1)!,
+      gate.future,
+      preferredPage: 5,
+    );
     await tester.pump();
     expect(surface.moves, isEmpty);
     follower.configureView(layoutIdentity: 'portrait', visiblePages: [5]);
@@ -176,7 +232,7 @@ void main() {
     gate.complete(true);
     await done;
     await tester.pump();
-    expect(surface.moves, [56]);
+    expect(surface.moves, [80]);
   });
   testWidgets('a superseded command cannot focus or reveal after settlement', (
     tester,
@@ -225,34 +281,45 @@ void main() {
     });
   }
   testWidgets(
-    'a visible portion on the other spread page prevents all movement',
+    'the preferred page is revealed even when the other spread leaf is visible',
     (tester) async {
-      follower.configureView(layoutIdentity: 'spread', visiblePages: [4, 5]);
-      final visible = TestSurface();
-      final other = AudioVerticalFollower(
-        rectsFor: (p, s, a, m) => [
-          Rect.fromLTWH(20, p == 5 ? 40 : 120, 100, 20),
-        ],
-      )..configureView(layoutIdentity: 'spread', visiblePages: [4, 5]);
-      other.attach(4, surface);
-      other.attach(5, visible);
-      other.reveal(
-        other.beginAyah(
-          playing: true,
-          visible: true,
-          session: 1,
-          cycle: 1,
-          surah: 2,
-          ayah: 1,
-          mushaf: 'madani',
-        )!,
-      );
-      await tester.pump();
-      expect(surface.moves, isEmpty);
-      expect(visible.moves, isEmpty);
-      other.dispose();
+      for (final preferredPage in [4, 5]) {
+        final chosen = TestSurface(), visible = TestSurface();
+        final other = AudioVerticalFollower(
+          rectsFor: (p, s, a, m) => [
+            Rect.fromLTWH(20, p == preferredPage ? 120 : 40, 100, 20),
+          ],
+        )..configureView(layoutIdentity: 'spread', visiblePages: [4, 5]);
+        other.attach(preferredPage, chosen);
+        other.attach(preferredPage == 4 ? 5 : 4, visible);
+        other.reveal(
+          other.beginAyah(
+            playing: true,
+            visible: true,
+            session: 1,
+            cycle: 1,
+            surah: 2,
+            ayah: 1,
+            mushaf: 'madani',
+          )!,
+          preferredPage: preferredPage,
+        );
+        await tester.pump();
+        expect(chosen.moves, [80]);
+        expect(visible.moves, isEmpty);
+        other.dispose();
+      }
     },
   );
+  testWidgets('a missing preferred page cannot move a different leaf', (
+    tester,
+  ) async {
+    follower.reveal(request(1)!, preferredPage: 5);
+    for (var frame = 0; frame < 4; frame++) {
+      await tester.pump();
+    }
+    expect(surface.moves, isEmpty);
+  });
   testWidgets(
     'covered readers discard pending work without a catch-up reveal',
     (tester) async {

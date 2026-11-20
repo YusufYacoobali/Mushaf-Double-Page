@@ -217,7 +217,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       canFollow: () => _readerVisible && QuranAudioController.instance.audible,
       obstructions: () {
         if (!_isScrollbarVisible) return const [];
-        final dock = _readerDockKey.currentContext?.findRenderObject();
+        final dock = _readerDockGeometryKey.currentContext?.findRenderObject();
         return dock is RenderBox && dock.hasSize && dock.attached
             ? [
                 MatrixUtils.transformRect(

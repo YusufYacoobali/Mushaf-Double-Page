@@ -19,21 +19,9 @@ class AudioVerticalGeometry {
   final List<Rect> rects;
   final double minDelta, maxDelta;
 
-  bool get visible => rects.any((rect) => meaningfullyVisible(rect, viewport));
-
-  static bool meaningfullyVisible(Rect rect, Rect viewport) {
-    if (rect.isEmpty || viewport.isEmpty) return false;
-    final inside = rect.intersect(viewport.deflate(3));
-    return !inside.isEmpty &&
-        inside.width >= math.min(12, rect.width * .25) &&
-        inside.height >= math.min(12, rect.height * .4);
-  }
-
-  /// Reveal one nearby line, rather than centring the ayah's bounding box or
-  /// chasing every off-screen line of a multi-line / straddling ayah.
-  double get delta {
-    if (visible || viewport.isEmpty || minDelta > maxDelta) return 0;
-    double? nearest;
+  ({Rect bounds, double margin, bool fits})? get _target {
+    if (viewport.isEmpty) return null;
+    Rect? bounds, firstLine;
     for (final rect in rects) {
       final horizontal = rect.intersect(
         Rect.fromLTRB(viewport.left, rect.top, viewport.right, rect.bottom),
@@ -42,21 +30,44 @@ class AudioVerticalGeometry {
           horizontal.width < math.min(12, rect.width * .25)) {
         continue; // A vertical move cannot fix a wholly horizontal obstruction.
       }
-      const margin = 16.0;
-      final revealHeight = math.min(
-        rect.height,
-        math.max(1, viewport.height - 2 * margin),
-      );
-      final movement = rect.center.dy >= viewport.center.dy
-          ? rect.top + revealHeight - viewport.bottom + margin
-          : rect.bottom - revealHeight - viewport.top - margin;
-      final clamped = movement.clamp(minDelta, maxDelta).toDouble();
-      if (clamped.abs() > .5 &&
-          (nearest == null || clamped.abs() < nearest.abs())) {
-        nearest = clamped;
+      bounds = bounds?.expandToInclude(rect) ?? rect;
+      if (firstLine == null || rect.top < firstLine.top) {
+        firstLine = rect;
       }
     }
-    return nearest ?? 0;
+    if (bounds == null || firstLine == null) return null;
+    final fits = bounds.height <= viewport.height + .5;
+    // Relax the padding for an ayah that almost fills the viewport. If the
+    // ayah is taller than the screen, its first line owns the reveal instead.
+    final height = fits ? bounds.height : firstLine.height;
+    final margin = math.min(
+      16.0,
+      math.max(0.0, (viewport.height - height) / 2),
+    );
+    return (bounds: bounds, margin: margin, fits: fits);
+  }
+
+  bool get visible {
+    final target = _target;
+    if (target == null) return false;
+    if (!target.fits) {
+      return (target.bounds.top - viewport.top - target.margin).abs() <= .5;
+    }
+    return target.bounds.top >= viewport.top + target.margin - .5 &&
+        target.bounds.bottom <= viewport.bottom - target.margin + .5;
+  }
+
+  /// Keep every line of this page's ayah visible when it fits. Otherwise start
+  /// with its first complete lines; following later lines needs audio timing.
+  double get delta {
+    if (visible || minDelta > maxDelta) return 0;
+    final target = _target;
+    if (target == null) return 0;
+    final movement = target.fits
+        ? target.bounds.center.dy - viewport.center.dy
+        : target.bounds.top - viewport.top - target.margin;
+    final clamped = movement.clamp(minDelta, maxDelta).toDouble();
+    return clamped.abs() > .5 ? clamped : 0;
   }
 }
 
@@ -108,6 +119,7 @@ class AudioVerticalFollower {
   bool _scrolling = false, _coolingDown = false;
   Timer? _idle;
   AudioVerticalRequest? _pending;
+  int? _pendingPage;
   bool Function()? _currentNavigation;
 
   bool get interacting => _pointers.isNotEmpty || _scrolling || _coolingDown;
@@ -174,9 +186,10 @@ class AudioVerticalFollower {
       (_currentNavigation?.call() ?? true) &&
       (canFollow?.call() ?? true);
 
-  void reveal(AudioVerticalRequest request) {
+  void reveal(AudioVerticalRequest request, {int? preferredPage}) {
     if (!_valid(request)) return;
     _pending = request;
+    _pendingPage = preferredPage;
     _layoutAttempts = 0;
     _schedule();
   }
@@ -184,6 +197,7 @@ class AudioVerticalFollower {
   Future<void> revealAfterNavigation(
     AudioVerticalRequest request,
     Future<bool> navigation, {
+    int? preferredPage,
     bool Function()? currentNavigation,
     VoidCallback? onSettled,
   }) async {
@@ -191,7 +205,7 @@ class AudioVerticalFollower {
       if (!(currentNavigation?.call() ?? true)) return;
       _currentNavigation = currentNavigation;
       onSettled?.call();
-      reveal(request);
+      reveal(request, preferredPage: preferredPage);
     }
   }
 
@@ -210,11 +224,15 @@ class AudioVerticalFollower {
     if (request == null || interacting) return;
     if (!_valid(request)) {
       _pending = null;
+      _pendingPage = null;
       return;
     }
     if (!(_settled?.call() ?? true)) return;
     final candidates = <(AudioVerticalSurface, AudioVerticalGeometry)>[];
-    for (final page in _visiblePages) {
+    final pages = _pendingPage == null
+        ? _visiblePages
+        : _visiblePages.where((page) => page == _pendingPage);
+    for (final page in pages) {
       final surface = _surfaces[page];
       final rects = _rectsFor(
         page,
@@ -231,12 +249,16 @@ class AudioVerticalFollower {
       return;
     }
     _pending = null;
-    if (candidates.any((c) => c.$2.visible)) return;
-    candidates.removeWhere((c) => c.$2.delta.abs() <= .5);
-    candidates.sort((a, b) => a.$2.delta.abs().compareTo(b.$2.delta.abs()));
+    _pendingPage = null;
+    // The focused/target page owns a straddling ayah's reveal. Without an
+    // explicit target, retain visible reading order rather than selecting the
+    // smallest fragment on an unrelated leaf of the spread.
     if (candidates.isNotEmpty) {
       final (surface, geometry) = candidates.first;
-      surface.moveBy(geometry.delta, () => _valid(request) && !interacting);
+      final movement = geometry.delta;
+      if (movement.abs() > .5) {
+        surface.moveBy(movement, () => _valid(request) && !interacting);
+      }
     }
   }
 
@@ -245,6 +267,7 @@ class AudioVerticalFollower {
   void invalidate() {
     _revision++;
     _pending = null;
+    _pendingPage = null;
     _currentNavigation = null;
     for (final surface in _surfaces.values.toSet()) {
       surface.cancel();

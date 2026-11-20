@@ -269,6 +269,7 @@ class QuranPageView {
                               )
                             : SingleChildScrollView(
                                 controller: viewport.scroll,
+                                padding: viewport.scrollPadding,
                                 child: Align(
                                   alignment: Alignment.topCenter,
                                   child: SizedBox(
@@ -371,6 +372,7 @@ class QuranPageView {
               return SingleChildScrollView(
                 controller: viewport.scroll,
                 scrollDirection: Axis.vertical,
+                padding: viewport.scrollPadding,
                 child: centerShortLandscapeSpread
                     ? ConstrainedBox(
                         constraints: BoxConstraints(
