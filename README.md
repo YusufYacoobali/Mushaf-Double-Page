@@ -1,39 +1,62 @@
 # Quran Dual Page
 
-Quran Dual Page is a simple Quran reading app focused on making recitation feel natural, clean, and comfortable on mobile.
-
-The app uses a dual-page Mushaf-style layout, making it easier to read in a familiar format while keeping the interface minimal and distraction-free.
+Quran Dual Page is a Flutter Quran reader for Android and iOS, with single-page
+and facing-page Mushaf layouts, recitation audio, translations and reading tools.
+The app is live and actively maintained.
 
 ## Features
 
-- Dual-page Quran reading layout
-- Smooth page navigation
-- Bookmark support
-- Clean and focused reading experience
-- Mobile-friendly design
-- Works offline after content is available
-- Designed for Android and iOS
+- Indo-Pak Tajweed and Madani Mushafs, with page zoom and light/dark appearance.
+- Single pages in ordinary phone/tablet portrait, facing pages where the layout
+  supports them, and display-region handling for foldable devices.
+- RTL page-turn animation. Single-page turns use a printed front and blank
+  reverse; two-page turns carry the corresponding page content.
+- EveryAyah recitation with ranges, surah queues, repeats, background/media
+  controls, offline audio saving and ayah highlighting.
+- Automatic page navigation as recitation advances. Scrollable two-page views
+  bring the current page's ayah into view; fitted single-page views stay fixed.
+- Page and ayah bookmarks, selected-ayah actions, translations, tafsir and surah
+  summaries.
+- Reading progress and Quran Journey, reminders and a Tasbeeh counter.
+- Offline reading and playback after the required content has been downloaded.
 
-## Tech Stack
+## Tech stack
 
-- Flutter
-- Dart
-- Local storage
-- Android and iOS support
+- Flutter and Dart.
+- Local preferences, files and SQLite content databases.
+- Firebase Storage for Mushaf downloads and EveryAyah for recitation recordings.
+- A local `quran_pcm_audio` plugin for continuous mobile playback, with the
+  vendored `just_audio` backend available as fallback.
 
 ## Goal
 
-The goal of Quran Dual Page is to provide a simple, accessible Quran reading experience that feels close to reading from a physical Mushaf, especially for users who prefer a page-based layout.
+Provide a simple, accessible reading experience that feels close to reading
+from a physical Mushaf, with layouts suited to the current device and window.
 
-## Project Status
+## Development and documentation
 
-The app is live and actively being improved with new features, refinements, and better reading tools over time.
+The current work in this branch is `v7`. For the local Flutter checks:
 
-## Future Improvements
+```sh
+flutter pub get
+flutter analyze --no-pub
+flutter test --no-pub
+```
 
-- More translations
-- Tafsir support
-- Audio/recitation tools
-- Better bookmarking and progress tracking
-- Reading reminders
-- UI polish and accessibility improvements
+The [release-check workflow](.github/workflows/flutter-release-checks.yml) runs
+analysis, Flutter tests and QA-script checks on pushes to `v7`. Native audio and
+simulator checks have separate commands/workflows; Flutter test results alone do
+not establish their outcome.
+
+- [Audio-following behaviour](docs/audio-vertical-following.md): current
+  whole-ayah visibility, single-page policy and page-boundary limitations.
+- [Continuous EveryAyah playback](docs/continuous-everyayah-engine.md): audio
+  ownership, fallback and native validation commands.
+- [iOS playback during UI interaction](docs/ios-pcm-ui-contention.md): native
+  thread ownership and verification notes.
+- [Future refactoring backlog](docs/refactoring-backlog.md): prioritised
+  maintenance work, with behaviour-preservation requirements.
+
+Versioned validation reports, dated investigations and recorded test totals in
+`docs/` describe their original delivery. Read their branch/date and validation
+scope before treating them as current behaviour or current test results.

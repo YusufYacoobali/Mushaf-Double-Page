@@ -58,6 +58,17 @@ done
 [[ "$ready" -eq 1 ]] || { echo "::error::iPad did not load real Quran pages"; exit 1; }
 echo "::endgroup::"
 sleep 18
+# The first-launch notification prompt can cover portrait while geometry still
+# passes. Clear only the known app prompt and require a clear screen before PNG.
+echo "::group::Prepare unobstructed iPad mini portrait"
+python3 .github/scripts/ci_run.py --operation ipad-portrait-preparation --timeout 360 \
+  --output screenshots-ipad/portrait-preparation -- \
+  xcodebuild test-without-building -project tools/ios_ui_qa/ReaderUIHarness.xcodeproj \
+  -scheme ReaderVisualTests -derivedDataPath ui-build \
+  -destination "platform=iOS Simulator,id=$UDID" -parallel-testing-enabled NO \
+  -only-testing:ReaderVisualTests/ReaderVisualTests/testPreparePortrait \
+  -resultBundlePath screenshots-ipad/portrait-preparation.xcresult CODE_SIGNING_ALLOWED=NO
+echo "::endgroup::"
 python3 .github/scripts/capture_reader_endpoint.py "$DATA/Documents/reader-geometry.json" \
   screenshots-ipad/ipad-mini-portrait.png ipad-mini 100 "$launched_after" --udid "$UDID" --page "$QA_PAGE"
 # Rotate the actual running simulator. Both zoom preferences were seeded at
