@@ -1,0 +1,311 @@
+name: Mushaf iOS 27 cloud release
+
+# Manual by design: never publish to Apple on an ordinary code push.
+# This workflow lives on main (required for workflow_dispatch), but by default
+# checks out and builds the v7 app sources, not main's app code.
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: App branch or tag to build
+        required: true
+        default: v7
+        type: string
+      mode:
+        description: Verify SDK without secrets, build signed IPA, or upload to App Store Connect
+        required: true
+        default: verify
+        type: choice
+        options:
+          - verify
+          - build
+          - upload
+      app_version:
+        description: Optional app version override (blank uses pubspec.yaml)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Prevent concurrent submissions from choosing the same Apple build number.
+concurrency:
+  group: mushaf-ios27-appstore
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    name: Xcode 27.1+ · ${{ inputs.source_ref }} · ${{ inputs.mode }}
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      APP_STORE_APPLE_ID: ${{ vars.APP_STORE_APPLE_ID || '6757914006' }}
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ vars.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ vars.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
+    steps:
+      - name: Checkout chosen app source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+
+      - name: Require Xcode 27.1 or newer
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          python3 - <<'PY'
+          import re
+          import subprocess
+          output = subprocess.check_output(['xcodebuild', '-version'], text=True)
+          match = re.search(r'Xcode (\d+)(?:\.(\d+))?', output)
+          assert match, f'Cannot read Xcode version: {output!r}'
+          version = tuple(int(value or 0) for value in match.groups())
+          assert version >= (27, 1), f'Xcode 27.1+ required, found {version}'
+          sdk = subprocess.check_output(
+              ['xcrun', '--sdk', 'iphoneos', '--show-sdk-version'], text=True
+          ).strip()
+          sdk_match = re.match(r'^(\d+)(?:\.(\d+))?', sdk)
+          assert sdk_match, f'Cannot read iOS SDK version: {sdk!r}'
+          sdk_version = tuple(int(value or 0) for value in sdk_match.groups())
+          assert sdk_version >= (27, 1), f'iOS 27.1+ SDK required, found {sdk}'
+          print(f'OK: Xcode {version[0]}.{version[1]}, iOS SDK {sdk}')
+          PY
+
+      - name: Use tested Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.1'
+          channel: stable
+          cache: true
+
+      - name: Adjust minimum iOS version for the Xcode 27 build only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          project = Path('ios/Runner.xcodeproj/project.pbxproj')
+          source = project.read_text()
+          source = source.replace(
+              'IPHONEOS_DEPLOYMENT_TARGET = 13.0;',
+              'IPHONEOS_DEPLOYMENT_TARGET = 15.0;'
+          )
+          project.write_text(source)
+          podfile = Path('ios/Podfile')
+          source = podfile.read_text()
+          marker = '    flutter_additional_ios_build_settings(target)\n'
+          assert marker in source, 'Podfile post_install block has changed'
+          if "configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'" not in source:
+              source = source.replace(
+                  marker,
+                  marker
+                  + '    target.build_configurations.each do |configuration|\n'
+                  + "      configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'\n"
+                  + '    end\n',
+              )
+              podfile.write_text(source)
+          print('CI-only iOS deployment target: 15.0')
+          PY
+
+      - name: Set exact App Store bundle identifier in signed builds
+        if: ${{ inputs.mode != 'verify' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          bundle = os.environ.get('IOS_BUNDLE_ID', '').strip()
+          assert bundle, 'Set the IOS_BUNDLE_ID GitHub Actions variable to the Bundle ID shown in App Store Connect.'
+          assert re.fullmatch(r'[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+', bundle), 'Invalid bundle identifier'
+          project = Path('ios/Runner.xcodeproj/project.pbxproj')
+          source = project.read_text()
+          old = 'PRODUCT_BUNDLE_IDENTIFIER = com.example.mushafTwoPage;'
+          assert source.count(old) == 3, 'Expected three Runner bundle-ID settings; inspect the Xcode project.'
+          project.write_text(
+              source.replace(old, f'PRODUCT_BUNDLE_IDENTIFIER = {bundle};')
+          )
+          firebase = Path('lib/firebase_options.dart').read_text()
+          if f"iosBundleId: '{bundle}'" not in firebase:
+              print('::warning::Firebase iOS config in v7 names a different bundle ID. Check Firebase configuration before release.')
+          print(f'Cloud build uses App Store bundle identifier: {bundle}')
+          PY
+
+      - name: Resolve Flutter packages
+        run: flutter pub get
+
+      - name: Verify release build enables Duo SDK integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project ios/Runner.xcodeproj -target Runner \
+            -configuration Release -sdk iphoneos -showBuildSettings -json \
+            > "$RUNNER_TEMP/mushaf-build-settings.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          data = json.loads(
+              (Path(os.environ['RUNNER_TEMP']) / 'mushaf-build-settings.json').read_text()
+          )
+          conditions = ' '.join(
+              str(item.get('buildSettings', {}).get('SWIFT_ACTIVE_COMPILATION_CONDITIONS', ''))
+              for item in data
+          )
+          assert 'MUSHAF_DUO_SDK' in conditions.split(), (
+              'Duo native region detection is NOT compiled into the iPhone release target.'
+          )
+          print('OK: MUSHAF_DUO_SDK is enabled for the iPhoneOS Release target')
+          PY
+
+      - name: Verify Xcode 27 release compilation (unsigned)
+        if: ${{ inputs.mode == 'verify' }}
+        run: flutter build ios --release --no-codesign --no-pub
+
+      - name: Install cloud signing tools
+        if: ${{ inputs.mode != 'verify' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/codemagic-venv"
+          "$RUNNER_TEMP/codemagic-venv/bin/pip" install --disable-pip-version-check codemagic-cli-tools
+          echo "$RUNNER_TEMP/codemagic-venv/bin" >> "$GITHUB_PATH"
+
+      - name: Check Apple credentials (never print key contents)
+        if: ${{ inputs.mode != 'verify' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_PRIVATE_KEY CERTIFICATE_PRIVATE_KEY APP_STORE_APPLE_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing GitHub Actions variable/secret: $name"
+              exit 1
+            fi
+          done
+
+      - name: Create temporary signing keychain
+        if: ${{ inputs.mode != 'verify' }}
+        run: keychain initialize
+
+      - name: Fetch or create matching Apple distribution signing files
+        if: ${{ inputs.mode != 'verify' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          app-store-connect fetch-signing-files "$IOS_BUNDLE_ID" \
+            --platform IOS --type IOS_APP_STORE --strict-match-identifier \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY --create
+          keychain add-certificates
+          xcode-project use-profiles --archive-method app-store
+          test -s "$HOME/export_options.plist"
+
+      - name: Determine App Store version and unique build number
+        if: ${{ inputs.mode != 'verify' }}
+        id: version
+        shell: bash
+        env:
+          APP_VERSION_OVERRIDE: ${{ inputs.app_version }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          line = next(
+              line for line in Path('pubspec.yaml').read_text().splitlines()
+              if line.startswith('version:')
+          )
+          value = line.split(':', 1)[1].strip().strip('"\'')
+          match = re.fullmatch(r'(\d+\.\d+\.\d+)\+(\d+)', value)
+          assert match, f'Unexpected Flutter version in pubspec.yaml: {value}'
+          version = os.environ['APP_VERSION_OVERRIDE'].strip() or match.group(1)
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'App version must be numeric (e.g. 1.7.0)'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'name={version}\n')
+              out.write(f'pubspec_build={match.group(2)}\n')
+          PY
+          latest="$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" --all-versions)"
+          if ! [[ "$latest" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not find the latest build number from Apple: $latest"
+            exit 1
+          fi
+          next=$((latest + 1))
+          if (( next < ${{ steps.version.outputs.pubspec_build }} )); then
+            next=${{ steps.version.outputs.pubspec_build }}
+          fi
+          echo "number=$next" >> "$GITHUB_OUTPUT"
+          echo "Building version ${{ steps.version.outputs.name }} ($next)"
+
+      - name: Build App Store-signed IPA using Xcode 27
+        if: ${{ inputs.mode != 'verify' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build ipa --release --no-pub \
+            --build-name="${{ steps.version.outputs.name }}" \
+            --build-number="${{ steps.version.outputs.number }}" \
+            --export-options-plist="$HOME/export_options.plist"
+
+      - name: Verify built IPA uses expected ID and iOS 27 SDK
+        if: ${{ inputs.mode != 'verify' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob
+          import os
+          import plistlib
+          import re
+          import zipfile
+          paths = glob.glob('build/ios/ipa/*.ipa')
+          assert len(paths) == 1, f'Expected exactly one IPA, got {paths}'
+          with zipfile.ZipFile(paths[0]) as archive:
+              plists = [name for name in archive.namelist()
+                        if name.startswith('Payload/') and name.endswith('.app/Info.plist')]
+              assert len(plists) == 1, f'Could not identify IPA app plist: {plists}'
+              info = plistlib.loads(archive.read(plists[0]))
+          bundle = info.get('CFBundleIdentifier')
+          sdk = info.get('DTSDKName', '')
+          minimum = info.get('MinimumOSVersion')
+          assert bundle == os.environ['IOS_BUNDLE_ID'], f'Unexpected IPA bundle ID: {bundle}'
+          match = re.search(r'iphoneos(\d+)(?:\.(\d+))?', sdk)
+          assert match and tuple(int(v or 0) for v in match.groups()) >= (27, 1), (
+              f'IPA built with wrong SDK: {sdk}'
+          )
+          assert minimum and tuple(map(int, minimum.split('.')[:2])) >= (15, 0), (
+              f'IPA should target iOS 15+, found {minimum}'
+          )
+          print(f'OK: {bundle} · iOS SDK {sdk} · minimum iOS {minimum}')
+          PY
+
+      - name: Upload IPA to App Store Connect (not App Review)
+        if: ${{ inputs.mode == 'upload' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ipas=(build/ios/ipa/*.ipa)
+          [[ "${#ipas[@]}" == 1 ]] || exit 1
+          # No --app-store or --testflight flag: upload binary for TestFlight
+          # processing, but do not submit it to Apple review or testers.
+          app-store-connect publish --path "${ipas[0]}"
+
+      - name: Save signed IPA when build-only mode was selected
+        if: ${{ inputs.mode == 'build' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mushaf-ios27-signed-ipa
+          path: build/ios/ipa/*.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Restore keychain selection
+        if: ${{ always() && inputs.mode != 'verify' }}
+        shell: bash
+        run: |
+          command -v keychain >/dev/null && keychain use-login || true
