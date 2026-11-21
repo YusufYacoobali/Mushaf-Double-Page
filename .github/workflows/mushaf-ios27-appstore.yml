@@ -212,7 +212,12 @@ jobs:
           APP_VERSION_OVERRIDE: ${{ inputs.app_version }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          latest="$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" --all-versions)"
+          if ! [[ "$latest" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not find the latest build number from Apple: $latest"
+            exit 1
+          fi
+          LATEST_APPLE_BUILD="$latest" python3 - <<'PY'
           import os
           import re
           from pathlib import Path
@@ -225,21 +230,12 @@ jobs:
           assert match, f'Unexpected Flutter version in pubspec.yaml: {value}'
           version = os.environ['APP_VERSION_OVERRIDE'].strip() or match.group(1)
           assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'App version must be numeric (e.g. 1.7.0)'
+          number = max(int(os.environ['LATEST_APPLE_BUILD']) + 1, int(match.group(2)))
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f'name={version}\n')
-              out.write(f'pubspec_build={match.group(2)}\n')
+              out.write(f'number={number}\n')
+          print(f'Building version {version} ({number})')
           PY
-          latest="$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" --all-versions)"
-          if ! [[ "$latest" =~ ^[0-9]+$ ]]; then
-            echo "::error::Could not find the latest build number from Apple: $latest"
-            exit 1
-          fi
-          next=$((latest + 1))
-          if (( next < ${{ steps.version.outputs.pubspec_build }} )); then
-            next=${{ steps.version.outputs.pubspec_build }}
-          fi
-          echo "number=$next" >> "$GITHUB_OUTPUT"
-          echo "Building version ${{ steps.version.outputs.name }} ($next)"
 
       - name: Build App Store-signed IPA using Xcode 27
         if: ${{ inputs.mode != 'verify' }}
