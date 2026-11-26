@@ -1,0 +1,72 @@
+name: Review existing simulator artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Completed iPhone Duo visual check run to review
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  package-existing-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download original simulator captures
+        uses: actions/download-artifact@v4
+        with:
+          name: quran-duo-visual-qa
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: original
+      - name: Group original PNGs without modifying images
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, shutil
+          root = Path('original')
+          manifest = []
+          for posture in ('duo-folded', 'duo-unfolded-wide', 'duo-unfolded-portrait', 'duo-half-open-book'):
+              images = sorted(root.glob(f'{posture}-min-*.png')) + sorted(root.glob(f'{posture}-max-*.png'))
+              assert len(images) == 2, (posture, images)
+              target = Path('review') / posture
+              target.mkdir(parents=True)
+              for image in images:
+                  shutil.copy2(image, target / image.name)
+                  manifest.append({'name': image.name, 'sha256': hashlib.sha256(image.read_bytes()).hexdigest(), 'bytes': image.stat().st_size})
+              for evidence in root.glob(f'{posture}-*.json'):
+                  shutil.copy2(evidence, target / evidence.name)
+              for evidence in root.glob(f'{posture}-*.txt'):
+                  shutil.copy2(evidence, target / evidence.name)
+          Path('review/manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          print(json.dumps(manifest, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-duo-folded
+          path: review/duo-folded/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-duo-unfolded-wide
+          path: review/duo-unfolded-wide/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-duo-unfolded-portrait
+          path: review/duo-unfolded-portrait/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-duo-half-open-book
+          path: review/duo-half-open-book/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-original-png-hashes
+          path: review/manifest.json
+          retention-days: 14

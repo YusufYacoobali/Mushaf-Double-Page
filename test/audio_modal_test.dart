@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:mushaf_two_page/components/audio_modal.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
 import 'package:mushaf_two_page/utils/audio_preferences.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'audio_playback_test.dart' show FakePlayer;
+import 'audio_playback_test.dart'
+    show FakePlayer, ControlledRepository, plan, fixtureIntroduction;
+import 'package:mushaf_two_page/logic/audio_repository.dart';
 
 void main() {
   testWidgets('Salah Bukhatir can be selected and restored', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final controller = QuranAudioController.forTesting(
       player: FakePlayer(),
-      prepareSources: (_) async => [],
+      resolveIntroduction: fixtureIntroduction,
+      prepareSources: (_) async => [
+        AudioSource.uri(Uri.parse('https://example.test/fixture.mp3')),
+      ],
     );
     Widget modal() => MaterialApp(
       home: Scaffold(body: AudioModal(controller: controller, initialSurah: 1)),
@@ -68,7 +74,10 @@ void main() {
         final player = FakePlayer();
         final controller = QuranAudioController.forTesting(
           player: player,
-          prepareSources: (_) async => [],
+          resolveIntroduction: fixtureIntroduction,
+          prepareSources: (_) async => [
+            AudioSource.uri(Uri.parse('https://example.test/fixture.mp3')),
+          ],
         );
         if (active) {
           await controller.playPlan(
@@ -135,4 +144,41 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'failed introduction continues without a prompt after modal reopening',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final repository = ControlledRepository();
+      repository.remainingFailures['112:bismillah'] = 10;
+      repository.failures['112:bismillah'] = const AudioFailure(
+        AudioFailureKind.missing,
+        'Missing introduction',
+      );
+      final controller = QuranAudioController.forTesting(
+        player: FakePlayer(),
+        resolveIntroduction: fixtureIntroduction,
+        repository: repository,
+      );
+      await controller.playPlan(plan(from: 1));
+      Widget modal() => MaterialApp(
+        home: Scaffold(
+          body: AudioModal(controller: controller, initialSurah: 112),
+        ),
+      );
+      await tester.pumpWidget(modal());
+      await tester.pumpAndSettle();
+      expect(find.text('Retry'), findsNothing);
+      expect(find.textContaining('Bismillah is unavailable'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(modal());
+      await tester.pumpAndSettle();
+      expect(find.text('Retry'), findsNothing);
+      expect(find.textContaining('Bismillah is unavailable'), findsOneWidget);
+      expect(controller.currentAyah, 1);
+      expect(controller.error, isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await controller.stop();
+      controller.dispose();
+    },
+  );
 }

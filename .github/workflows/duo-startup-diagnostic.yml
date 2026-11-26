@@ -1,0 +1,77 @@
+name: Diagnose Duo Flutter startup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe-flutter-startup:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - name: Resolve and instrument Flutter startup (CI only)
+        run: |
+          flutter pub get
+          python3 .github/scripts/instrument_mushaf_startup.py
+          grep -n MUSHAF_BOOT lib/main.dart
+      - name: Set Xcode 27 simulator deployment targets (CI only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          ruby - <<'RUBY'
+          path = "ios/Podfile"
+          s = File.read(path)
+          marker = "    flutter_additional_ios_build_settings(target)\n"
+          abort("Podfile build settings missing") unless s.include?(marker)
+          newlines = <<~CFG
+            target.build_configurations.each do |config|
+              config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+            end
+          CFG
+          File.write(path, s.sub(marker, marker + newlines.lines.map { |line| "    " + line }.join))
+          RUBY
+      - name: Build instrumented simulator app
+        run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub
+      - name: Launch and capture startup checkpoint evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p startup-diagnostics
+          UDID="$(xcrun simctl list devices available -j | jq -r '[.devices[] | .[] | select(.name == "iPhone Duo" and .isAvailable == true)][0].udid')"
+          [[ -n "$UDID" && "$UDID" != "null" ]] || { echo "No Duo simulator"; exit 1; }
+          APP="build/ios/iphonesimulator/Runner.app"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl spawn "$UDID" log stream --style compact --level debug --predicate 'process == "Runner"' > startup-diagnostics/runner-stream.log 2>&1 &
+          STREAM_PID=$!
+          trap 'kill "$STREAM_PID" 2>/dev/null || true' EXIT
+          sleep 20
+          for attempt in $(seq 1 5); do
+            if xcrun simctl launch "$UDID" "$BUNDLE_ID" >> startup-diagnostics/launch-attempts.txt 2>&1; then break; fi
+            sleep 6
+          done
+          sleep 35
+          xcrun simctl io "$UDID" screenshot startup-diagnostics/screen-35s.png || true
+          sleep 30
+          xcrun simctl io "$UDID" screenshot startup-diagnostics/screen-65s.png || true
+          xcrun simctl spawn "$UDID" log show --last 4m --style compact --predicate 'process == "Runner"' > startup-diagnostics/runner-history.log 2>&1 || true
+          grep -En 'MUSHAF_BOOT|flutter:|Firebase|MissingPlugin|Exception' startup-diagnostics/runner-history.log | tail -n 90 || true
+      - name: Upload startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duo-startup-checkpoint-diagnostics
+          path: startup-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7

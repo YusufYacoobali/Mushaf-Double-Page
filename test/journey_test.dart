@@ -106,15 +106,48 @@ void main() {
       sample(
         10000,
       ); // Duplicate position/completion does not duplicate the listen.
-      sample(0); // Same-ayah loop.
+      sample(0, id: 'b'); // Same-ayah loop is a distinct logical occurrence.
       for (var i = 1; i <= 10; i++) {
-        sample(i * 1000);
+        sample(i * 1000, id: 'b');
       }
-      sample(0, id: 'b'); // Next occurrence.
-      sample(1000, id: 'b');
+      sample(0, id: 'c'); // Next occurrence.
+      sample(1000, id: 'c');
       tracker.reset();
       expect(listens, ['112:1', '112:1']);
       expect(seconds, 21);
+    },
+  );
+  test(
+    'recovery rewinds do not duplicate listens and introductions only add time',
+    () {
+      final listens = <String>[];
+      var seconds = 0;
+      final tracker = ListeningTracker(
+        onListen: listens.add,
+        onSeconds: (s) => seconds += s,
+      );
+      void play(String occurrence, {bool intro = false}) {
+        for (var second = 0; second <= 10; second++) {
+          tracker.sample(
+            occurrence: occurrence,
+            verse: '112:1',
+            position: Duration(seconds: second),
+            duration: const Duration(seconds: 10),
+            playing: true,
+            countVerse: !intro,
+          );
+        }
+      }
+
+      play('a');
+      play('a'); // Same logical occurrence, e.g. decoder recovery.
+      expect(listens, ['112:1']);
+      play('intro', intro: true);
+      tracker.flush();
+      expect(listens, ['112:1']);
+      expect(seconds, 30);
+      play('b');
+      expect(listens, ['112:1', '112:1']);
     },
   );
   testWidgets(

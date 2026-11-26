@@ -36,6 +36,11 @@ class AudioPreferences {
 
   static Future<AudioPreferencesData?> load() async {
     final prefs = await SharedPreferences.getInstance();
+    for (final key in prefs.getKeys().where(
+      (key) => key.startsWith('audio_original_openings_v1_'),
+    )) {
+      await prefs.remove(key);
+    }
     if (!(prefs.getBool(_configuredKey) ?? false)) return null;
 
     final repeatName = prefs.getString(_repeatModeKey);

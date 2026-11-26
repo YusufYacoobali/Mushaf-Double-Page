@@ -6,16 +6,22 @@ import 'journey_store.dart';
 /// Counts page visits without treating rebuilds or rotation as new visits.
 class PageVisitTracker {
   Set<String> _visible = {};
-  int show(Iterable<String> pages) {
+  int show(Iterable<String> pages, {bool count = true}) {
     final next = pages.toSet();
     final added = next.difference(_visible).length;
     _visible = next;
-    return added;
+    return count ? added : 0;
   }
 }
 
 class ReaderActivity extends StatefulWidget {
-  const ReaderActivity({super.key, required this.pages, required this.child});
+  const ReaderActivity({
+    super.key,
+    required this.pages,
+    required this.child,
+    this.layoutIdentity,
+  });
+  final Object? layoutIdentity;
   final List<String> pages;
   final Widget child;
   @override
@@ -63,6 +69,9 @@ class _ReaderActivityState extends State<ReaderActivity>
   @override
   void didUpdateWidget(ReaderActivity oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.layoutIdentity != widget.layoutIdentity) {
+      _pages.show(widget.pages, count: false);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _recordPages();
     });
@@ -170,12 +179,17 @@ class ListeningTracker {
     required Duration position,
     required Duration? duration,
     required bool playing,
+    bool countVerse = true,
   }) {
     final ms = position.inMilliseconds;
-    if (_occurrence != occurrence || ms < _lastMs - 250) {
+    if (_occurrence != occurrence) {
       _occurrence = occurrence;
       _heardMs = 0;
       _counted = false;
+      _wasPlaying = false;
+    } else if (ms < _lastMs - 250) {
+      // Retry/seek within one occurrence cannot count the same listen twice.
+      _heardMs = 0;
       _wasPlaying = false;
     }
     final delta = ms - _lastMs;
@@ -186,7 +200,8 @@ class ListeningTracker {
     }
     _lastMs = ms;
     _wasPlaying = playing;
-    if (!_counted &&
+    if (countVerse &&
+        !_counted &&
         duration != null &&
         duration.inMilliseconds > 0 &&
         _heardMs >= duration.inMilliseconds * .9) {

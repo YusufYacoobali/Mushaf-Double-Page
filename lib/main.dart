@@ -1,3 +1,11 @@
+import 'utils/ios_device_idiom.dart';
+import 'utils/ios_display_regions.dart';
+import 'utils/reader_layout.dart';
+import 'utils/reader_geometry_probe.dart';
+import 'utils/reader_paging.dart';
+import 'utils/deferred_reminders.dart';
+import 'utils/audio_vertical_follower.dart';
+import 'components/adaptive_quran_pages.dart';
 import 'utils/reader_highlight_preferences.dart';
 import 'utils/audio_page_follower.dart';
 import 'components/reader_audio_controls.dart';
@@ -10,7 +18,7 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'logic/quran_audio_handler.dart';
 import 'package:mushaf_two_page/components/audio_modal.dart';
 import 'package:mushaf_two_page/components/bookmark_modal.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
@@ -42,25 +50,23 @@ import 'components/translation_modal.dart';
 import 'firebase_options.dart';
 import 'utils/app_review.dart';
 import 'utils/recent_surah_history.dart';
+import 'utils/retired_audio_cache.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(removeRetiredAudioCache());
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _initBackgroundAudio();
-  await ReminderNotifications.initialize();
+  // Never await optional notification setup before Flutter's first frame.
+  // On iOS 27 its plugin initialization can wait indefinitely for a scene or
+  // permissions; previously this trapped the app on the launch storyboard.
   runApp(const MyApp());
+  scheduleDeferredReminders(ReminderNotifications.initialize);
 }
 
 Future<void> _initBackgroundAudio() async {
   try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.quran.quran_double_page.audio',
-      androidNotificationChannelName: 'Quran audio',
-      androidNotificationChannelDescription: 'Quran recitation playback',
-      androidNotificationOngoing: true,
-      artDownscaleWidth: 512,
-      artDownscaleHeight: 512,
-    );
+    await QuranAudioHandler.initialize();
   } on MissingPluginException {
     // Plugin not yet registered — requires a fresh build after adding audio deps.
   }
@@ -89,7 +95,19 @@ class MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     AppTimeTracker.instance.start();
-    AppReview.schedulePromptAfterOpen(() => _navigatorKey.currentContext);
+    AppReview.schedulePromptAfterOpen(
+      () => _navigatorKey.currentContext,
+      canShowPrompt: () =>
+          _loaded &&
+          AppReview.navigatorObserver.currentPageName == '/reader' &&
+          _navigatorKey.currentState?.canPop() == false &&
+          !QuranAudioController.instance.preparing &&
+          QuranAudioController.instance.phase !=
+              QuranPlaybackPhase.recovering &&
+          QuranAudioController.instance.phase != QuranPlaybackPhase.buffering &&
+          !QuranAudioController.instance.offlineDownloading &&
+          QuranAudioController.instance.error == null,
+    );
     _loadTheme();
   }
 
@@ -121,6 +139,7 @@ class MyAppState extends State<MyApp> {
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      navigatorObservers: [AppReview.navigatorObserver],
       debugShowCheckedModeBanner: false,
       theme: AppPalette.forTheme(
         mushafDark: _darkMode,
@@ -142,17 +161,29 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   String _mushaf = 'indopak_tajweed';
 
   late Directory _docDir;
-  late PageController _pageController;
+  ReaderPaging? _paging;
 
   bool _ready = false;
-  bool _hasPageController = false;
-  bool _isPortrait = true;
+  bool _isIPad = false;
+  StreamSubscription<dynamic>? _displayRegionSubscription;
+  IosDisplayRegions _iosDisplayRegions = IosDisplayRegions.fromEvent(null);
+  bool _singlePage = true;
+  bool _bottomDock = true;
   bool _ayahHighlightingEnabled = true;
   bool _readerWhite = false;
   bool _controlsArrowOnly = false;
   bool _audioWasActive = false;
   bool _audioFollowScheduled = false;
   final _audioPageFollower = AudioPageFollower();
+  late final AudioVerticalFollower _audioVerticalFollower;
+  final _readerDockKey = GlobalKey();
+  final _readerDockGeometryKey = GlobalKey();
+  bool get _readerVisible =>
+      mounted &&
+      _ready &&
+      (ModalRoute.of(context)?.isCurrent ?? true) &&
+      (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed);
   ReadingProgress? _dailyWelcome;
   bool _recordingProgress = false;
   Timer? _welcomeTimer;
@@ -182,6 +213,21 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _audioVerticalFollower = AudioVerticalFollower(
+      canFollow: () => _readerVisible && QuranAudioController.instance.audible,
+      obstructions: () {
+        if (!_isScrollbarVisible) return const [];
+        final dock = _readerDockGeometryKey.currentContext?.findRenderObject();
+        return dock is RenderBox && dock.hasSize && dock.attached
+            ? [
+                MatrixUtils.transformRect(
+                  dock.getTransformTo(null),
+                  Offset.zero & dock.size,
+                ),
+              ]
+            : const [];
+      },
+    );
     // Android owns status-bar visibility in MainActivity, including app resume.
     if (!Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -192,6 +238,21 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   }
 
   Future<void> _init() async {
+    // Resolve the native device family before exposing the reader, avoiding
+    // a brief two-page iPad layout or a page-mode change after first paint.
+    _isIPad = await IosDeviceIdiom.isIPad();
+    if (Platform.isIOS && !_isIPad) {
+      _displayRegionSubscription =
+          const EventChannel(
+            'mushaf_two_page/display_regions',
+          ).receiveBroadcastStream().listen((event) {
+            if (mounted) {
+              setState(
+                () => _iosDisplayRegions = IosDisplayRegions.fromEvent(event),
+              );
+            }
+          }, onError: (Object _) {});
+    }
     _docDir = await getApplicationDocumentsDirectory();
     _mushaf = await StorageManager.getMushaf();
     _surahHistory = RecentSurahHistory(_mushaf);
@@ -208,15 +269,9 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
     _logicalPage = await StorageManager.getCurrentPage();
 
-    final initialIndex = PageMapper.pageIndexFromLogical(
-      _logicalPage,
-      _isPortrait,
-    );
-
     if (!mounted) return;
-
-    _pageController = PageController(initialPage: initialIndex);
-    _hasPageController = true;
+    _paging = ReaderPaging(initialPage: _logicalPage, lastPage: maxFilePage)
+      ..configure(ReaderPageMode.single);
 
     if (_isScrollbarVisible) _startHideScrollbarTimer();
     await TranslationManager.load();
@@ -250,12 +305,12 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   @override
   void dispose() {
     _welcomeTimer?.cancel();
+    _displayRegionSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     QuranAudioController.instance.removeListener(_audioChanged);
+    _audioVerticalFollower.dispose();
     _hideScrollbarTimer?.cancel();
-    if (_hasPageController) {
-      _pageController.dispose();
-    }
+    _paging?.dispose();
     if (!Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
@@ -264,6 +319,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _audioVerticalFollower.invalidate();
     if (state == AppLifecycleState.resumed && _ready) _recordProgress();
     if (state != AppLifecycleState.resumed && _ready) _persistHighlight();
   }
@@ -277,8 +333,8 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
   void _recordSurahVisit({int? surah}) {
     if (_surahHistory.visit(
-      _logicalPage,
-      pagesPerView: _isPortrait ? 1 : 2,
+      _firstVisiblePage,
+      pagesPerView: _singlePage ? 1 : 2,
       surah: surah,
     )) {
       unawaited(_surahHistory.save());
@@ -286,23 +342,31 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   }
 
   void _jumpToReadingPage(int page, {int? surah}) {
-    final index = PageMapper.bookmarkGoToMapper(page, _isPortrait);
-    final logical = PageMapper.logicalFromPageIndex(index, _isPortrait);
+    _audioVerticalFollower.invalidate();
+    final logical = page.clamp(1, maxFilePage);
+    _forgetAyahSelection();
+    // A direct jump commits synchronously, including bookmark highlight resume.
+    unawaited(_paging!.goTo(logical));
+    _didCommitPage(logical, surah: surah);
+  }
+
+  void _didCommitPage(int page, {int? surah, bool recordActivity = true}) {
+    if (!mounted) return;
     setState(() {
-      _logicalPage = logical;
-      _forgetAyahSelection();
+      _logicalPage = page;
       _recordSurahVisit(surah: surah);
     });
-    _pageController.jumpToPage(index);
-    StorageManager.saveCurrentPage(logical, maxPage: maxFilePage);
+    unawaited(StorageManager.saveCurrentPage(page, maxPage: maxFilePage));
+    if (recordActivity) unawaited(_recordProgress());
   }
 
   void _increaseScale() => _adjustScale(0.05);
   void _decreaseScale() => _adjustScale(-0.05);
 
   void _adjustScale(double delta) {
+    _audioVerticalFollower.invalidate();
     setState(() {
-      if (_isPortrait) {
+      if (_singlePage) {
         _pageScalePortrait = (_pageScalePortrait + delta).clamp(
           QuranPageView.minPageScalePortrait,
           QuranPageView.maxPageScalePortrait,
@@ -327,10 +391,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     return maxFilePage + 1;
   }
 
-  int _pageCount(bool portrait) {
-    final pages = totalPages;
-    return portrait ? pages : (pages / 2).ceil();
-  }
+  int get _firstVisiblePage => _paging!.pagesFor(_logicalPage).first;
 
   String imagePath(int logicalPage) {
     final filePage = logicalPage.clamp(1, maxFilePage);
@@ -354,7 +415,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   void _onScreenTap() {
     // Clear the selection independently of whether taps can reveal controls.
     if (_selPage != null) {
-      setState(_forgetAyahSelection);
+      _forgetAyahSelection();
       return;
     }
 
@@ -418,36 +479,18 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     _audioFollowScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _audioFollowScheduled = false;
-      if (!mounted ||
-          !_ready ||
-          !_hasPageController ||
-          !_pageController.hasClients) {
-        return;
-      }
-      final audio = QuranAudioController.instance;
-      final target = _audioPageFollower.targetPage(
-        playing: audio.playing && !audio.preparing,
-        session: audio.playbackSessionId,
-        cycle: audio.currentRepeat,
-        surah: audio.currentSurah,
-        ayah: audio.currentAyah,
-        currentPage: _logicalPage,
-        portrait: _isPortrait,
+      final paging = _paging;
+      if (!mounted || !_ready || paging == null) return;
+      _audioPageFollower.followReader(
+        audio: QuranAudioController.instance,
+        paging: paging,
+        vertical: _audioVerticalFollower,
+        visible: _readerVisible,
+        animate: !AppMotion.reduced(context),
         mushaf: _mushaf,
+        onCommit: (page, changedSpread) =>
+            _didCommitPage(page, recordActivity: changedSpread),
       );
-      if (target == null) return;
-      final index = PageMapper.pageIndexFromLogical(target, _isPortrait);
-      if (AppMotion.reduced(context)) {
-        _pageController.jumpToPage(index);
-      } else {
-        unawaited(
-          _pageController.animateToPage(
-            index,
-            duration: const Duration(milliseconds: 280),
-            curve: AppMotion.curve,
-          ),
-        );
-      }
     });
   }
 
@@ -500,6 +543,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   /// Playback highlighting is independent of the contextual tap selection.
   List<Rect> _highlightFor(int logicalPage) {
     final audio = QuranAudioController.instance;
+    if (audio.hasActivePlayback && audio.currentAyah == null) return const [];
     if (_ayahHighlightingEnabled &&
         !audio.preparing &&
         audio.hasActivePlayback &&
@@ -559,7 +603,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       }
     }
     if (_selPage != null) {
-      setState(_forgetAyahSelection);
+      _forgetAyahSelection();
     } else {
       _onScreenTap();
     }
@@ -596,7 +640,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     );
 
     return ReaderAudioControls(
-      portrait: _isPortrait,
+      portrait: _bottomDock,
       reference: '$_selSurah:$_selAyah',
       title: '$_selSurah:$_selAyah · $name',
       subtitle: 'Selected ayah',
@@ -646,89 +690,94 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-        child: Material(
-          color: palette.scaffold,
-          elevation: 12,
-          shadowColor: Colors.black.withValues(alpha: .18),
-          borderRadius: BorderRadius.circular(20),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(ctx).height * .48,
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '$name  •  $surah:$ayah',
+      // Modal useSafeArea excludes the bottom system navigation inset.
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+          child: Material(
+            color: palette.scaffold,
+            elevation: 12,
+            shadowColor: Colors.black.withValues(alpha: .18),
+            borderRadius: BorderRadius.circular(20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * .48,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$name  •  $surah:$ayah',
+                            style: TextStyle(
+                              color: palette.text,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: palette.muted,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (translations.isEmpty)
+                      Text(
+                        'Translation unavailable.',
+                        style: TextStyle(color: palette.muted, fontSize: 14),
+                      )
+                    else
+                      for (
+                        var index = 0;
+                        index < translations.length;
+                        index++
+                      ) ...[
+                        if (index > 0)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Divider(height: 1, color: palette.border),
+                          ),
+                        Text(
+                          translations[index].$1,
                           style: TextStyle(
-                            color: palette.text,
-                            fontSize: 15,
+                            color: palette.accent,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                      ),
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.muted,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (translations.isEmpty)
-                    Text(
-                      'Translation unavailable.',
-                      style: TextStyle(color: palette.muted, fontSize: 14),
-                    )
-                  else
-                    for (
-                      var index = 0;
-                      index < translations.length;
-                      index++
-                    ) ...[
-                      if (index > 0)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Divider(height: 1, color: palette.border),
-                        ),
-                      Text(
-                        translations[index].$1,
-                        style: TextStyle(
-                          color: palette.accent,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      TranslationExposure(
-                        verse: '$surah:$ayah',
-                        seen: translationsSeen,
-                        child: Text(
-                          translations[index].$2,
-                          textDirection: translations[index].$1.contains('Urdu')
-                              ? TextDirection.rtl
-                              : TextDirection.ltr,
-                          style: TextStyle(
-                            color: palette.text,
-                            fontSize: 15,
-                            height: 1.45,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(height: 5),
+                        TranslationExposure(
+                          verse: '$surah:$ayah',
+                          seen: translationsSeen,
+                          child: Text(
+                            translations[index].$2,
+                            textDirection:
+                                translations[index].$1.contains('Urdu')
+                                ? TextDirection.rtl
+                                : TextDirection.ltr,
+                            style: TextStyle(
+                              color: palette.text,
+                              fontSize: 15,
+                              height: 1.45,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                ],
+                      ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -765,7 +814,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     int? focusAyah,
   }) {
     final requestedPage = logicalPage ?? _logicalPage;
-    final viewStartPage = _isPortrait
+    final viewStartPage = _singlePage || (_paging?.book ?? false)
         ? requestedPage
         : PageMapper.logicalFromPageIndex(
             PageMapper.pageIndexFromLogical(requestedPage, false),
@@ -795,7 +844,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       logicalPage: viewStartPage,
       mushaf: _mushaf,
       // Landscape shows a two-page spread (this page + the next).
-      pagesPerView: _isPortrait ? 1 : 2,
+      pagesPerView: _singlePage ? 1 : 2,
       bookmarkedAyahs: {
         for (final b in _bookmarks.where((b) => b.isAyah))
           '${b.surahNumber}:${b.ayah}',
@@ -810,9 +859,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
     // Pre-select the indexed current page's (or landscape spread's) dominant
     // surah and ayah range so playback defaults to "this page".
     if (PageAyahIndex.supportsMushaf(_mushaf)) {
-      final pages = _isPortrait
-          ? [_logicalPage]
-          : [_logicalPage, _logicalPage + 1];
+      final pages = _paging!.pagesFor(_logicalPage);
       final segments = PageAyahIndex.segmentsForPages(pages, mushaf: _mushaf);
       if (segments.isNotEmpty) {
         // The surah occupying the most ayahs on the page best represents it.
@@ -878,7 +925,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
         BookmarksModal.show(
           context: context,
           bookmarks: _bookmarks,
-          isPortrait: _isPortrait,
+          isPortrait: _singlePage,
           mushaf: _mushaf,
           previousSurah: _surahHistory.previous,
           onJumpToPreviousSurah: (visit) =>
@@ -937,6 +984,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
         if (!mounted) return;
 
         if (mushaf != _mushaf) {
+          _audioVerticalFollower.invalidate();
           if (_mushaf == 'indopak_tajweed' && mushaf == 'madani') {
             _logicalPage = PageMapper.indoPakToMadani(_logicalPage);
           }
@@ -945,13 +993,14 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             _logicalPage = PageMapper.madaniToIndoPak(_logicalPage);
           }
 
-          final newIndex = PageMapper.pageIndexFromLogical(
-            _logicalPage,
-            _isPortrait,
-          );
-
           setState(() {
             _mushaf = mushaf;
+            _paging!.lastPage = maxFilePage;
+            _paging!.configure(
+              _paging!.mode,
+              force: true,
+              focusPage: _logicalPage,
+            );
             _forgetAyahSelection();
           });
           _surahHistory = RecentSurahHistory(_mushaf);
@@ -959,7 +1008,6 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
           if (!mounted) return;
           _recordSurahVisit();
           await _loadBookmarks();
-          _pageController.jumpToPage(newIndex);
         }
 
         setState(() {});
@@ -993,17 +1041,21 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
       (b) => b.isAyah && b.surahNumber == actionSurah && b.ayah == actionAyah,
     );
     return ReaderAudioControls(
-      portrait: _isPortrait,
+      portrait: _bottomDock,
       palette: palette,
       title: differentSelection
           ? '$actionSurah:$actionAyah · Selected'
           : ayah == null
-          ? plan.surahInfo.name
+          ? controller.currentItem?.label ?? plan.surahInfo.name
           : '$surah:$ayah · ${quranSurahs[surah - 1].name}',
       reference: ayah == null ? '$surah' : '$surah:$ayah',
       subtitle:
-          '${differentSelection ? 'Playing $surah:$ayah · ' : ''}${plan.reciter.name}${repeat == null ? '' : ' · $repeat/${plan.repeatLabel}'}',
+          '${controller.statusLabel} · ${differentSelection ? 'Playing $surah:$ayah · ' : ''}${plan.reciter.name}${repeat == null ? '' : ' · $repeat/${plan.repeatLabel}'}',
       playing: controller.playing,
+      paused: controller.paused,
+      preparingLabel: controller.preparing && !controller.paused
+          ? controller.statusLabel
+          : null,
       onPrevious: controller.seekPrevious,
       onPlayPause: controller.togglePlayPause,
       onNext: controller.seekNext,
@@ -1029,10 +1081,10 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   }
 
   Widget _readerZoom(AppPalette palette) => ReaderZoom(
-    portrait: _isPortrait,
+    portrait: _bottomDock,
     palette: palette,
-    scale: _isPortrait ? _pageScalePortrait : _pageScaleLandscape,
-    minimum: _isPortrait
+    scale: _singlePage ? _pageScalePortrait : _pageScaleLandscape,
+    minimum: _singlePage
         ? QuranPageView.minPageScalePortrait
         : QuranPageView.minPageScaleLandscape,
     onDecrease: _decreaseScale,
@@ -1050,134 +1102,126 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
 
     return Scaffold(
       backgroundColor: _readerWhite ? Colors.white : Colors.black,
-      body: OrientationBuilder(
-        builder: (context, orientation) {
-          final portraitNow = orientation == Orientation.portrait;
-
-          if (_isPortrait != portraitNow) {
-            _isPortrait = portraitNow;
-            final newIndex = PageMapper.pageIndexFromLogical(
-              _logicalPage,
-              _isPortrait,
-            );
-            _pageController.dispose();
-            _pageController = PageController(initialPage: newIndex);
-            _scheduleAudioPageFollow();
-          }
-
-          final pageCount = _pageCount(_isPortrait);
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final display = View.of(context).display;
+          final layout = ReaderLayout.resolve(
+            size: constraints.biggest,
+            displaySize: display.size / display.devicePixelRatio,
+            padding: MediaQuery.paddingOf(context),
+            displayFeatures: [
+              ...MediaQuery.displayFeaturesOf(context),
+              if (!_isIPad) ..._iosDisplayRegions.forSize(constraints.biggest),
+            ],
+            pageAspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
+            preserveLegacyIPadPortrait: _isIPad,
+            foldedCover: !_isIPad && _iosDisplayRegions.closed,
+            iosPhoneWidePortrait:
+                Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
+          );
+          _paging!.configure(layout.pageMode);
+          _singlePage = layout.singlePage;
+          _bottomDock = layout.bottomDock;
+          _logicalPage = _paging!.focusedPage;
           final audioControls = _readerAudioControls(palette);
-
-          final firstPage = _isPortrait
-              ? _logicalPage
-              : (_logicalPage ~/ 2) * 2;
+          final overlay = layout.controlsRegion;
           return ReaderActivity(
+            layoutIdentity: layout.pageMode,
             pages: [
-              for (
-                var p = firstPage;
-                p < firstPage + (_isPortrait ? 1 : 2);
-                p++
-              )
-                if (p >= 1 &&
-                    p <= maxFilePage &&
-                    PageAyahIndex.surahsOnPage(p, mushaf: _mushaf).isNotEmpty)
+              for (final p in _paging!.visiblePages)
+                if (PageAyahIndex.surahsOnPage(p, mushaf: _mushaf).isNotEmpty)
                   '$_mushaf:$p',
             ],
-            child: Stack(
-              children: [
-                PageView.builder(
-                  key: ValueKey(_isPortrait),
-                  controller: _pageController,
-                  reverse: true,
-                  physics: const ClampingScrollPhysics(),
-                  itemCount: pageCount,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _logicalPage = PageMapper.logicalFromPageIndex(
-                        index,
-                        _isPortrait,
-                      );
-                      _recordSurahVisit();
-                    });
-                    StorageManager.saveCurrentPage(
-                      _logicalPage,
-                      maxPage: maxFilePage,
-                    );
-                    _recordProgress();
-                  },
-                  itemBuilder: (context, index) {
-                    return _isPortrait
-                        ? QuranPageView.singlePage(
-                            logicalPage: index,
-                            pageScale: _pageScalePortrait,
-                            imagePath: imagePath,
-                            isDarkMode: darkMode,
-                            aspectRatio: QuranPageView.aspectRatioForMushaf(
-                              _mushaf,
-                            ),
-                            highlightRects: _highlightFor(index),
-                            highlightColor: palette.accent.withValues(
-                              alpha: .26,
-                            ),
-                            onTap: _onPageTap,
-                            onBackgroundTap: _onScreenTap,
-                          )
-                        : QuranPageView.doublePage(
-                            spreadIndex: index,
-                            pageScale: _pageScaleLandscape,
-                            imagePath: imagePath,
-                            totalPages: totalPages,
-                            isDarkMode: darkMode,
-                            aspectRatio: QuranPageView.aspectRatioForMushaf(
-                              _mushaf,
-                            ),
-                            highlightFor: _highlightFor,
-                            highlightColor: palette.accent.withValues(
-                              alpha: .26,
-                            ),
-                            onTap: _onPageTap,
-                            onBackgroundTap: _onScreenTap,
-                          );
-                  },
-                ),
-
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  right: _isPortrait ? 16 : 144,
-                  child: SafeArea(
-                    bottom: false,
-                    child: MotionSwitcher(
+            child: ReaderGeometryProbe(
+              layout: layout,
+              zoom: layout.singlePage
+                  ? _pageScalePortrait
+                  : _pageScaleLandscape,
+              focusedPage: _paging!.focusedPage,
+              visiblePages: _paging!.visiblePages,
+              edition: _mushaf,
+              navigationKey: _readerDockGeometryKey,
+              native: _iosDisplayRegions,
+              isIPad: _isIPad,
+              settled: () => _paging!.settled,
+              child: Stack(
+                children: [
+                  AdaptiveQuranPages(
+                    verticalFollower: _audioVerticalFollower,
+                    mushaf: _mushaf,
+                    paging: _paging!,
+                    layout: layout,
+                    singleScale: _pageScalePortrait,
+                    spreadScale: _pageScaleLandscape,
+                    imagePath: imagePath,
+                    isDarkMode: darkMode,
+                    aspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
+                    highlightFor: _highlightFor,
+                    highlightColor: palette.accent.withValues(alpha: .26),
+                    onTap: _onPageTap,
+                    onBackgroundTap: _onScreenTap,
+                    onFocus: (page) => _didCommitPage(
+                      page,
+                      surah: PageAyahIndex.surahsOnPage(
+                        page,
+                        mushaf: _mushaf,
+                      ).firstOrNull,
+                      recordActivity: false,
+                    ),
+                    onPageChanged: _didCommitPage,
+                  ),
+                  Positioned.fromRect(
+                    rect: overlay.deflate(16),
+                    child: Align(
                       alignment: Alignment.topCenter,
-                      offset: const Offset(0, -.12),
-                      child: _dailyWelcome == null
-                          ? const SizedBox.shrink(key: ValueKey('no-welcome'))
-                          : DailyReadingCard(
-                              key: const ValueKey('daily-welcome'),
-                              streak: _dailyWelcome!.streak,
-                              compact: true,
-                              onClose: () =>
-                                  setState(() => _dailyWelcome = null),
-                            ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: 480,
+                          maxHeight: overlay.height * .5,
+                        ),
+                        child: MotionSwitcher(
+                          alignment: Alignment.topCenter,
+                          offset: const Offset(0, -.12),
+                          child: _dailyWelcome == null
+                              ? const SizedBox.shrink(
+                                  key: ValueKey('no-welcome'),
+                                )
+                              : DailyReadingCard(
+                                  key: const ValueKey('daily-welcome'),
+                                  streak: _dailyWelcome!.streak,
+                                  compact: true,
+                                  onClose: () =>
+                                      setState(() => _dailyWelcome = null),
+                                ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                ReaderDock(
-                  contextControls:
-                      audioControls ??
-                      (_selPage == null ? null : _buildAyahContextRow(palette)),
-
-                  portrait: _isPortrait,
-                  expanded: _isScrollbarVisible,
-                  onToggle: () {
-                    setState(() => _isScrollbarVisible = !_isScrollbarVisible);
-                    if (_isScrollbarVisible) _startHideScrollbarTimer();
-                  },
-                  palette: palette,
-                  zoom: _readerZoom(palette),
-                  actions: _readerActions(palette),
-                ),
-              ],
+                  ReaderDockOverlay(
+                    layout: layout,
+                    child: ReaderDock(
+                      key: _readerDockKey,
+                      geometryKey: _readerDockGeometryKey,
+                      contextControls:
+                          audioControls ??
+                          (_selPage == null
+                              ? null
+                              : _buildAyahContextRow(palette)),
+                      placement: layout.dockPlacement,
+                      expanded: _isScrollbarVisible,
+                      onToggle: () {
+                        setState(
+                          () => _isScrollbarVisible = !_isScrollbarVisible,
+                        );
+                        if (_isScrollbarVisible) _startHideScrollbarTimer();
+                      },
+                      palette: palette,
+                      zoom: _readerZoom(palette),
+                      actions: _readerActions(palette),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },

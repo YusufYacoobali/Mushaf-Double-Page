@@ -1,0 +1,77 @@
+name: One-off v6 Duo smoke verification
+run-name: Verify current v6 foldable fit (100%, four postures)
+on:
+  push:
+    branches: [v6]
+    paths:
+      - '.github/duo-smoke-20261118.request'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  fast-checks:
+    name: Reuse successful exact-commit Flutter checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the same push's fast checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/require_fast_checks.py
+  reader:
+    needs: fast-checks
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      role: reader
+      policy: auto
+  duo:
+    name: Real iPhone Duo postures at 100% + book page-turn
+    needs: reader
+    runs-on: xcode-27
+    timeout-minutes: 25
+    concurrency:
+      group: reader-duo-device-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.reader.outputs.artifact_name }}
+          path: reader-build
+      - name: Extract compatible Flutter app
+        run: |
+          mkdir -p ci-app
+          tar -xzf reader-build/ios-simulator-runner.tgz -C ci-app
+          test -f ci-app/Runner.app/Info.plist
+      - name: Install screenshot/input tools
+        run: |
+          brew install skarol/tap/duoctl tesseract
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache/restore@v4
+        id: pages
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - name: Capture four real foldable postures, full 100% pages and swipe
+        env:
+          DUO_TARGET: duo-smoke
+          READER_TEST_CASE: layout
+          READER_CAPTURE_PROFILE: smoke
+          READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
+        run: bash .github/scripts/run_duo_simulator_qa.sh
+      - uses: actions/cache/save@v4
+        if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - name: Save original screenshots and diagnostics (even on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: duo-smoke-100pct-actual-screenshots
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 14

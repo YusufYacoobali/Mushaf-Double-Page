@@ -1,3 +1,5 @@
+import 'package:mushaf_two_page/components/adaptive_surface.dart';
+import 'tasbeeh.dart';
 import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/logic/storage_manager.dart';
@@ -297,13 +299,15 @@ class _SettingsState extends State<Settings> {
         ),
         child: Column(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                previewImage,
-                height: 170,
-                width: double.infinity,
-                fit: BoxFit.fill,
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  previewImage,
+                  height: 170,
+                  width: double.infinity,
+                  fit: BoxFit.fill,
+                ),
               ),
             ),
 
@@ -429,7 +433,10 @@ class _SettingsState extends State<Settings> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AdaptiveSurface(child: Builder(builder: _buildScaffold));
+
+  Widget _buildScaffold(BuildContext context) {
     if (!_loaded) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -500,6 +507,25 @@ class _SettingsState extends State<Settings> {
                 palette,
               ),
 
+              _sectionTitle('TOOLS', textPrimary),
+              _settingsCard(
+                _navTile(
+                  palette: palette,
+                  icon: Icons.touch_app_outlined,
+                  title: 'Tasbeeh',
+                  subtitle: 'A quiet space for dhikr and counting.',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Theme(
+                        data: palette.toThemeData(),
+                        child: const TasbeehPage(),
+                      ),
+                    ),
+                  ),
+                ),
+                palette,
+              ),
               _sectionTitle('HELP', textPrimary),
 
               _settingsCard(

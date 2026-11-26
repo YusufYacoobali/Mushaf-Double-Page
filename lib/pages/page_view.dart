@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import '../utils/cache.dart';
+import '../utils/audio_vertical_follower.dart';
+import '../components/audio_vertical_viewport.dart';
+import '../components/quran_page_turn_view.dart';
 
 class QuranPageView {
-  // Each geometry index is generated in its printed image's native coordinate
-  // space. Keep the visible page at that same aspect ratio so taps and
-  // highlights stay aligned.
+  // Spread/adaptive pages use their printed image's native aspect ratio.
+  // Phone portrait pages retain v4's full-width, height-only toolbar zoom;
+  // highlights and taps share that stretched surface's normalized coordinates.
   static const double pageAspectRatio = 721 / 1058;
   static const double madaniPageAspectRatio = 2096 / 3008;
 
@@ -50,6 +54,12 @@ class QuranPageView {
     void Function(int logicalPage, double nx, double ny)? onTap,
     VoidCallback? onBackgroundTap,
     TransformationController? transformationController,
+    AudioVerticalFollower? verticalFollower,
+    ValueChanged<int>? onFocus,
+    Widget Function(int, Widget)? wrapLeaf,
+    bool fullWidthPortrait = true,
+    Rect? viewportBounds,
+    bool fitToViewport = false,
   }) {
     final clamped = pageScale.clamp(minPageScalePortrait, maxPageScalePortrait);
     final path = imagePath(logicalPage);
@@ -59,44 +69,92 @@ class QuranPageView {
       image = ColorFiltered(colorFilter: invertFilter, child: image);
     }
 
-    return _BackgroundTapListener(
-      onBackgroundTap: onBackgroundTap,
-      builder: (pageSurfaceKey) => LayoutBuilder(
-        builder: (context, constraints) {
-          // Portrait toolbar zoom intentionally changes only the page height.
-          // Its width always fills the screen and the page remains centred.
-          return SizedBox.expand(
-            child: InteractiveViewer(
-              key: ValueKey(clamped),
-              transformationController: transformationController,
-              constrained: false,
-              panEnabled: false,
-              minScale: 1,
-              maxScale: maxPageScalePortrait / clamped,
-              child: SizedBox(
-                width: constraints.maxWidth,
-                height: constraints.maxHeight,
-                child: Center(
-                  child: SizedBox(
-                    width: constraints.maxWidth,
-                    height: constraints.maxHeight * clamped,
-                    child: _PageContent(
-                      surfaceKey: pageSurfaceKey,
-                      image: FittedBox(fit: BoxFit.fill, child: image),
-                      aspectRatio: aspectRatio,
-                      stretchToFit: true,
-                      highlightRects: highlightRects,
-                      highlightColor: highlightColor,
-                      onTap: onTap == null
-                          ? null
-                          : (nx, ny) => onTap(logicalPage, nx, ny),
-                    ),
+    return AudioVerticalViewport(
+      pages: [logicalPage],
+      follower: verticalFollower,
+      followAudio: false,
+      transformed: true,
+      transformationController: transformationController,
+      transformIdentity: (
+        clamped,
+        aspectRatio,
+        fullWidthPortrait,
+        fitToViewport,
+        viewportBounds,
+      ),
+      builder: (viewport) => _BackgroundTapListener(
+        pageSurfaceKey: viewport.pageKey(logicalPage),
+        onBackgroundTap: onBackgroundTap,
+        builder: (pageSurfaceKey) => LayoutBuilder(
+          builder: (context, constraints) {
+            // v4 portrait zoom changes height only; phone pages always fill the
+            // viewport width. Adaptive single-page regions keep their native ratio.
+            final width = fitToViewport
+                ? math.min(
+                        constraints.maxWidth,
+                        constraints.maxHeight * aspectRatio,
+                      ) *
+                      clamped
+                : fullWidthPortrait
+                ? constraints.maxWidth
+                : math.min(
+                    constraints.maxWidth,
+                    constraints.maxHeight * clamped * aspectRatio,
+                  );
+            final leaf = SizedBox(
+              key: ValueKey('quran-page-$logicalPage'),
+              width: width,
+              height: fullWidthPortrait
+                  ? constraints.maxHeight * clamped
+                  : width / aspectRatio,
+              child: _PageContent(
+                surfaceKey: pageSurfaceKey,
+                image: fullWidthPortrait
+                    ? FittedBox(fit: BoxFit.fill, child: image)
+                    : image,
+                aspectRatio: aspectRatio,
+                stretchToFit: true,
+                highlightRects: highlightRects,
+                highlightColor: highlightColor,
+                onTap: onTap == null && onFocus == null
+                    ? null
+                    : (nx, ny) {
+                        onFocus?.call(logicalPage);
+                        onTap?.call(logicalPage, nx, ny);
+                      },
+              ),
+            );
+            return SizedBox.expand(
+              child: InteractiveViewer(
+                key: ValueKey(clamped),
+                transformationController: viewport.transform,
+                onInteractionStart: (_) => QuranPageTurnView.singlePageGesture(
+                  context,
+                  viewport.transform,
+                ),
+                onInteractionUpdate: (_) => QuranPageTurnView.singlePageGesture(
+                  context,
+                  viewport.transform,
+                ),
+                constrained: false,
+                panEnabled:
+                    viewport.verticalPanEnabled &&
+                    QuranPageTurnView.allowVerticalPan(context),
+                panAxis: PanAxis.vertical,
+                boundaryMargin: viewport.boundaryMargin,
+                minScale: 1,
+                maxScale: maxPageScalePortrait / clamped,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: Center(
+                    child: wrapLeaf?.call(logicalPage, leaf) ?? leaf,
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -112,11 +170,21 @@ class QuranPageView {
     Color highlightColor = const Color(0x5580643B),
     void Function(int logicalPage, double nx, double ny)? onTap,
     VoidCallback? onBackgroundTap,
+    ValueChanged<int>? onFocus,
+    Widget Function(int, Widget)? wrapLeaf,
+    List<Rect>? pageRegions,
+    int? bookFirstPage,
+    bool centerShortLandscapeSpread = false,
+    bool fitToViewport = false,
+    AudioVerticalFollower? verticalFollower,
   }) {
     final leftIndex = spreadIndex * 2;
     final rightIndex = leftIndex + 1;
+    int pageAt(int physical) => bookFirstPage == null
+        ? (physical == 0 ? rightIndex : leftIndex)
+        : bookFirstPage + (1 - physical);
 
-    Widget buildPage(int index) {
+    Widget buildPage(int index, GlobalKey surfaceKey) {
       final path = imagePath(index);
       Widget image = QuranPageCache.getPage(path);
 
@@ -125,16 +193,31 @@ class QuranPageView {
       }
 
       return _PageContent(
+        surfaceKey: surfaceKey,
         image: image,
         aspectRatio: aspectRatio,
         highlightRects: highlightFor?.call(index) ?? const [],
         highlightColor: highlightColor,
-        onTap: onTap == null ? null : (nx, ny) => onTap(index, nx, ny),
+        onTap: onTap == null && onFocus == null
+            ? null
+            : (nx, ny) {
+                onFocus?.call(index);
+                if (onTap != null) {
+                  onTap(index, nx, ny);
+                } else {
+                  onBackgroundTap?.call();
+                }
+              },
       );
     }
 
-    Widget framedPage(int index) {
-      return AspectRatio(aspectRatio: aspectRatio, child: buildPage(index));
+    Widget framedPage(int index, AudioViewportHandle viewport) {
+      final leaf = AspectRatio(
+        key: ValueKey('quran-page-$index'),
+        aspectRatio: aspectRatio,
+        child: buildPage(index, viewport.pageKey(index)),
+      );
+      return wrapLeaf?.call(index, leaf) ?? leaf;
     }
 
     return GestureDetector(
@@ -146,41 +229,161 @@ class QuranPageView {
             minPageScaleLandscape,
             maxPageScaleLandscape,
           );
-          // Landscape toolbar zoom changes only the spread width. At minimum
-          // both full pages fit vertically; at maximum they nearly fill the
-          // screen width. The spread always starts at the top and is centred.
+          if (pageRegions != null) {
+            // Book zoom is relative to a complete page fitted inside each
+            // hinge-safe panel. Use the smaller fitted panel for BOTH pages so
+            // navigation clearance or an off-centre hinge cannot change their
+            // relative text size. Legacy/iPad spreads retain their width zoom.
+            final bookWidth = bookFirstPage == null && !fitToViewport
+                ? null
+                : pageRegions
+                          .map(
+                            (region) => math.min(
+                              region.width,
+                              region.height * aspectRatio,
+                            ),
+                          )
+                          .reduce(math.min) *
+                      clamped;
+            return Stack(
+              children: [
+                for (var physical = 0; physical < 2; physical++)
+                  if (pageAt(physical) >= 1 && pageAt(physical) < totalPages)
+                    Positioned.fromRect(
+                      rect: pageRegions[physical],
+                      child: AudioVerticalViewport(
+                        pages: [pageAt(physical)],
+                        follower: verticalFollower,
+                        onScrollFocus: onFocus,
+                        transformIdentity: (
+                          clamped,
+                          aspectRatio,
+                          pageRegions[physical],
+                          bookWidth,
+                        ),
+                        builder: (viewport) => bookWidth != null
+                            ? Center(
+                                child: SizedBox(
+                                  width: bookWidth,
+                                  child: framedPage(pageAt(physical), viewport),
+                                ),
+                              )
+                            : SingleChildScrollView(
+                                controller: viewport.scroll,
+                                padding: viewport.scrollPadding,
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    width:
+                                        pageRegions[physical].width * clamped,
+                                    child: framedPage(
+                                      pageAt(physical),
+                                      viewport,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+              ],
+            );
+          }
+          if (fitToViewport) {
+            final width =
+                math.min(
+                  (constraints.maxWidth - 1) / 2,
+                  constraints.maxHeight * aspectRatio,
+                ) *
+                clamped;
+            return AudioVerticalViewport(
+              pages: [
+                if (rightIndex >= 1 && rightIndex < totalPages) rightIndex,
+                if (leftIndex >= 1 && leftIndex < totalPages) leftIndex,
+              ],
+              follower: verticalFollower,
+              onScrollFocus: onFocus,
+              transformIdentity: (width, aspectRatio, constraints.biggest),
+              builder: (viewport) => Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: width,
+                      child: rightIndex >= 1 && rightIndex < totalPages
+                          ? framedPage(rightIndex, viewport)
+                          : null,
+                    ),
+                    const SizedBox(width: 1),
+                    SizedBox(
+                      width: width,
+                      child: leftIndex >= 1 && leftIndex < totalPages
+                          ? framedPage(leftIndex, viewport)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          // Width-based zoom keeps both pages at their printed aspect ratio.
           final pageWidth = (constraints.maxWidth - 1) / 2 * clamped;
 
-          Widget? leftPage;
-          Widget? rightPage;
-
-          if (rightIndex < totalPages) {
-            leftPage = SizedBox(
-              width: pageWidth,
-              child: framedPage(rightIndex),
-            );
-          }
-          if (leftIndex < totalPages) {
-            rightPage = SizedBox(
-              width: pageWidth,
-              child: framedPage(leftIndex),
-            );
-          }
-
-          // Only vertical scrolling belongs to the spread. Horizontal gestures
-          // must reach the enclosing PageView to turn the page.
-          return SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (leftPage != null) leftPage,
-                if (leftPage != null && rightPage != null)
-                  const SizedBox(width: 1),
-                if (rightPage != null) rightPage,
-              ],
+          return AudioVerticalViewport(
+            pages: [
+              if (rightIndex >= 1 && rightIndex < totalPages) rightIndex,
+              if (leftIndex >= 1 && leftIndex < totalPages) leftIndex,
+            ],
+            follower: verticalFollower,
+            onScrollFocus: onFocus,
+            transformIdentity: (
+              clamped,
+              aspectRatio,
+              constraints.biggest,
+              centerShortLandscapeSpread,
             ),
+            builder: (viewport) {
+              Widget? leftPage;
+              Widget? rightPage;
+
+              if (rightIndex >= 1 && rightIndex < totalPages) {
+                leftPage = SizedBox(
+                  width: pageWidth,
+                  child: framedPage(rightIndex, viewport),
+                );
+              }
+              if (leftIndex >= 1 && leftIndex < totalPages) {
+                rightPage = SizedBox(
+                  width: pageWidth,
+                  child: framedPage(leftIndex, viewport),
+                );
+              }
+
+              final row = Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leftPage ?? SizedBox(width: pageWidth),
+                  const SizedBox(width: 1),
+                  rightPage ?? SizedBox(width: pageWidth),
+                ],
+              );
+
+              // Only vertical scrolling belongs to the spread. A minimum
+              // height centres short foldable pages without padding tall ones.
+              return SingleChildScrollView(
+                controller: viewport.scroll,
+                scrollDirection: Axis.vertical,
+                padding: viewport.scrollPadding,
+                child: centerShortLandscapeSpread
+                    ? ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Center(child: row),
+                      )
+                    : row,
+              );
+            },
           );
         },
       ),
@@ -262,11 +465,13 @@ class _PageContent extends StatelessWidget {
 /// This keeps two-finger scaling entirely owned by [InteractiveViewer].
 class _BackgroundTapListener extends StatefulWidget {
   final VoidCallback? onBackgroundTap;
+  final GlobalKey? pageSurfaceKey;
   final Widget Function(GlobalKey pageSurfaceKey) builder;
 
   const _BackgroundTapListener({
     required this.onBackgroundTap,
     required this.builder,
+    this.pageSurfaceKey,
   });
 
   @override
@@ -274,7 +479,8 @@ class _BackgroundTapListener extends StatefulWidget {
 }
 
 class _BackgroundTapListenerState extends State<_BackgroundTapListener> {
-  final GlobalKey _pageSurfaceKey = GlobalKey();
+  final GlobalKey _fallbackSurfaceKey = GlobalKey();
+  GlobalKey get _pageSurfaceKey => widget.pageSurfaceKey ?? _fallbackSurfaceKey;
   int? _primaryPointer;
   Offset? _downPosition;
   bool _cancelTap = false;
@@ -308,8 +514,10 @@ class _BackgroundTapListenerState extends State<_BackgroundTapListener> {
   bool _pageContains(Offset globalPosition) {
     final renderObject = _pageSurfaceKey.currentContext?.findRenderObject();
     if (renderObject is! RenderBox || !renderObject.hasSize) return false;
-    final pageRect =
-        renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    final pageRect = MatrixUtils.transformRect(
+      renderObject.getTransformTo(null),
+      Offset.zero & renderObject.size,
+    );
     return pageRect.contains(globalPosition);
   }
 

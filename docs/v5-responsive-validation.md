@@ -1,0 +1,269 @@
+# v5 responsive layouts and UX validation — 6 November 2026
+
+Implemented on the existing `v5` worktree based on `ac7c290`. The remote branch
+was fetched before editing and contained no newer commits. This work does not
+merge into `main` or change the audio queue, recording repository, Bismillah
+verification policies, Tasbeeh counts, dhikr, feedback or persistence.
+
+## Adaptive reader rule
+
+`ReaderLayout.resolve` uses the current `LayoutBuilder` constraints, safe insets,
+`MediaQuery.displayFeatures`, and the selected edition's native image aspect
+ratio. `pageMode`, `dockPlacement`, page regions and the controls region are
+separate decisions.
+
+1. Trim safe insets, then partition around physical hinges, half-open folds and
+   obstructing cutouts. A flat zero-width fold remains seamless. A horizontal
+   separator uses one unobstructed screen instead of stacking a sideways spread.
+2. Place controls in one safe region. Use the bottom dock in portrait/square
+   windows, or in one sufficiently wide pane of a hinged display. Its region must
+   be at least 300 logical pixels wide. Other windows use the side dock.
+3. Seamless landscape spreads use the original v4 full-viewport Row, with the
+   side toolbar overlaid and no permanent 140 px width reduction. Hinge-separated
+   spreads retain independent safe regions, and wide portrait spreads keep their
+   142 px bottom gutter. Other constrained side-dock cases retain their gutter.
+   Conventional portrait phones (width below 600, without a separating feature)
+   retain v4's full viewport for the page and dock. Adaptive single pages use
+   their safe region. Controls remain overlaid; revealing/hiding them does not
+   change page mode or page geometry.
+4. For a seamless display, a spread needs a safe region at least **720 logical
+   pixels wide in portrait/square windows**, or **600 in landscape**. Two separate
+   side-by-side safe regions can also qualify without that overall-width gate.
+5. After gutters, **both** page regions must have height at least **260**, width
+   at least **280 in portrait/square** or **200 in landscape**, and an
+   aspect-correct fitted width of at least **240 in portrait/square** or **180 in
+   landscape**. Fitted width is `min(region.width, region.height * imageAspect)`.
+   Otherwise the reader uses a single page in the largest usable region.
+
+All dimensions are logical pixels. Source aspects remain `721 / 1058` for
+Indo-Pak and `2096 / 3008` for Madani. Spreads and adaptive single-page regions
+maintain those proportions. Conventional portrait phones preserve v4's full-width,
+height-only scaling; image, highlights and touches share the same normalized
+surface. Toolbar scale preferences remain separate for single pages and spreads.
+Spreads retain vertical scrolling at larger zoom levels and RTL horizontal page
+turns. Layout changes
+reset a transient pinch transform to the new geometry while retaining saved zoom
+percentages and their mode-specific limits.
+
+Compact-phone follow-up: at 320 × 568 with the saved 80% zoom, the single page
+fills all 320 px for both editions, with height 454.4 px, matching v4. No permanent
+142 px bottom gutter is reserved. Controls handle their own insets; spread gutters
+and breakpoints are unchanged.
+
+## Restored iPhone portrait geometry — 7 November 2026
+
+This follow-up starts from `b749480` on the existing `v5` branch.
+Compared directly with `9cab9d5ce3d2c3d0e44d51bb4ac336126362f740` in
+`page_view.dart`, `main.dart`, `reader_dock.dart` and `navigator.dart`:
+
+- A normal portrait phone uses the full screen width at every toolbar zoom.
+  Its page height is viewport height × zoom, vertically centred, exactly as v4.
+  The image uses the original fill transform; the normalized highlight/touch
+  surface uses those same bounds. Adaptive single-page regions retain their
+  native-ratio fit.
+- `ReaderDockOverlay` leaves the phone dock in screen coordinates with its real
+  MediaQuery insets. ReaderDock applies the original 16 px collapsed offset and
+  `max(16, safe.bottom)` expanded offset once. Contextual controls retain their
+  original 56 px allowance. Other layouts keep their existing regional wrapper.
+- The Surah/Juz Material background reaches the panel region's physical edges;
+  a content SafeArea applies the original minimum 12 px vertical inset. Local
+  insets account for the panel's position, so a separating hinge stays clear.
+  Adaptive width rules, tab state and scroll-position preservation remain.
+
+`iphone_portrait_geometry_test.dart` measures actual page frames, decoded image
+render boxes, highlight paint, normalized touch positions, collapsed/expanded
+tabs and panels, and navigator background/content bounds. Its v4 baseline checks
+375 × 812 (44/34 px insets), 393 × 852 and 430 × 932 (59/34 px insets), both
+editions and 70%, 80% and 100% zoom, with and without contextual controls.
+Portrait → landscape → portrait retains the focused page and original geometry.
+These are Flutter widget/rendering tests; no physical iPhone is attached.
+
+### Landscape iPhone dock follow-up
+
+Starting from `17558d9`, ordinary landscape iPhone windows also use v4's
+full-screen dock coordinates. The exception applies only to iOS landscape
+windows with a shortest side below 600 px, a continuous full-viewport spread,
+and no reported fold or hinge. Android, tablet-sized windows and foldable
+layouts keep the regional wrapper. No page or navigator layout is changed.
+
+The v4 side tab is 4 px from the physical right edge when collapsed. Expanded
+controls use `max(6, safe.right)` once, and the vertical band uses
+`max(12, safe.top)` / `max(12, safe.bottom)` in both states. Contextual controls
+retain their 58 px allowance. The original ReaderDock handles these offsets.
+
+`iphone_landscape_dock_geometry_test.dart` measures rendered tab/control bounds at
+812 × 375, 852 × 393 and 932 × 430 with left/right notch insets and a 21 px home
+indicator, with and without audio controls. Both Surah and Juz retain full-height,
+right-edge panel backgrounds, adaptive widths and content-only safe padding.
+Additional rendered-bounds checks preserve Android, iPad, flat-fold and hinge
+regions. These tests exercise the same ReaderDockOverlay used in `main.dart`.
+
+## Restored regular-phone landscape geometry
+
+The remote `v4` branch is no longer present. Its last merged commit is
+`9cab9d5ce3d2c3d0e44d51bb4ac336126362f740`, preserved by merge `6d9c429`.
+The page-view file at both commits has the identical Git blob
+`fd19719bf3a230b21907e73f9690fced03be5b2a`.
+
+`AdaptiveQuranPages` now distinguishes centred seamless landscape, physically
+separated regions, and adaptive wide portrait spreads. Seamless landscape reuses
+`QuranPageView.doublePage`'s existing centred Row rather than its independently
+positioned per-region branch. Just as in v4, each page width is
+`(viewport.width - 1) / 2 * clamp(scale, .6, 1.0)`, with a 1 px gap, even page on
+the right, source-correct aspect ratio, top alignment and one shared vertical
+scroll view. The combined spread is horizontally centred in the screen. Toolbar
+insets still apply to controls, independently from the spread; a display feature
+that further obstructs/partitions the viewport retains safe page regions.
+
+At 70% zoom this gives each page width 295.05 px on 844 × 390, and 319.9 px on
+915 × 412. It restores the original width, zoom/vertical-scroll behavior and
+position relative to the overlaid toolbar. The compact portrait fix, wide
+portrait page mode, hinge behavior and existing paging/follow state are retained.
+
+`test/landscape_reader_geometry_test.dart` measures actual frame and Image render
+rectangles for both editions, both phone sizes, zero/asymmetric Android insets,
+and 60/70/100% zoom. It checks the spread centre, adjacent pages, exact v4 sizes,
+aspect ratios, unchanged bounds during toolbar toggles, joint vertical scrolling,
+RTL turns, normalized highlight taps and portrait → landscape → portrait focus
+preservation. Existing hinge tests also assert two independent scroll views and
+safe rendered page rectangles.
+
+| Window | Default page mode | Dock |
+| --- | --- | --- |
+| 320 × 568 | Single | Bottom |
+| 390 × 844 | Single | Bottom |
+| 844 × 390 | Spread | Side |
+| 600 × 840 | Single | Bottom |
+| 900 × 900 | Spread | Bottom |
+| 951 × 669 | Spread | Side |
+| 1200 × 800 | Spread | Side |
+| 340 × 700 split-screen | Single | Bottom |
+| 500 × 300 split-screen | Single | Side |
+| 950 × 669 with a vertical 30 px hinge at x=460 | Spread, one page per pane | Bottom, right pane |
+
+Insets and obstruction geometry can change these outcomes. The rule never uses a
+model name, device category or physical display resolution.
+
+## Page preservation and secondary screens
+
+`ReaderPaging` owns the `PageController`, focused physical file page and callback
+generation. Touching either spread page records the focused page without adding a
+reading visit. Reconfiguration selects the spread containing that page or returns
+to that exact single page. Retired controllers are disposed after detachment;
+callbacks carrying their old generation cannot change or save the current page.
+An edition change also replaces the controller before asynchronous history work.
+
+The existing printed spread pairing is preserved: even-numbered file page on the
+right, following odd-numbered page on the left. The zero slot at the beginning
+and any missing final partner are blank, never duplicate images. Single-page
+indices map to file pages 1–851 / 1–624 with no duplicate page 1. Bookmark jumps,
+translation ranges and audio selections use physical pages/visible spreads.
+
+Reader activity adopts a new visible set without recording an extra visit on a
+layout change. Audio-follow identity excludes page mode: folding cannot refollow
+an already consumed ayah notification after a manual move. New playback ayahs
+still follow normally. Selection, bookmark and highlight state stay in the reader
+State object rather than in a replaced controller.
+
+Settings, Quran Journey, translation and Tasbeeh use `AdaptiveSurface` to stay
+inside one unobstructed region and cap screen content at 900 logical pixels.
+Tasbeeh receives only that resizing wrapper. Bottom sheets cap width at 640;
+dialogs at 560. Open bookmark sheets recalculate height on resize. Translation
+app-bar titles use constrained text and a text-scale-aware toolbar height. Existing
+themes, scrolling, reduced-motion behavior and business logic remain.
+
+## Surah/Juz navigator
+
+Normal portrait phones retain 320 px width. Landscape width is
+`clamp(window.width * .55, 420, 480)`. Portrait windows at least 600 px wide use
+`clamp(window.width * .5, 420, 560)`. The result is clamped to the panel region;
+regions at least 600 px wide also cap it to 65% of that region.
+
+The dialog explicitly anchors to the right display pane. Safe insets apply once
+to the contents inside the full-height background. The existing slide/fade,
+colors, selector and draggable right scrollbar remain. Both lists keep independent
+state. Resizing recomputes row extents using
+actual text width/text scale and preserves the first visible row and within-row
+fraction. Number badges grow for scaled text, titles wrap naturally and the
+trailing indicator remains aligned.
+
+## Review prompt and daily reminder
+
+The independently tested rule is:
+
+```dart
+(launch >= 1 && launch <= 5) ||
+(launch >= 15 && (launch - 15) % 10 == 0)
+```
+
+The existing `review_prompt_launch_count` key is incremented once per process
+session, without resetting existing totals. Repeated schedule calls, navigation,
+rebuilds and resume do not increment it. The delay remains two minutes. Background
+or inactive/system-prompt transitions cancel that launch's automatic prompt;
+returning does not restart it. At the deadline, covered routes, non-reader pages,
+loading/recovery/buffering, offline downloads and persistent audio errors suppress
+it without queuing a later surprise. Rate stores `review_prompt_rate_chosen` and
+suppresses future automatic prompts. Not now keeps the normal schedule. Settings
+rating still opens the existing published store listing independently. Native
+review requests retain platform availability/quota handling and do not fall back
+to unexpected automatic store navigation.
+
+The compact daily card contains the unchanged intercession hadith, attribution and
+Sahih Muslim 804a reference, with the existing charcoal/bronze treatment. It has no
+introductory slogan, streak heading or decorative sparkle. Its dismiss button is
+pinned while long/scaled text scrolls. Its width is capped at 480 and height at
+half its safe pane, clearing hinges. The existing once-daily decision and
+nine-second automatic dismissal are unchanged. Journey streak information stays
+in the noncompact card and Journey screen.
+
+## Validation
+
+Latest checks include the iPhone portrait and landscape dock restorations:
+
+- `flutter analyze --no-pub`: no issues.
+- `flutter test --no-pub --reporter expanded`: **392 tests passed**.
+- `git diff --check`: clean.
+- Targeted Flutter widget-rendering diagnostic: three navigator sizes plus the
+  minimal reminder, using the actual Inter and Material icon fonts. This is
+  Flutter test rendering, not native device validation.
+
+Regressions cover both editions; the table's window sizes; safe insets, vertical
+hinges, half-open/flat folds and cutouts; RTL order and every file exactly once;
+focused-page/selection preservation; stale callbacks; resizing during animated
+navigation; no extra reading visit on folding; audio-follow identity; open modal
+resizing; secondary screens; 1.4–1.8 text scaling and both themes; the full launch
+schedule, migration, timing, background cancellation, modal suppression, saved
+Rate choice and independent manual rating. Existing audio/Bismillah and Tasbeeh
+regressions remain in the full suite.
+
+To recreate the widget-rendering snapshots:
+
+```bash
+RESPONSIVE_SCREENSHOTS=/tmp/v5-responsive-previews \
+  flutter test --no-pub tool/responsive_visual_smoke_test.dart
+```
+
+## Platform checks and remaining device validation
+
+Android has no orientation lock in its activity manifest; resize/screen-layout
+configuration changes are already handled. iOS declares all four orientations,
+targets iPhone/iPad and has no `UIRequiresFullScreen` restriction. No platform
+orientation changes were necessary.
+
+The reviewed Flutter 3.38.1 [iOS embedding](https://github.com/flutter/flutter/blob/3.38.1/engine/src/flutter/shell/platform/darwin/ios/framework/Source/FlutterViewController.mm)
+updates window dimensions and UIKit safe-area insets. The inspected public iOS 26
+[UIScreen](https://github.com/xybp888/iOS-SDKs/blob/master/iPhoneOS26.0.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIScreen.h)
+and [UIWindowScene](https://github.com/xybp888/iOS-SDKs/blob/master/iPhoneOS26.0.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIWindowScene.h)
+header mirror provides no hinge geometry API. There is no iOS SDK/device in this
+workspace with which to validate a newer API. No speculative native hinge bridge
+or device-name special case is introduced. iOS currently adapts using window
+constraints and safe insets, and honors display features if supplied by Flutter.
+A seamless inner display uses its full safe width; an unreported physical hinge
+cannot be inferred from size alone.
+
+`flutter devices --machine` exposes only Linux; no Android/iOS emulator, simulator
+or physical device is attached. Validate real fold/unfold posture events and
+hinge/cutout reporting on Android, iPhone cover/inner display transitions including
+the requested iPhone Duo, iPad split view/Stage Manager, multitasking, live audio
+highlight/follow behavior and accessibility on devices. This work does not claim
+certification of an untested device or an unavailable iOS hinge API.

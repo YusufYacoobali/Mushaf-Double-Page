@@ -1,5 +1,5 @@
 /// Utility class responsible for mapping page numbers
-/// between portrait (single page) and landscape (two-page) modes
+/// between single pages and RTL spreads, independently of orientation.
 class PageMapper {
   static const int indopakLastFilePage = 851;
   static const int madaniLastFilePage = 624;
@@ -18,23 +18,29 @@ class PageMapper {
     );
   }
 
-  /// Maps a bookmarked page when navigating to it
-  ///
-  /// Pages are stored inverted (from the end of the Mushaf),
-  /// so we subtract from totalPages before applying orientation logic
+  /// Bookmarks store one-based file pages, independent of the current page mode.
   static int bookmarkGoToMapper(int currentPage, bool isPortrait) {
-    return isPortrait ? (currentPage) : ((currentPage) ~/ 2);
+    return pageIndexFromLogical(currentPage, isPortrait);
   }
 
   static int pageIndexFromLogical(int logical, bool portrait) {
-    if (portrait) return logical;
+    if (portrait) return (logical - 1).clamp(0, indopakLastFilePage);
 
-    // left page of a landscape spread must be even (0-based pair start)
-    final left = logical.isOdd ? logical - 1 : logical;
-    return left ~/ 2;
+    // The even file page is on the right, followed by the odd page on the left.
+    // Slot zero is blank at the beginning of the Mushaf.
+    final right = logical.isOdd ? logical - 1 : logical;
+    return right ~/ 2;
   }
 
   static int logicalFromPageIndex(int index, bool portrait) {
-    return portrait ? index : index * 2;
+    return portrait ? index + 1 : (index * 2).clamp(1, indopakLastFilePage);
+  }
+
+  static List<int> visiblePages(int focused, bool single, int lastPage) {
+    final first = single ? focused : (focused ~/ 2) * 2;
+    return [
+      for (var p = first; p < first + (single ? 1 : 2); p++)
+        if (p >= 1 && p <= lastPage) p,
+    ];
   }
 }

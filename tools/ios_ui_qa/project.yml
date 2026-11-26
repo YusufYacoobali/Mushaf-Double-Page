@@ -1,0 +1,37 @@
+name: ReaderUIHarness
+options:
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    CODE_SIGNING_ALLOWED: NO
+    GENERATE_INFOPLIST_FILE: YES
+targets:
+  QAHost:
+    type: application
+    platform: iOS
+    sources: [Host.swift]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.mushaf.visualqa.host
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+  ReaderVisualTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [ReaderVisualTests.swift, ReaderAppIdentity.swift]
+    dependencies:
+      - target: QAHost
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.mushaf.visualqa.tests
+        TEST_TARGET_NAME: QAHost
+schemes:
+  ReaderVisualTests:
+    build:
+      targets:
+        QAHost: all
+        ReaderVisualTests: [test]
+    test:
+      targets: [ReaderVisualTests]

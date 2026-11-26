@@ -1,0 +1,9 @@
+Capture height-only Duo portrait, the shared scrolling landscape spread, physical book panels and the iPad mini 80% portrait baseline. Include the folded 100% collapsed tab and the wide 100% spread after a vertical swipe.
+Pair the explicit folded-tab screenshot with the settled auto-hidden navigation state.
+Verify the unfolded Duo landscape scroll viewport now reaches the physical bottom edge (not the 34pt iOS home indicator inset), and the bottom of both Quran pages meets the screen bottom after a swipe. Preserve top alignment, dock safety, half-open book, folded portrait and iPad mini.
+Capture page 6 in portrait and pages 6–7 in spreads. Verify the half-open Duo now uses the full unobstructed panel height beneath the home-swipe inset, with its real hinge and safe controls preserved. Replace the iPad mini 80% portrait pair with exactly one portrait and one landscape capture, both at 100%. Keep all other Duo endpoints, including the collapsed folded tab and fully scrolled unfolded landscape.
+Verify centred fitting unfolded landscape spreads and the exact scroll endpoints on pages 6–7 with the updated app build.
+
+2026-11-19: Run the same native verification on v7 from app source c5947e5f9d8c2016b8860cd9879c753e836a9cc4. Capture all requested pages 6–7 layouts and zoom endpoints freshly; retain strict geometry and screenshot validation.
+
+2026-11-20: Repeat the complete 32-capture verification from latest v7 app source a6ae6a6ee8e0a248447a7afad535cf2d82585cb7. Capture fresh pages 6–7, all existing min/max zoom and posture cases, iPad mini portrait and landscape at 100%, and exact landscape scroll endpoints. Preserve strict source, geometry and screenshot checks.

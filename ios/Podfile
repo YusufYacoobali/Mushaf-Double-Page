@@ -30,6 +30,8 @@ flutter_ios_podfile_setup
 target 'Runner' do
   use_frameworks!
 
+  # PCM output/clock now use separate native source files. Regenerate local
+  # plugin source membership with pod install when updating this implementation.
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

@@ -1,0 +1,162 @@
+{
+  "schema": 1,
+  "reciter": "yasser_dussary",
+  "surah": 55,
+  "fromAyah": 1,
+  "toAyah": 10,
+  "sampleRate": 44100,
+  "channels": 2,
+  "bitsPerSample": 16,
+  "frames": 2151105,
+  "rows": [
+    {
+      "surah": 55,
+      "ayah": null,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:0:1",
+      "startFrame": 0,
+      "endFrame": 145473,
+      "sourceFile": "001001.mp3",
+      "sourceSha256": "efc922e29b8e10cd09e83617fe85ba09a2a77ed9e449a09b9e515250d2806ce0",
+      "decodedSha256": "d3de3330b82f43a3f13d911e48042913e1fd8f0163fd7b9348c68258a6dffbc3"
+    },
+    {
+      "surah": 55,
+      "ayah": 1,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:1:1",
+      "startFrame": 145473,
+      "endFrame": 347073,
+      "sourceFile": "055001.mp3",
+      "sourceSha256": "17e8927b354819e2553ac9422b9f1abe80b7e73a357c117841732196f2a7c023",
+      "decodedSha256": "e95fc9b940eec36ca8a6c908fcd559d721a99e5539da1734fab712a4b4ad3c98"
+    },
+    {
+      "surah": 55,
+      "ayah": 2,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:2:1",
+      "startFrame": 347073,
+      "endFrame": 538305,
+      "sourceFile": "055002.mp3",
+      "sourceSha256": "8855b5f295ce1aee0a8958204902946ffeb3d8dddec16b844bed8e7928515c4d",
+      "decodedSha256": "7d1d23eb11cb439415d4c1e14f9ad8a9423695c364e5d31b8c15bda6b3d40eff"
+    },
+    {
+      "surah": 55,
+      "ayah": 3,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:3:1",
+      "startFrame": 538305,
+      "endFrame": 661569,
+      "sourceFile": "055003.mp3",
+      "sourceSha256": "35445ed3a333e8e8a7a433f5a921f22c8bb6de28ba032f7dd719ae760c63e7ca",
+      "decodedSha256": "e2f0d3c65a8af91a611895c4c40949ee36ee6f3e5158c9f4e0f49f9ffbc9161e"
+    },
+    {
+      "surah": 55,
+      "ayah": 4,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:4:1",
+      "startFrame": 661569,
+      "endFrame": 826305,
+      "sourceFile": "055004.mp3",
+      "sourceSha256": "41c08a8f0b8e76c73e48fdfd21bb15c663ff56b49f46dbe968eee05fd0e1ac4b",
+      "decodedSha256": "b2fd589a442b68d0d29c1081082a602bbf443c2efa1d8250490fbf3f3a2687aa"
+    },
+    {
+      "surah": 55,
+      "ayah": 5,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:5:1",
+      "startFrame": 826305,
+      "endFrame": 994497,
+      "sourceFile": "055005.mp3",
+      "sourceSha256": "894ab103869718ee717ba855773b7ad491c649ce39fc35451d32a4b624f536a9",
+      "decodedSha256": "797108e6ac1ef95e1a7491479ab8ebd2607bf92a1df0162b7edb60001e1faf03"
+    },
+    {
+      "surah": 55,
+      "ayah": 6,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:6:1",
+      "startFrame": 994497,
+      "endFrame": 1211073,
+      "sourceFile": "055006.mp3",
+      "sourceSha256": "64ba3a0cabb07fd9d8eef41776c1cdd0abc40af9297df69584d5c30439b8e8be",
+      "decodedSha256": "98ab9b33a0f28f50d109451cb424639f7342bbf957ac82be49f39210b472c11b"
+    },
+    {
+      "surah": 55,
+      "ayah": 7,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:7:1",
+      "startFrame": 1211073,
+      "endFrame": 1518657,
+      "sourceFile": "055007.mp3",
+      "sourceSha256": "283beb56b7373d35fa3709c9932a4c8c3ef3f454b6b37a66cb45b24c8ac248e9",
+      "decodedSha256": "5f114a24d225052ca850c9b25c2bce4b61ac4043f20f16558cb8b86bc240735a"
+    },
+    {
+      "surah": 55,
+      "ayah": 8,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:8:1",
+      "startFrame": 1518657,
+      "endFrame": 1699521,
+      "sourceFile": "055008.mp3",
+      "sourceSha256": "e02fd166ff3b2c74ff10fcf9dea1af2bbe05976e66f195cbdc93411aeb57e7d3",
+      "decodedSha256": "1003fd35f4fd27cd9d26b63a2b1bfe2f9f81f924c8d73c7af58f2f95018b8fc5"
+    },
+    {
+      "surah": 55,
+      "ayah": 9,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:9:1",
+      "startFrame": 1699521,
+      "endFrame": 1972545,
+      "sourceFile": "055009.mp3",
+      "sourceSha256": "32a3a6d9f2ce83b3ca1538bc882ef52597a4fded3fd912502ef7420b8f770115",
+      "decodedSha256": "9036dbee71f05c86a603735bf0b509f5815c8f5c698d09c0c6484eada8207f89"
+    },
+    {
+      "surah": 55,
+      "ayah": 10,
+      "cycle": 1,
+      "occurrence": "yasser_dussary:55:10:1",
+      "startFrame": 1972545,
+      "endFrame": 2151105,
+      "sourceFile": "055010.mp3",
+      "sourceSha256": "030fd646770c20402dd83efb7601539dff9251c9ba7ee084f6fdb2dc1d463835",
+      "decodedSha256": "e7387b0008657b091e024951dee98d84ef540bc51d26e22b9fa701b1d26596d4"
+    }
+  ],
+  "waveSha256": "885d86be127a28a98ba4348dba2037b30209366781e60050a71b9b54ab76f576",
+  "pcmSha256": "d87416bff3d685e2e8d2a5985687a8ef1e38dcf279eeba6b644aa09469bd12db",
+  "waveBytes": 8604464,
+  "durationMs": 48777.89115646258,
+  "allDecodedSamplesComparedEqual": true,
+  "decoder": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "preparationSeconds": 3.002563096997619,
+  "builderPeakRssKiB": 24924,
+  "decodedWorkingSet": "One recording PCM file at a time; 64 KiB write buffers. Verification reads one recording at a time.",
+  "limitations": "Stage A offline preparation only; no progressive producer. Native output gap, battery and mobile startup unmeasured.",
+  "recordingProvenance": "Original EveryAyah mappings; review corpus from maqra yasser-ad-dossari-128kbps/055.zip and existing hash-verified Bismillah fixture. Live upstream equality not independently rechecked.",
+  "openingContentCheck": {
+    "method": "Unprompted sherpa-onnx Whisper small int8 Arabic; automated, not human listening",
+    "001001.mp3": "بسم الله الرحمن الرحيم",
+    "055001.mp3": "الرحمن",
+    "055002.mp3": "علم القرآن"
+  },
+  "deliveryValidation": {
+    "flutterAnalyze": "no issues",
+    "flutterTest": "405 passed, 2 optional checks skipped",
+    "artifactValidation": "passed on actual generated WAV",
+    "releaseGuard": "passed",
+    "pythonBuilderTests": 2,
+    "androidBuild": "attempted; blocked by missing Android SDK",
+    "iosBuild": "unavailable on Linux",
+    "nativeOutputGap": "unmeasured",
+    "progressiveProductionStages": "not implemented; regular EveryAyah fallback retained"
+  }
+}

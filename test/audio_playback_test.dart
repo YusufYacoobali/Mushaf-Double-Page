@@ -1,462 +1,445 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:mushaf_two_page/logic/audio_repository.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
+import 'package:mushaf_two_page/logic/quran_audio_handler.dart';
 import 'package:mushaf_two_page/models/quran_audio.dart';
+import 'audio_test_fixtures.dart';
+export 'audio_test_fixtures.dart';
 
-// Models just_audio's sticky playing flag at EOF and no-op play() when true.
-// An exhausted queue cannot become audible again without a fresh source load.
-class FakePlayer implements AudioPlayer {
-  final states = StreamController<PlayerState>.broadcast();
-  final indexes = StreamController<int?>.broadcast(sync: true);
-  final errors = StreamController<PlayerException>.broadcast(sync: true);
-  final plays = <Completer<void>>[];
-  final loadedSources = <List<AudioSource>>[];
-  int starts = 0;
-  int audibleStarts = 0;
-  int seeks = 0;
-  int sourceLoads = 0;
-  int sourceCount = 0;
-  int _loadGeneration = 0;
-  bool active = false;
-  bool decoderReady = false;
-  ProcessingState state = ProcessingState.idle;
-  Completer<void>? loadGate;
-  @override
-  LoopMode loopMode = LoopMode.off;
-  @override
-  Stream<PlayerState> get playerStateStream => states.stream;
-  @override
-  Stream<int?> get currentIndexStream => indexes.stream;
-  @override
-  Stream<PlayerException> get errorStream => errors.stream;
-  @override
-  bool get playing => active;
-  @override
-  ProcessingState get processingState => state;
-  @override
-  Future<void> play() {
-    if (active) return Future<void>.value();
-    starts++;
-    if (decoderReady) audibleStarts++;
-    active = true;
-    states.add(PlayerState(active, state));
-    final completer = Completer<void>();
-    plays.add(completer);
-    return completer.future;
-  }
-
-  void _finishPlayRequests() {
-    for (final c in plays) {
-      if (!c.isCompleted) c.complete();
-    }
-  }
-
-  @override
-  Future<void> stop() async {
-    _loadGeneration++;
-    active = false;
-    state = ProcessingState.idle;
-    _finishPlayRequests();
-    states.add(PlayerState(active, state));
-  }
-
-  @override
-  Future<void> pause() async {
-    if (!active) return;
-    active = false;
-    _finishPlayRequests();
-    states.add(PlayerState(active, state));
-  }
-
-  @override
-  Future<void> seek(Duration? position, {int? index}) async {
-    seeks++;
-    state = ProcessingState.ready;
-    states.add(PlayerState(active, state));
-  }
-
-  @override
-  Future<Duration?> setAudioSources(
-    List<AudioSource> sources, {
-    bool preload = true,
-    int? initialIndex,
-    Duration? initialPosition,
-    ShuffleOrder? shuffleOrder,
-  }) async {
-    final generation = ++_loadGeneration;
-    sourceLoads++;
-    sourceCount = sources.length;
-    loadedSources.add(List.of(sources));
-    await loadGate?.future;
-    if (generation != _loadGeneration) throw StateError('Loading interrupted');
-    decoderReady = true;
-    state = ProcessingState.ready;
-    indexes.add(initialIndex ?? 0);
-    states.add(PlayerState(active, state));
-    return null;
-  }
-
-  @override
-  Future<void> setLoopMode(LoopMode mode) async {
-    loopMode = mode;
-  }
-
-  void complete() {
-    decoderReady = false;
-    state = ProcessingState.completed;
-    _finishPlayRequests();
-    states.add(PlayerState(active, state));
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-Future<List<AudioSource>> sources(AudioPlaybackPlan p) async => [
-  for (final v
-      in p.repeatMode == AudioRepeatMode.range
-          ? p.uniqueVerses()
-          : p.playbackVerses())
-    AudioSource.uri(Uri.parse('https://example.test/${v.surah}/${v.ayah}.mp3')),
-];
-
-AudioPlaybackPlan plan({int? count = 10}) => AudioPlaybackPlan(
-  reciter: quranReciters.first,
-  surah: 112,
-  fromAyah: 1,
-  toAyah: 4,
-  repeatCount: count,
-  repeatMode: AudioRepeatMode.range,
-  sourceMode: AudioSourceMode.surah,
-);
-Future<void> flush() => Future<void>.delayed(Duration.zero);
 void main() {
-  for (final count in [1, 3, 5, 10]) {
+  late FakePlayer player;
+  late ControlledRepository repo;
+  late QuranAudioController c;
+  setUp(() {
+    player = FakePlayer();
+    repo = ControlledRepository();
+    c = QuranAudioController.forTesting(
+      player: player,
+      repository: repo,
+      resolveIntroduction: fixtureIntroduction,
+    );
+  });
+  tearDown(() async {
+    await c.stop();
+    c.dispose();
+  });
+  test(
+    'cached consecutive ayahs use one initial queue and automatic transitions',
+    () async {
+      await c.playPlan(plan(surah: 2, from: 2, to: 20));
+      await flush();
+      expect(player.queue.length, 4);
+      expect(repo.requested.first, 'alafasy/2:2');
+      final pause = player.pauses, stop = player.stops;
+      for (var a = 2; a < 15; a++) {
+        expect(c.currentAyah, a);
+        player.advance();
+        await flush();
+        expect(player.sourceLoads, 1);
+        expect(player.pauses, pause);
+        expect(player.stops, stop);
+        expect(c.nativeQueueLength, lessThanOrEqualTo(6));
+      }
+      expect(c.currentAyah, 15);
+      expect(player.removals, greaterThan(0));
+    },
+  );
+  test(
+    'removing consumed entries keeps the actual occurrence and playhead',
+    () async {
+      await c.playPlan(plan(surah: 2, from: 2, to: 20));
+      await flush();
+      player.advance();
+      await flush();
+      player.at = const Duration(seconds: 3);
+      player.advance();
+      player.at = const Duration(seconds: 4);
+      final id = c.currentOccurrence!.occurrenceId;
+      await flush();
+      expect(c.currentOccurrence!.occurrenceId, id);
+      expect(c.currentAyah, 4);
+      expect(player.position, const Duration(seconds: 4));
+      expect(c.currentRepeat, 1);
+    },
+  );
+  test(
+    'native queue and retained sources remain bounded for 2500 transitions',
+    () async {
+      await c.playPlan(plan(from: 2, to: 3, count: null));
+      await flush();
+      for (var i = 0; i < 2500; i++) {
+        expect(c.currentAyah, 2 + i % 2);
+        expect(c.currentRepeat, 1 + i ~/ 2);
+        player.advance();
+        await flush();
+        expect(c.nativeQueueLength, lessThanOrEqualTo(6));
+        expect(c.retainedSourceCount, lessThanOrEqualTo(6));
+      }
+      expect(player.sourceLoads, 1);
+      expect(player.maxQueue, lessThanOrEqualTo(6));
+    },
+  );
+  for (final repeat in AudioRepeatMode.values) {
     test(
-      'range decodes exactly $count cycles using fresh native queues',
+      'finite ${repeat.name} cycles advance exactly once per actual occurrence',
       () async {
-        final player = FakePlayer();
-        final controller = QuranAudioController.forTesting(
-          player: player,
-          prepareSources: sources,
-        );
-        await controller.playPlan(plan(count: count));
-        expect(controller.preparing, isFalse);
-        for (var cycle = 1; cycle <= count; cycle++) {
-          expect(controller.currentRepeat, cycle);
-          player.complete();
+        await c.playPlan(plan(from: 2, to: 3, count: 3, repeat: repeat));
+        await flush();
+        for (var i = 0; i < 6; i++) {
+          expect(
+            c.currentAyah,
+            repeat == AudioRepeatMode.range ? 2 + i % 2 : 2 + i ~/ 3,
+          );
+          expect(
+            c.currentRepeat,
+            repeat == AudioRepeatMode.range ? 1 + i ~/ 2 : 1 + i % 3,
+          );
+          player.advance();
           await flush();
         }
-        expect(player.starts, count);
-        expect(player.audibleStarts, count);
-        expect(player.active, isFalse);
-        expect(controller.hasActivePlayback, isFalse);
-        expect(player.seeks, 0);
-        expect(player.sourceLoads, count);
-        expect(player.loopMode, LoopMode.off);
-        final sourceIds = player.loadedSources.expand((s) => s);
-        expect(sourceIds.toSet().length, 4);
-        expect(player.sourceCount, 4);
-        await controller.stop();
+        expect(c.phase, QuranPlaybackPhase.completed);
+        expect(player.sourceLoads, 1);
+        await c.play();
+        expect(c.hasActivePlayback, isTrue);
       },
     );
   }
-  test('infinite recovery remains available after many completions', () async {
-    final player = FakePlayer();
-    final controller = QuranAudioController.forTesting(
-      player: player,
-      prepareSources: (_) async => [],
-    );
-    await controller.playPlan(plan(count: null));
-    for (var i = 0; i < 12; i++) {
-      player.complete();
-      await flush();
-    }
-    expect(player.starts, 13);
-    expect(player.audibleStarts, 13);
-    expect(player.sourceLoads, 13);
-    expect(controller.currentRepeat, 13);
-    await controller.stop();
-  });
-  test('stop during preparation prevents late autoplay', () async {
-    final player = FakePlayer();
-    final preparation = Completer<List<AudioSource>>();
-    final controller = QuranAudioController.forTesting(
-      player: player,
-      prepareSources: (_) => preparation.future,
-    );
-    final pending = controller.playPlan(plan());
-    await flush();
-    await controller.stop();
-    preparation.complete([]);
-    await pending;
-    expect(player.starts, 0);
-    expect(controller.preparing, isFalse);
-  });
-  test('stop during repeat loading prevents restart', () async {
-    final player = FakePlayer();
-    final controller = QuranAudioController.forTesting(
-      player: player,
-      prepareSources: (_) async => [],
-    );
-    await controller.playPlan(plan());
-    player.loadGate = Completer<void>();
-    player.complete();
-    await controller.stop();
-    player.loadGate!.complete();
-    await flush();
-    expect(player.starts, 1);
-  });
   test(
-    'ten cycles retain active session and ayah across native queue reloads',
+    'infinite verse Next/Previous select logical ayahs, not repeated copies',
     () async {
-      final player = FakePlayer();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: (_) async => [],
-      );
-      await controller.playPlan(plan());
-      final observations = <bool>[];
-      controller.addListener(
-        () => observations.add(controller.hasActivePlayback),
-      );
-      for (var cycle = 1; cycle <= 10; cycle++) {
-        player.indexes.add(3);
-        expect(controller.currentSurah, 112);
-        expect(controller.currentAyah, 4);
-        observations.clear();
-        player.loadGate = Completer<void>();
-        player.complete();
+      await c.playPlan(plan(count: null, repeat: AudioRepeatMode.ayah));
+      await flush();
+      for (var i = 0; i < 15; i++) {
+        player.advance();
         await flush();
-        if (cycle == 10) {
-          expect(controller.hasActivePlayback, isFalse);
-          expect(controller.currentAyah, isNull);
-          break;
-        }
-        expect(controller.hasActivePlayback, isTrue);
-        expect(controller.currentAyah, 4);
-        // Native metadata/indexes may momentarily be unavailable at a repeat edge.
-        player.indexes.add(null);
-        expect(controller.currentAyah, 4);
-        // Duplicate EOF during reload must not skip or finish the next cycle.
-        player.complete();
-        player.loadGate!.complete();
-        await flush();
-        expect(controller.currentRepeat, cycle + 1);
-        expect(controller.currentAyah, 1);
-        expect(observations, everyElement(isTrue));
-        player.indexes.add(1);
-        expect(controller.currentAyah, 2);
       }
-      expect(player.starts, 10);
-      expect(player.audibleStarts, 10);
-      expect(player.seeks, 0);
-      expect(player.sourceLoads, 10);
-      await controller.stop();
+      expect(c.currentAyah, 2);
+      expect(c.currentRepeat, 16);
+      await c.seekNext();
+      await flush();
+      expect(c.currentAyah, 3);
+      expect(c.currentRepeat, 1);
+      await c.seekPrevious();
+      expect(c.currentAyah, 2);
     },
   );
-
   test(
-    'pause and temporary processing states keep the session; stop clears it',
+    'slow next recording leaves current healthy then buffers at genuine exhaustion',
     () async {
-      final player = FakePlayer();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: (_) async => [],
-      );
-      await controller.playPlan(plan());
-      player.indexes.add(2);
-      await controller.togglePlayPause();
-      expect(controller.playing, isFalse);
-      expect(controller.hasActivePlayback, isTrue);
-      expect(controller.currentAyah, 3);
-      player.state = ProcessingState.buffering;
-      player.states.add(PlayerState(false, player.state));
-      player.indexes.add(null);
-      expect(controller.currentAyah, 3);
-      await controller.stop();
-      expect(controller.hasActivePlayback, isFalse);
-      expect(controller.currentAyah, isNull);
-      player.complete();
+      final gate = repo.gates['112:3'] = Completer<void>();
+      await c.playPlan(plan());
       await flush();
-      expect(player.starts, 1);
+      expect(c.currentAyah, 2);
+      expect(c.phase, QuranPlaybackPhase.playing);
+      final loads = player.sourceLoads;
+      player.advance();
+      await flush();
+      expect(c.hasActivePlayback, isTrue);
+      expect(c.phase, QuranPlaybackPhase.buffering);
+      expect(player.sourceLoads, loads);
+      await c.pause();
+      gate.complete();
+      await flush();
+      expect(c.currentItem!.ayah, 3);
+      expect(c.playing, isFalse);
+      expect(player.sourceLoads, loads + 1);
+      await c.play();
+      expect(c.currentAyah, 3);
     },
   );
-
   test(
-    'queue verse identity survives repeats across surah boundaries',
+    'EOF while an append is pending resumes the exact next occurrence, paused',
     () async {
-      final player = FakePlayer();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: (_) async => [],
-      );
-      await controller.playPlan(
-        AudioPlaybackPlan(
-          reciter: quranReciters.first,
-          surah: 112,
-          fromAyah: 1,
-          toAyah: 4,
-          repeatCount: 3,
-          repeatMode: AudioRepeatMode.range,
-          sourceMode: AudioSourceMode.playlist,
-          surahQueue: [112, 114],
-        ),
-      );
-      player.indexes.add(4);
-      expect((controller.currentSurah, controller.currentAyah), (114, 1));
-      player.complete();
+      final gate = player.appendGate = Completer<void>();
+      await c.playPlan(plan());
       await flush();
-      expect((controller.currentSurah, controller.currentAyah), (112, 1));
-      player.indexes.add(9);
-      expect((controller.currentSurah, controller.currentAyah), (114, 6));
-      await controller.stop();
+      player.advance();
+      await c.pause();
+      await flush();
+      gate.complete();
+      await flush();
+      expect(c.currentItem!.ayah, 3);
+      expect(c.playing, isFalse);
+      await c.play();
+      expect(c.currentAyah, 3);
+      expect(c.currentRepeat, 1);
+      player.advance();
+      await flush();
+      expect(c.currentAyah, 4);
     },
   );
-
   test(
-    'verse repeat reports the correct ayah and repetition without source tags',
+    'Stop/replacement during delayed native setup cannot resurrect an old window',
     () async {
-      final player = FakePlayer();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: (_) async => [],
-      );
-      await controller.playPlan(
-        AudioPlaybackPlan(
-          reciter: quranReciters.first,
-          surah: 112,
-          fromAyah: 1,
-          toAyah: 2,
-          repeatCount: 3,
-          repeatMode: AudioRepeatMode.ayah,
-          sourceMode: AudioSourceMode.range,
-        ),
-      );
-      for (var index = 0; index < 6; index++) {
-        player.indexes.add(index);
-        expect(controller.currentAyah, index ~/ 3 + 1);
-        expect(controller.currentRepeat, index % 3 + 1);
-        expect(controller.hasActivePlayback, isTrue);
-      }
-      player.complete();
-      await flush();
-      expect(controller.hasActivePlayback, isFalse);
-      await controller.stop();
-    },
-  );
-
-  test(
-    'pause during repeat loading survives completion and resumes audibly',
-    () async {
-      final player = FakePlayer();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: sources,
-      );
-      await controller.playPlan(plan(count: 3));
-      player.loadGate = Completer<void>();
-      player.complete();
-      await flush();
-      expect(controller.playing, isTrue);
-      await controller.togglePlayPause();
-      expect(controller.playing, isFalse);
-      player.loadGate!.complete();
-      await flush();
-      expect(controller.currentRepeat, 2);
-      expect(player.starts, 1);
-      expect(controller.hasActivePlayback, isTrue);
-      await controller.togglePlayPause();
-      expect(player.audibleStarts, 2);
-      await controller.stop();
-    },
-  );
-
-  test(
-    'reload error ends the session instead of leaving silent play controls',
-    () async {
-      final player = FakePlayer();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: sources,
-      );
-      await controller.playPlan(plan());
-      player.loadGate = Completer<void>();
-      player.complete();
-      await flush();
-      player.loadGate!.completeError(StateError('unreadable cached source'));
-      await flush();
-      expect(controller.hasActivePlayback, isFalse);
-      expect(controller.playing, isFalse);
-      expect(controller.errorKind, QuranAudioErrorKind.playback);
-      expect(player.active, isFalse);
-    },
-  );
-
-  test(
-    'replacement plan wins over a delayed native load of an old repeat',
-    () async {
-      final player = FakePlayer();
-      final delayed = Completer<void>();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: sources,
-      );
-      await controller.playPlan(plan());
-      player.loadGate = delayed;
-      player.complete();
+      final gate = player.loadGate = Completer<void>();
+      final old = c.playPlan(plan());
       await flush();
       player.loadGate = null;
-      await controller.playPlan(plan(count: 5));
-      delayed.complete();
+      final newer = c.playPlan(plan(from: 3));
+      gate.complete();
+      await old;
+      await newer;
       await flush();
-      expect(controller.plan!.repeatCount, 5);
-      expect(controller.currentRepeat, 1);
-      expect(player.sourceLoads, 3);
-      expect(player.audibleStarts, 2);
-      expect(controller.error, isNull);
-      await controller.stop();
+      expect(c.currentAyah, 3);
+      expect(player.starts, 1);
+      await c.stop();
+      expect(c.currentItem, isNull);
     },
   );
-
   test(
-    'replaying a finished plan reloads rather than seeking an exhausted queue',
+    'future download failure cannot interrupt current, skip, or consume repetition',
     () async {
-      final player = FakePlayer();
-      final controller = QuranAudioController.forTesting(
-        player: player,
-        prepareSources: sources,
-      );
-      await controller.playPlan(plan(count: 1));
-      player.complete();
+      repo.remainingFailures['112:3'] = 2;
+      await c.playPlan(plan(count: 3));
       await flush();
-      expect(controller.hasActivePlayback, isFalse);
-      await controller.togglePlayPause();
-      expect(player.audibleStarts, 2);
-      expect(player.sourceLoads, 2);
-      expect(player.seeks, 0);
-      await controller.stop();
+      expect(c.currentAyah, 2);
+      expect(c.error, isNull);
+      expect(player.sourceLoads, 1);
+      player.advance();
+      await flush();
+      expect(c.currentAyah, 3);
+      expect(c.currentRepeat, 1);
+      expect(c.error, isNull);
     },
   );
-
-  test('queue follows selection order and repeats across surah boundaries', () {
-    final queue = AudioPlaybackPlan(
-      reciter: quranReciters.first,
-      surah: 1,
-      fromAyah: 1,
-      toAyah: 7,
-      repeatCount: 3,
-      repeatMode: AudioRepeatMode.range,
-      sourceMode: AudioSourceMode.playlist,
-      surahQueue: [114, 112],
-    );
-    final verses = queue.playbackVerses();
-    expect(queue.uniqueAyahCount, 10);
-    expect(verses.length, 30);
-    expect(verses[0].surah, 114);
-    expect(verses[6].surah, 112);
-    expect(verses[10].surah, 114);
-    expect(verses[10].cycle, 2);
+  test(
+    'permanent missing future recording fails at its boundary, with explicit retry',
+    () async {
+      repo.remainingFailures['112:3'] = 1;
+      repo.failures['112:3'] = const AudioFailure(
+        AudioFailureKind.missing,
+        '404',
+      );
+      await c.playPlan(plan());
+      await flush();
+      expect(c.error, isNull);
+      player.advance();
+      await flush();
+      expect(c.phase, QuranPlaybackPhase.failed);
+      expect(c.currentItem!.ayah, 3);
+      await c.retry();
+      await flush();
+      expect(c.currentAyah, 3);
+      expect(c.currentRepeat, 1);
+    },
+  );
+  test('future decoder error repairs its recording only at boundary', () async {
+    await c.playPlan(plan());
+    await flush();
+    player.at = const Duration(seconds: 4);
+    final id = c.currentOccurrence!.occurrenceId;
+    final pauses = player.pauses;
+    player.fail(sourceIndex: 1);
+    await flush();
+    expect(repo.invalidated, isEmpty);
+    expect(c.currentAyah, 2);
+    expect(player.pauses, pauses);
+    expect(c.currentOccurrence!.occurrenceId, id);
+    expect(player.position, const Duration(seconds: 4));
+    player.advance();
+    await flush();
+    expect(repo.invalidated, ['112:3']);
+    expect(c.currentAyah, 3);
   });
+  test(
+    'a fatal future-source error reloads healthy current without deleting its cache',
+    () async {
+      await c.playPlan(plan());
+      await flush();
+      player.state = ProcessingState.idle;
+      player.active = false;
+      player.at = const Duration(seconds: 3);
+      player.fail(sourceIndex: 1);
+      await flush();
+      expect(c.currentAyah, 2);
+      expect(repo.invalidated, isNot(contains('112:2')));
+      expect(player.loadedPositions.last, const Duration(seconds: 3));
+      player.advance();
+      await flush();
+      expect(c.currentAyah, 3);
+      expect(repo.invalidated, contains('112:3'));
+    },
+  );
+  test(
+    'current decoder recovery retains identity, position and repetition',
+    () async {
+      await c.playPlan(plan(count: 3));
+      await flush();
+      final id = c.currentOccurrence!.occurrenceId;
+      player.at = const Duration(seconds: 4);
+      player.fail();
+      await flush();
+      expect(repo.invalidated, ['112:2']);
+      expect(c.currentOccurrence!.occurrenceId, id);
+      expect(player.loadedPositions.last, const Duration(seconds: 4));
+      expect(c.currentRepeat, 1);
+    },
+  );
+  test(
+    'bounded retries and manual Skip never skip a healthy numbered ayah',
+    () async {
+      repo.remainingFailures['112:3'] = 100;
+      await c.playPlan(plan());
+      await flush();
+      player.advance();
+      await flush();
+      expect(c.phase, QuranPlaybackPhase.failed);
+      expect(repo.urgentRequests.where((k) => k == 'alafasy/112:3').length, 4);
+      expect(
+        repo.requested.where((k) => k == 'alafasy/112:3').length,
+        lessThanOrEqualTo(8),
+      );
+      await c.seekNext();
+      expect(c.currentAyah, 4);
+    },
+  );
+  test('repeated errors after successful native loads are bounded', () async {
+    player.failPlays = 100;
+    await c.playPlan(plan());
+    await flush();
+    expect(c.phase, QuranPlaybackPhase.failed);
+    expect(player.starts, 4);
+  });
+  test(
+    'Stop and replacement invalidate late downloads and pending appends',
+    () async {
+      final gate = player.appendGate = Completer<void>();
+      await c.playPlan(plan());
+      await flush();
+      final loads = player.sourceLoads;
+      await c.stop();
+      gate.complete();
+      await flush();
+      expect(c.phase, QuranPlaybackPhase.idle);
+      expect(player.sourceLoads, loads);
+      expect(player.queue.length, 1);
+      player.appendGate = null;
+      final download = repo.gates['112:2'] = Completer<void>();
+      final old = c.playPlan(plan());
+      await flush();
+      repo.gates.clear();
+      await c.playPlan(plan(from: 3, reciter: quranReciters[1]));
+      download.complete();
+      await old;
+      await flush();
+      expect(c.plan!.reciter.id, 'sudais');
+      expect(c.currentAyah, 3);
+    },
+  );
+  test(
+    'Next reuses slow recording acquisition while invalidating the old occurrence',
+    () async {
+      final gate = repo.gates['112:3'] = Completer<void>();
+      await c.playPlan(plan());
+      await flush();
+      repo.gates.clear();
+      final navigation = c.seekNext();
+      await flush();
+      gate.complete();
+      await navigation;
+      await flush();
+      expect(c.currentAyah, 3);
+      expect(
+        player.sequenceState.currentSource!.tag,
+        (isA<QuranAudioOccurrence>()),
+      );
+      expect(
+        (player.sequenceState.currentSource!.tag as QuranAudioOccurrence)
+            .sessionGeneration,
+        c.playbackSessionId,
+      );
+    },
+  );
+  test(
+    'native stale state and index-shift notifications do not advance current occurrence',
+    () async {
+      await c.playPlan(plan(surah: 2, from: 2, to: 20));
+      await flush();
+      player.advance();
+      await flush();
+      final old = player.sequenceState;
+      player.advance();
+      await flush();
+      final id = c.currentOccurrence!.occurrenceId;
+      player.sequences.add(old);
+      expect(c.currentOccurrence!.occurrenceId, id);
+    },
+  );
+  test(
+    'background commands and seeking use the authoritative cursor',
+    () async {
+      final handler = QuranAudioHandler(c);
+      await c.playPlan(plan(count: null, repeat: AudioRepeatMode.ayah));
+      await flush();
+      await handler.skipToNext();
+      expect(c.currentAyah, 3);
+      await handler.pause();
+      expect(c.playing, isFalse);
+      await handler.seek(const Duration(seconds: 3));
+      expect(player.position, const Duration(seconds: 3));
+      await handler.play();
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(handler.mediaItem.value!.title, contains('112:3'));
+      await handler.stop();
+      expect(c.phase, QuranPlaybackPhase.idle);
+    },
+  );
+  test(
+    'playlist order, introductions and range cycles follow native transitions',
+    () async {
+      await c.playPlan(plan(queue: [112, 1, 114], count: 2));
+      await flush();
+      final observed = <String>[];
+      for (var i = 0; i < 2 * (1 + 4 + 7 + 1 + 6); i++) {
+        observed.add('${c.currentItem!.key}/${c.currentRepeat}');
+        player.advance();
+        await flush();
+      }
+      expect(observed.take(6), [
+        '112:bismillah/1',
+        '112:1/1',
+        '112:2/1',
+        '112:3/1',
+        '112:4/1',
+        '1:1/1',
+      ]);
+      expect(observed.where((s) => s.startsWith('112:bismillah')).length, 2);
+      expect(c.phase, QuranPlaybackPhase.completed);
+      expect(player.sourceLoads, 1);
+    },
+  );
+  for (final surah in [1, 9, 2]) {
+    test(
+      'introduction special cases for surah $surah preserve numbered identity',
+      () async {
+        await c.playPlan(plan(surah: surah, from: 1, to: 2));
+        await flush();
+        expect(c.isIntroduction, surah == 2);
+        if (surah == 2) {
+          expect(c.currentAyah, isNull);
+          await c.seekNext();
+        }
+        expect(c.currentAyah, 1);
+      },
+    );
+  }
+  test(
+    'introduction failure skip applies across session repeats and preserves ayah one',
+    () async {
+      repo.remainingFailures['112:bismillah'] = 100;
+      await c.playPlan(plan(from: 1, to: 2, count: 2));
+      await flush();
+      expect(c.phase, QuranPlaybackPhase.playing);
+      expect(c.introductionNotice, contains('unavailable'));
+      expect(c.currentAyah, 1);
+      for (var i = 0; i < 4; i++) {
+        player.advance();
+        await flush();
+      }
+      expect(c.phase, QuranPlaybackPhase.completed);
+      expect(repo.requested.where((k) => k.contains('bismillah')).length, 4);
+    },
+  );
 }

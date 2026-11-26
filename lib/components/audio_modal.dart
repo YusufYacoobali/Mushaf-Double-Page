@@ -57,7 +57,6 @@ class _AudioModalState extends State<AudioModal> {
   int? _repeatCount = 10;
   AudioRepeatMode _repeatMode = AudioRepeatMode.range;
   AudioSourceMode _sourceMode = AudioSourceMode.range;
-  QuranAudioErrorKind _lastHandledErrorKind = QuranAudioErrorKind.none;
   List<int>? _ayahOptions;
   int? _ayahOptionsSurah;
   bool _preferencesReady = false;
@@ -198,39 +197,6 @@ class _AudioModalState extends State<AudioModal> {
       _ayahOptions = options;
       _ayahOptionsSurah = _surah;
     });
-  }
-
-  Future<void> _showConnectionNeededDialog() async {
-    if (!mounted) return;
-
-    final palette = AppPalette.of(context);
-    await showDialog(
-      animationStyle: AppMotion.style(context),
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: palette.surface,
-        title: Text(
-          'Connection needed',
-          style: TextStyle(
-            color: palette.surfaceText,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: Text(
-          'This audio has not been downloaded yet. Connect to the internet once, then it will play offline next time.',
-          style: TextStyle(color: palette.surfaceMuted),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              _controller.clearError();
-              Navigator.pop(context);
-            },
-            child: Text('OK', style: TextStyle(color: palette.accent)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -379,7 +345,7 @@ class _AudioModalState extends State<AudioModal> {
                 Padding(
                   padding: const EdgeInsets.only(top: 10),
                   child: Text(
-                    'Your queue plays in selection order. Audio is downloaded first for offline listening; longer queues take more time to prepare.',
+                    'Your queue plays in selection order. Playback starts with the first recording while the next ayahs download.',
                     style: TextStyle(
                       color: palette.surfaceMuted,
                       fontSize: 12,
@@ -422,16 +388,6 @@ class _AudioModalState extends State<AudioModal> {
                 animation: _controller,
                 builder: (context, _) {
                   final controller = _controller;
-                  if (controller.errorKind ==
-                          QuranAudioErrorKind.connectionRequired &&
-                      _lastHandledErrorKind != controller.errorKind) {
-                    _lastHandledErrorKind = controller.errorKind;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _showConnectionNeededDialog();
-                    });
-                  } else if (controller.errorKind == QuranAudioErrorKind.none) {
-                    _lastHandledErrorKind = QuranAudioErrorKind.none;
-                  }
                   return _compactPlayer(palette, controller);
                 },
               ),
@@ -445,11 +401,13 @@ class _AudioModalState extends State<AudioModal> {
   Widget _compactPlayer(AppPalette palette, QuranAudioController controller) {
     final editedPlan = _plan;
     final isThisPlan = editedPlan.matches(controller.plan);
-    final isDownloading = controller.preparing && isThisPlan;
     final isPlaying = isThisPlan && controller.playing;
     final hasActiveAudio = controller.preparing || controller.hasActivePlayback;
-    final canResume =
-        isThisPlan && controller.hasActivePlayback && !controller.playing;
+    final canResume = isThisPlan && controller.paused;
+    final canRetry =
+        isThisPlan && controller.phase == QuranPlaybackPhase.failed;
+    final isPreparing =
+        isThisPlan && controller.preparing && !controller.paused;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -473,16 +431,58 @@ class _AudioModalState extends State<AudioModal> {
               fontWeight: FontWeight.w700,
             ),
           ),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: controller.retry,
+                child: const Text('Retry'),
+              ),
+              TextButton(
+                onPressed: controller.seekNext,
+                child: Text(
+                  controller.isIntroduction
+                      ? 'Continue without Bismillah'
+                      : 'Skip ayah',
+                ),
+              ),
+              TextButton(onPressed: controller.stop, child: const Text('Stop')),
+            ],
+          ),
           const SizedBox(height: 7),
         ],
+        Text(
+          '${controller.currentItem?.label ?? ""} · ${controller.statusLabel}',
+          style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
+        ),
+        if (controller.downloadState.message.isNotEmpty)
+          Text(
+            controller.downloadState.message,
+            style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
+          ),
+        if (controller.introductionNotice != null)
+          Text(
+            controller.introductionNotice!,
+            style: TextStyle(color: palette.surfaceMuted, fontSize: 12),
+          ),
+        if (controller.offlineDownloading)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: controller.cancelDownload,
+              child: const Text('Cancel saving offline'),
+            ),
+          ),
         Row(
           children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: isDownloading
+                onPressed: isPreparing
                     ? null
                     : () {
-                        if (isPlaying || canResume) {
+                        if (canRetry) {
+                          controller.retry();
+                        } else if (isPlaying || canResume) {
                           controller.togglePlayPause();
                         } else {
                           controller.playPlan(editedPlan);
@@ -497,17 +497,19 @@ class _AudioModalState extends State<AudioModal> {
                   ),
                 ),
                 icon: Icon(
-                  isDownloading
-                      ? Icons.hourglass_top_rounded
+                  isPreparing
+                      ? Icons.hourglass_empty_rounded
                       : isPlaying
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
                 ),
                 label: Text(
-                  isDownloading
-                      ? 'Preparing'
+                  isPreparing
+                      ? controller.statusLabel
                       : isPlaying
                       ? 'Pause'
+                      : canRetry
+                      ? 'Retry'
                       : canResume
                       ? 'Resume'
                       : 'Play',

@@ -134,7 +134,13 @@ class AppPalette extends ThemeExtension<AppPalette> {
       ),
       fontFamily: 'Inter',
       scaffoldBackgroundColor: scaffold,
-      dialogTheme: DialogThemeData(backgroundColor: surface),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        constraints: const BoxConstraints(maxWidth: 560),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        constraints: BoxConstraints(maxWidth: 640),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: scaffold,
         foregroundColor: text,

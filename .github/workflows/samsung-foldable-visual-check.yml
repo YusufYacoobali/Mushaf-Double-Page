@@ -1,0 +1,171 @@
+name: Samsung foldable layout verification
+run-name: Samsung passport and regular Fold · pages 6–7
+
+on:
+  push:
+    branches: [v6, v7]
+    paths:
+      - '.github/samsung-foldable-visual.request'
+  workflow_dispatch:
+    inputs:
+      reuse_build:
+        description: Reuse a verified APK when all tracked app inputs match
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: quran-samsung-foldable-qa-${{ github.ref }}
+  cancel-in-progress: false
+
+# These are explicitly Samsung-dimension AVDs running stock Android, not One UI
+# or remote Samsung hardware. The profile metadata records sources/assumptions.
+jobs:
+  build-android:
+    name: Build Android reader for both Samsung layouts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Try a compatible recent APK artifact
+        id: cached-apk
+        if: github.event_name != 'workflow_dispatch' || inputs.reuse_build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/android_qa_build.py reuse
+      - if: steps.cached-apk.outputs.reused != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - if: steps.cached-apk.outputs.reused != 'true'
+        uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '16111833'
+          log-accepted-android-sdk-licenses: false
+      - if: steps.cached-apk.outputs.reused != 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - if: steps.cached-apk.outputs.reused != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-quran-android-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-quran-android-gradle-
+      - name: Bound Gradle memory on the build runner
+        if: steps.cached-apk.outputs.reused != 'true'
+        run: |
+          mkdir -p "$HOME/.gradle"
+          cat > "$HOME/.gradle/gradle.properties" <<'PROPERTIES'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:ReservedCodeCacheSize=256m
+          org.gradle.workers.max=2
+          PROPERTIES
+      - name: Build unchanged app with geometry diagnostics
+        if: steps.cached-apk.outputs.reused != 'true'
+        run: |
+          flutter pub get
+          flutter build apk --debug --no-pub --target-platform android-x64 --dart-define=READER_LAYOUT_QA=true
+          mkdir -p android-qa-build
+          cp build/app/outputs/flutter-apk/app-debug.apk android-qa-build/reader.apk
+          python3 .github/scripts/android_qa_build.py stamp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quran-android-foldable-build
+          path: android-qa-build/
+          retention-days: 7
+          if-no-files-found: error
+
+  capture:
+    name: Capture ${{ matrix.title }}
+    needs: build-android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: galaxy-z-fold8
+            title: Galaxy Z Fold8 · passport layout
+          - profile: galaxy-z-fold8-ultra
+            title: Galaxy Z Fold8 Ultra · regular layout
+    env:
+      SAMSUNG_QA_PROFILE: ${{ matrix.profile }}
+      READER_QA_PAGE: '6'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: '16111833'
+          log-accepted-android-sdk-licenses: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-android-foldable-build
+          path: android-qa-build
+      - name: Verify APK provenance
+        run: python3 .github/scripts/android_qa_build.py verify
+      - name: Enable hardware virtualization
+        run: |
+          test -e /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Linux emulator runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpulse0
+      - name: Install Android 16 emulator and image verifier
+        run: |
+          sdkmanager --channel=0 'emulator' 'system-images;android-36;google_apis;x86_64' 'platforms;android-36' 'build-tools;36.0.0'
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+      - name: Run genuine folded, unfolded and half-open captures
+        run: bash .github/scripts/run_samsung_foldable_qa.sh
+      - name: Upload original frames, geometry and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quran-samsung-${{ matrix.profile }}-visual-qa
+          path: screenshots-samsung/${{ matrix.profile }}/
+          retention-days: 14
+          if-no-files-found: warn
+
+  comparison:
+    name: Verify and assemble both Samsung layout comparisons
+    needs: capture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-samsung-galaxy-z-fold8-visual-qa
+          path: screenshots-samsung/galaxy-z-fold8
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-samsung-galaxy-z-fold8-ultra-visual-qa
+          path: screenshots-samsung/galaxy-z-fold8-ultra
+      - name: Reverify and assemble original screenshots
+        run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          .qa-venv/bin/python .github/scripts/samsung_reader_comparison.py --source screenshots-samsung --output samsung-foldable-comparison.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quran-samsung-foldable-comparison
+          path: samsung-foldable-comparison.png
+          retention-days: 14
+          if-no-files-found: error

@@ -1,0 +1,2925 @@
+{
+  "schemaVersion": 1,
+  "ffmpeg": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "method": "Native-rate interleaved float PCM, FFmpeg normal metadata-aware decode. Contiguous per-sample peak across every channel at digital zero and -90/-75/-60/-45 dBFS. No downmix, resampling, RMS gating, trimming, overlap, speed/pitch changes or cache writes.",
+  "limitations": [
+    "Low-level audio may be pronunciation, decay, breathing, noise or deliberate pause.",
+    "No native player output was captured. Null nativePlayerDelayMs means unmeasured, never zero.",
+    "FFmpeg skip/discard metadata is already applied in decoded PCM; subtracting it again risks clipping."
+  ],
+  "recordings": [
+    {
+      "id": "alafasy/112001.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 112,
+      "ayah": 1,
+      "filename": "112001.mp3",
+      "sha256": "8166d4ae6fbdae1748e215d5b31dbbf246530da0e849f1488ac35316488f1caf",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-112001.mp3",
+      "bytes": 48192,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 128639,
+      "pcmDurationMs": 2916.984,
+      "containerDurationMs": 2977.959,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.068,
+          "trailingMs": 0.181,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 3.469,
+          "trailingMs": 3.583,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 18.912,
+          "trailingMs": 17.166,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 62.993,
+          "trailingMs": 85.51,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 2113,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1584,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 35.918
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/112002.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 112,
+      "ayah": 2,
+      "filename": "112002.mp3",
+      "sha256": "52fd57829c924926152df2175343d115aecbf3b83632f853cb94356697421eee",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-112002.mp3",
+      "bytes": 41087,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 109623,
+      "pcmDurationMs": 2485.782,
+      "containerDurationMs": 2533.878,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.522,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 0.544,
+          "trailingMs": 2.268,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 2.608,
+          "trailingMs": 10.295,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 10.159,
+          "trailingMs": 64.49,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 1545,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1016,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 23.039
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/112003.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 112,
+      "ayah": 3,
+      "filename": "112003.mp3",
+      "sha256": "b50ce19c51314817e9a4885de55ad332a19585e0e221dbec86b98405a08400c4",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-112003.mp3",
+      "bytes": 48192,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 128639,
+      "pcmDurationMs": 2916.984,
+      "containerDurationMs": 2977.959,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.181,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 1.111,
+          "trailingMs": 2.585,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 2.313,
+          "trailingMs": 18.39,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 16.417,
+          "trailingMs": 67.937,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 2113,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1584,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 35.918
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/112004.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 112,
+      "ayah": 4,
+      "filename": "112004.mp3",
+      "sha256": "67a565d4951ff5956a8299eb84cf57b5e0d44374dba8e24c9f0175cb4309b68e",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-112004.mp3",
+      "bytes": 78285,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 211880,
+      "pcmDurationMs": 4804.535,
+      "containerDurationMs": 4858.776,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.023,
+          "trailingMs": 0.408,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 0.658,
+          "trailingMs": 26.122,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 1.995,
+          "trailingMs": 159.002,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 13.515,
+          "trailingMs": 511.111,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 1816,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1287,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 29.184
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/113001.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 113,
+      "ayah": 1,
+      "filename": "113001.mp3",
+      "sha256": "36b36414695bfc69cf038c2060bcd73c4845cd6cce1fb8179de3ce43718b58d0",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-113001.mp3",
+      "bytes": 56133,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 150715,
+      "pcmDurationMs": 3417.574,
+      "containerDurationMs": 3474.286,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.023,
+          "trailingMs": 0.249,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 0.522,
+          "trailingMs": 1.497,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 4.694,
+          "trailingMs": 11.179,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 15.057,
+          "trailingMs": 40.816,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 1925,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1396,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 31.655
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/113002.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 113,
+      "ayah": 2,
+      "filename": "113002.mp3",
+      "sha256": "4ca15d21ebe9888142d29c3580bf62a9062513c04f4c7f222a89a00676252943",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-113002.mp3",
+      "bytes": 58641,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 158399,
+      "pcmDurationMs": 3591.814,
+      "containerDurationMs": 3631.02,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.136,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 0.703,
+          "trailingMs": 2.721,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 2.177,
+          "trailingMs": 9.342,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 7.71,
+          "trailingMs": 39.365,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 1153,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 624,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 14.15
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/112001.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 112,
+      "ayah": 1,
+      "filename": "112001.mp3",
+      "sha256": "bb8ed6ccb26360926ff82046aa8d92fd06d76f49b7f3954f5e9c2a3050b5cd31",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-112001.mp3",
+      "bytes": 97428,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 256896,
+      "pcmDurationMs": 5825.306,
+      "containerDurationMs": 5833.25,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 44.263,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 45.306,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 51.746,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 808.458,
+          "trailingMs": 249.41,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/112002.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 112,
+      "ayah": 2,
+      "filename": "112002.mp3",
+      "sha256": "0b117b005794ad6ac371949bc7ba37dfc0bce28897510b79e9ade583777829a3",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-112002.mp3",
+      "bytes": 84891,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 222336,
+      "pcmDurationMs": 5041.633,
+      "containerDurationMs": 5049.688,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 43.878,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 45.215,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 51.542,
+          "trailingMs": 0.227,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 654.807,
+          "trailingMs": 333.651,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/112003.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 112,
+      "ayah": 3,
+      "filename": "112003.mp3",
+      "sha256": "623c821118210a0731114f7d86a81a25f92b90b4fc17a46ff2553fa2ad431c1e",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-112003.mp3",
+      "bytes": 99100,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 261504,
+      "pcmDurationMs": 5929.796,
+      "containerDurationMs": 5937.75,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 43.855,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 45.238,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 51.224,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 436.553,
+          "trailingMs": 364.467,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/112004.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 112,
+      "ayah": 4,
+      "filename": "112004.mp3",
+      "sha256": "0c791d9b40f9744a118ac364e59f4e95f0e70a8d3619bc2f9d9d31d3d9cef092",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-112004.mp3",
+      "bytes": 134210,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 358272,
+      "pcmDurationMs": 8124.082,
+      "containerDurationMs": 8132.125,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 185.034,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 43.832,
+          "trailingMs": 204.172,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 45.215,
+          "trailingMs": 209.048,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 49.546,
+          "trailingMs": 224.104,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 179.184,
+          "trailingMs": 1315.261,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/113001.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 113,
+      "ayah": 1,
+      "filename": "113001.mp3",
+      "sha256": "6da4d35159a58276071f23442cd2435afa469a56f37c0758aaa1430ca5e4f008",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-113001.mp3",
+      "bytes": 104952,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 277632,
+      "pcmDurationMs": 6295.51,
+      "containerDurationMs": 6303.5,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 44.263,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 45.692,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 52.313,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 588.798,
+          "trailingMs": 96.19,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/113002.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 113,
+      "ayah": 2,
+      "filename": "113002.mp3",
+      "sha256": "0f94290195c88d06006c4aafb8f6964666fc345f25822ae1a9302426161399d1",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-113002.mp3",
+      "bytes": 91577,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 240768,
+      "pcmDurationMs": 5459.592,
+      "containerDurationMs": 5467.563,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 26.145,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 30.703,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 32.132,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 35.125,
+          "trailingMs": 0.612,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 381.066,
+          "trailingMs": 289.932,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/112001.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 112,
+      "ayah": 1,
+      "filename": "112001.mp3",
+      "sha256": "ec2773620bfaee02041bfef5626c17b574be84f36d8311a8de1e21ef5e71b257",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-112001.mp3",
+      "bytes": 42342,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 116352,
+      "pcmDurationMs": 2638.367,
+      "containerDurationMs": 2646.375,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 43.288,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 44.739,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 46.916,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 53.333,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/112002.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 112,
+      "ayah": 2,
+      "filename": "112002.mp3",
+      "sha256": "6d019235a127782e17d2b3160950f323102342ca3b77fa394f7bc4fc3554ce90",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-112002.mp3",
+      "bytes": 33565,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 92160,
+      "pcmDurationMs": 2089.796,
+      "containerDurationMs": 2097.813,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 42.154,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 43.515,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 44.943,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 46.281,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/112003.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 112,
+      "ayah": 3,
+      "filename": "112003.mp3",
+      "sha256": "8d391827ee29441a00588bf8003df79e6732a559923f0ed4c2def815e0719131",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-112003.mp3",
+      "bytes": 43595,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 119808,
+      "pcmDurationMs": 2716.735,
+      "containerDurationMs": 2724.688,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 41.791,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 42.971,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 44.49,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 46.531,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/112004.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 112,
+      "ayah": 4,
+      "filename": "112004.mp3",
+      "sha256": "67003a5083d06ead8e822a4c66daef614b3d3fa17b015b1bb4b009056bdd7cf1",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-112004.mp3",
+      "bytes": 60315,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 165888,
+      "pcmDurationMs": 3761.633,
+      "containerDurationMs": 3769.688,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 41.678,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 43.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 44.535,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 45.76,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/113001.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 113,
+      "ayah": 1,
+      "filename": "113001.mp3",
+      "sha256": "f64ab5ab738ac1429f4965924baf062d4531e105bf667981883c00e66decf3cb",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-113001.mp3",
+      "bytes": 51119,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 140544,
+      "pcmDurationMs": 3186.939,
+      "containerDurationMs": 3194.938,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 43.288,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 44.739,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 46.916,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 53.333,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/113002.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 113,
+      "ayah": 2,
+      "filename": "113002.mp3",
+      "sha256": "fa4d84ec04e1e1de1a9bbb7e46827c36696585f777f255637e98a7e0a2f23495",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-113002.mp3",
+      "bytes": 44850,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 123264,
+      "pcmDurationMs": 2795.102,
+      "containerDurationMs": 2803.125,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 42.132,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 43.492,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 44.966,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 46.621,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/112001.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 112,
+      "ayah": 1,
+      "filename": "112001.mp3",
+      "sha256": "305ce8f66f622966338ff97e1a038700829f899c230b30668095a6e5f77a5724",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-112001.mp3",
+      "bytes": 108554,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 198144,
+      "pcmDurationMs": 4493.061,
+      "containerDurationMs": 4493.042,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 13.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 15.17,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 15.941,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 17.37,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 18.776,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/112002.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 112,
+      "ayah": 2,
+      "filename": "112002.mp3",
+      "sha256": "ed53fa5d0d81e134912d1c11888478e3260aefd12707c7d850df88135836cf44",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-112002.mp3",
+      "bytes": 94218,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 171648,
+      "pcmDurationMs": 3892.245,
+      "containerDurationMs": 3892.25,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 26.145,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 28.322,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 29.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 30.726,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 31.565,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/112003.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 112,
+      "ayah": 3,
+      "filename": "112003.mp3",
+      "sha256": "32770157af5b2d6765d570320138bb5dd0a0fa0a1a5c39586da3c0d3274515e9",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-112003.mp3",
+      "bytes": 299018,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 546048,
+      "pcmDurationMs": 12382.041,
+      "containerDurationMs": 12382.042,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 13.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 14.127,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 15.442,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 16.599,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 18.073,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/112004.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 112,
+      "ayah": 4,
+      "filename": "112004.mp3",
+      "sha256": "bc30ed051b83ba58eadf54a4dff10cf2ad15fa13ef5c49855d5b81c78213ea96",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/112.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-112004.mp3",
+      "bytes": 167946,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 307584,
+      "pcmDurationMs": 6974.694,
+      "containerDurationMs": 6974.708,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 13.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 15.42,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 16.576,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 17.8,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 18.526,
+          "trailingMs": 0.204,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/113001.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 113,
+      "ayah": 1,
+      "filename": "113001.mp3",
+      "sha256": "d66e5fe65a32b712f500803e0d0de7234f5affccabdd10a7708d944b22693942",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-113001.mp3",
+      "bytes": 124938,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 229248,
+      "pcmDurationMs": 5198.367,
+      "containerDurationMs": 5198.375,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 13.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 15.488,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 16.939,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 17.732,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 19.184,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/113002.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 113,
+      "ayah": 2,
+      "filename": "113002.mp3",
+      "sha256": "e3c3a0f20724d7a9d0ffb523b336d022d64825aa8046f958b35ea320e057efee",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-113002.mp3",
+      "bytes": 100362,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 182016,
+      "pcmDurationMs": 4127.347,
+      "containerDurationMs": 4127.333,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 13.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 15.238,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 16.122,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 17.392,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 18.776,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/001007.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 1,
+      "ayah": 7,
+      "filename": "001007.mp3",
+      "sha256": "eb2cbb3c7e5962ab9c410b9b361949c0294bbac2a4c71c0a6b617fa1779f29bc",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/001.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-001007.mp3",
+      "bytes": 559114,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 1536768,
+      "pcmDurationMs": 34847.347,
+      "containerDurationMs": 34847.313,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 41.497,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 42.268,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 43.696,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 45.102,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/001001.mp3",
+      "reciter": "alafasy",
+      "path": "../test/fixtures/bismillah/alafasy.mp3",
+      "sha256": "8808f3fc313d9df87b6090ee9efc8c11859da58b0100ad92621c5ee9a93d7280",
+      "productionUrl": "https://everyayah.com/data/Alafasy_128kbps/001001.mp3",
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 265972,
+      "pcmDurationMs": 6031.111,
+      "containerDurationMs": 6086.531,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.045,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 0.023,
+          "trailingMs": 0.363,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 0.227,
+          "trailingMs": 1.134,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 0.952,
+          "trailingMs": 6.44,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.92 "
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 1868,
+          "encoder": "LAME3.92 "
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1339,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 30.363
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/bismillah.mp3",
+      "reciter": "husary",
+      "path": "../test/fixtures/bismillah/husary.mp3",
+      "sha256": "a32088d34381989c1eae4e927d9d1d569e6dcc4f35d29eee414c6d12d2f32a1f",
+      "productionUrl": "https://everyayah.com/data/Husary_128kbps/bismillah.mp3",
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 225792,
+      "pcmDurationMs": 5120.0,
+      "containerDurationMs": 5128.0,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.023,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 8.866,
+          "trailingMs": 1.111,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 17.71,
+          "trailingMs": 15.17,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 25.057,
+          "trailingMs": 18.345,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 76.327,
+          "trailingMs": 42.426,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/001001.mp3",
+      "reciter": "shaatree",
+      "path": "../test/fixtures/bismillah/shaatree.mp3",
+      "sha256": "b72b1275a8db14537557f668735b70a7280c1f7ec83532d159de978e8a3e7023",
+      "productionUrl": "https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/001001.mp3",
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 286848,
+      "pcmDurationMs": 6504.49,
+      "containerDurationMs": 6512.5,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 42.54,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 43.878,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 45.147,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 49.841,
+          "trailingMs": 8.776,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/112000.mp3",
+      "reciter": "minshawy_mujawwad",
+      "path": "../test/fixtures/bismillah/minshawy_mujawwad.mp3",
+      "sha256": "27e4ecda9e184630240c8e3db1a65220f81625482fb70cc4c387c1f4910ecea5",
+      "productionUrl": "https://everyayah.com/data/Minshawy_Mujawwad_192kbps/112000.mp3",
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 321408,
+      "pcmDurationMs": 7288.163,
+      "containerDurationMs": 7288.167,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 26.145,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 43.537,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 317.37,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 326.304,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 328.458,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/113003.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 113,
+      "ayah": 3,
+      "filename": "113003.mp3",
+      "sha256": "e0ee7929798463fdf1c41c93204bb1917f1304819d76cd6911c6d3df773de1a4",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-113003.mp3",
+      "bytes": 81211,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 220011,
+      "pcmDurationMs": 4988.912,
+      "containerDurationMs": 5041.633,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.635,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 0.431,
+          "trailingMs": 3.175,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 1.542,
+          "trailingMs": 19.365,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 8.685,
+          "trailingMs": 69.592,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 1749,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1220,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 27.664
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/113004.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 113,
+      "ayah": 4,
+      "filename": "113004.mp3",
+      "sha256": "aa34657feaf7ea666ec62f253d2458b98c3cb01835f8c915da0b58ef4c87ed2c",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-113004.mp3",
+      "bytes": 96675,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 263027,
+      "pcmDurationMs": 5964.331,
+      "containerDurationMs": 6008.163,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.204,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 1.202,
+          "trailingMs": 3.628,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 4.399,
+          "trailingMs": 14.807,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 12.88,
+          "trailingMs": 71.995,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 1357,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 828,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 18.776
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "alafasy/113005.mp3",
+      "reciter": "alafasy",
+      "folder": "Alafasy_128kbps",
+      "surah": 113,
+      "ayah": 5,
+      "filename": "113005.mp3",
+      "sha256": "c83d3988ef8809ea0bfd107f62732d1e9b8697bb26ee8004ea514b9301389fe8",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mishari-alafasy-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/alafasy-113005.mp3",
+      "bytes": 91242,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 247120,
+      "pcmDurationMs": 5603.628,
+      "containerDurationMs": 5668.571,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 0.0,
+          "trailingMs": 0.612,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 0.816,
+          "trailingMs": 29.728,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 3.22,
+          "trailingMs": 136.395,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 14.49,
+          "trailingMs": 389.116,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {
+          "encoder": "LAME3.96r"
+        },
+        "xing": {
+          "header": "Info",
+          "lameDelaySamples": 576,
+          "lamePaddingSamples": 2288,
+          "encoder": "LAME3.96r"
+        },
+        "ffmpegSkipSamples": 1105,
+        "ffmpegDiscardPaddingSamples": 1759,
+        "ffmpegSkipMs": 25.057,
+        "ffmpegDiscardMs": 39.887
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/113003.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 113,
+      "ayah": 3,
+      "filename": "113003.mp3",
+      "sha256": "ec260a03d2079bd4c4aa757c1b19d7849b9697836096b033f2ff776055c48958",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-113003.mp3",
+      "bytes": 127104,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 338688,
+      "pcmDurationMs": 7680.0,
+      "containerDurationMs": 7688.0,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 44.082,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 44.966,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 46.939,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 69.161,
+          "trailingMs": 43.537,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/113004.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 113,
+      "ayah": 4,
+      "filename": "113004.mp3",
+      "sha256": "48187626300bfb62a93297ca2b369dbab15c0bb54cd6170b13549cefe1b1d3af",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-113004.mp3",
+      "bytes": 151764,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 406656,
+      "pcmDurationMs": 9221.224,
+      "containerDurationMs": 9229.25,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 44.195,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 45.873,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 47.755,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 383.016,
+          "trailingMs": 236.576,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "husary/113005.mp3",
+      "reciter": "husary",
+      "folder": "Husary_128kbps",
+      "surah": 113,
+      "ayah": 5,
+      "filename": "113005.mp3",
+      "sha256": "5022a47b35bd871b595985b792e8f2fa281667652d81bb4d711e229388335eef",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mahmoud-al-husary-murattal-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/husary-113005.mp3",
+      "bytes": 128358,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 342144,
+      "pcmDurationMs": 7758.367,
+      "containerDurationMs": 7766.375,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 44.036,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 45.737,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 49.569,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 287.8,
+          "trailingMs": 247.234,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/113003.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 113,
+      "ayah": 3,
+      "filename": "113003.mp3",
+      "sha256": "ffabc72a7f448aace38d9ca5b596ec0f81df823212680e82c333c7416d55db9b",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-113003.mp3",
+      "bytes": 68255,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 187776,
+      "pcmDurationMs": 4257.959,
+      "containerDurationMs": 4265.938,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 41.701,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 43.107,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 44.535,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 46.689,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/113004.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 113,
+      "ayah": 4,
+      "filename": "113004.mp3",
+      "sha256": "3ca9a014782f92b333022e1ce9029e45b7b2d33401cdfbd18bd21cd6c11202e7",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-113004.mp3",
+      "bytes": 82048,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 225792,
+      "pcmDurationMs": 5120.0,
+      "containerDurationMs": 5128.0,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 41.723,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 42.925,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 44.082,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 45.76,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "shaatree/113005.mp3",
+      "reciter": "shaatree",
+      "folder": "Abu_Bakr_Ash-Shaatree_128kbps",
+      "surah": 113,
+      "ayah": 5,
+      "filename": "113005.mp3",
+      "sha256": "a84c0c059b86d4102c74d80d46fe7c4bdd4c8766b10424fdfc9aa6909de42b4e",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/abu-bakr-ash-shatri-128kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/shaatree-113005.mp3",
+      "bytes": 73271,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 201600,
+      "pcmDurationMs": 4571.429,
+      "containerDurationMs": 4579.438,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 39.206,
+          "trailingMs": 185.034,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 42.381,
+          "trailingMs": 190.975,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 43.583,
+          "trailingMs": 194.444,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 44.921,
+          "trailingMs": 208.367,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 46.327,
+          "trailingMs": 208.526,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/113003.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 113,
+      "ayah": 3,
+      "filename": "113003.mp3",
+      "sha256": "492370d35fa29ccb2462164dc22df7383aaaa00c63eb154e6fd97cb673ddfe20",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-113003.mp3",
+      "bytes": 231434,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 421632,
+      "pcmDurationMs": 9560.816,
+      "containerDurationMs": 9560.833,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 13.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 14.558,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 16.281,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 17.007,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 18.367,
+          "trailingMs": 66.213,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/113004.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 113,
+      "ayah": 4,
+      "filename": "113004.mp3",
+      "sha256": "ed0371bb51412fef51a6feefc3a61fef49d9d420e57ea4f305cc69b720447e14",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-113004.mp3",
+      "bytes": 247818,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 452736,
+      "pcmDurationMs": 10266.122,
+      "containerDurationMs": 10266.125,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 26.145,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 30.59,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 32.245,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 34.059,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 41.723,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    },
+    {
+      "id": "minshawy_mujawwad/113005.mp3",
+      "reciter": "minshawy_mujawwad",
+      "folder": "Minshawy_Mujawwad_192kbps",
+      "surah": 113,
+      "ayah": 5,
+      "filename": "113005.mp3",
+      "sha256": "e37937c1ced6aa9a9410cd80c14444dc43b83f2957791aaf31fd754729e9c37e",
+      "mirrorArchive": "https://github.com/Abdalla-Eldoumani/maqra/releases/download/mohamed-siddiq-al-minshawi-mujawwad-192kbps/113.zip",
+      "mirrorHashMatches": true,
+      "upstreamMd5State": "upstream-match",
+      "path": "../test/fixtures/gapless/minshawy_mujawwad-113005.mp3",
+      "bytes": 202762,
+      "sampleRate": 44100,
+      "channels": 2,
+      "pcmFrames": 369792,
+      "pcmDurationMs": 8385.306,
+      "containerDurationMs": 8385.292,
+      "edges": {
+        "digitalZero": {
+          "leadingMs": 13.084,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-90dBFS": {
+          "leadingMs": 15.147,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-75dBFS": {
+          "leadingMs": 15.692,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-60dBFS": {
+          "leadingMs": 16.871,
+          "trailingMs": 0.0,
+          "allBelowThreshold": false
+        },
+        "-45dBFS": {
+          "leadingMs": 18.322,
+          "trailingMs": 0.476,
+          "allBelowThreshold": false
+        }
+      },
+      "metadata": {
+        "tags": {},
+        "xing": null,
+        "ffmpegSkipSamples": 0,
+        "ffmpegDiscardPaddingSamples": 0,
+        "ffmpegSkipMs": 0.0,
+        "ffmpegDiscardMs": 0.0
+      },
+      "automaticTrimApproved": false
+    }
+  ],
+  "cases": [
+    {
+      "id": "alafasy-short-surahs",
+      "items": [
+        "alafasy/001001.mp3",
+        "alafasy/112001.mp3",
+        "alafasy/112002.mp3",
+        "alafasy/112003.mp3",
+        "alafasy/112004.mp3",
+        "alafasy/001001.mp3",
+        "alafasy/113001.mp3",
+        "alafasy/113002.mp3",
+        "alafasy/113003.mp3",
+        "alafasy/113004.mp3",
+        "alafasy/113005.mp3"
+      ],
+      "boundaries": [
+        {
+          "from": "alafasy/001001.mp3",
+          "to": "alafasy/112001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.113,
+            "-75dBFS": 3.832,
+            "-60dBFS": 20.046,
+            "-45dBFS": 69.433
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/112001.mp3",
+          "to": "alafasy/112002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.181,
+            "-75dBFS": 4.127,
+            "-60dBFS": 19.774,
+            "-45dBFS": 95.669
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/112002.mp3",
+          "to": "alafasy/112003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.522,
+            "-75dBFS": 3.379,
+            "-60dBFS": 12.608,
+            "-45dBFS": 80.907
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/112003.mp3",
+          "to": "alafasy/112004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.204,
+            "-75dBFS": 3.243,
+            "-60dBFS": 20.385,
+            "-45dBFS": 81.452
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/112004.mp3",
+          "to": "alafasy/001001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.408,
+            "-75dBFS": 26.145,
+            "-60dBFS": 159.229,
+            "-45dBFS": 512.063
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/001001.mp3",
+          "to": "alafasy/113001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.068,
+            "-75dBFS": 0.885,
+            "-60dBFS": 5.828,
+            "-45dBFS": 21.497
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/113001.mp3",
+          "to": "alafasy/113002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.249,
+            "-75dBFS": 2.2,
+            "-60dBFS": 13.356,
+            "-45dBFS": 48.526
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/113002.mp3",
+          "to": "alafasy/113003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.136,
+            "-75dBFS": 3.152,
+            "-60dBFS": 10.884,
+            "-45dBFS": 48.05
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/113003.mp3",
+          "to": "alafasy/113004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.635,
+            "-75dBFS": 4.377,
+            "-60dBFS": 23.764,
+            "-45dBFS": 82.472
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "alafasy/113004.mp3",
+          "to": "alafasy/113005.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 0.0,
+            "-90dBFS": 0.204,
+            "-75dBFS": 4.444,
+            "-60dBFS": 18.027,
+            "-45dBFS": 86.485
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        }
+      ]
+    },
+    {
+      "id": "husary-short-surahs",
+      "items": [
+        "husary/bismillah.mp3",
+        "husary/112001.mp3",
+        "husary/112002.mp3",
+        "husary/112003.mp3",
+        "husary/112004.mp3",
+        "husary/bismillah.mp3",
+        "husary/113001.mp3",
+        "husary/113002.mp3",
+        "husary/113003.mp3",
+        "husary/113004.mp3",
+        "husary/113005.mp3"
+      ],
+      "boundaries": [
+        {
+          "from": "husary/bismillah.mp3",
+          "to": "husary/112001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 45.374,
+            "-75dBFS": 60.476,
+            "-60dBFS": 70.091,
+            "-45dBFS": 850.884
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/112001.mp3",
+          "to": "husary/112002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 43.878,
+            "-75dBFS": 45.215,
+            "-60dBFS": 51.542,
+            "-45dBFS": 904.217
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/112002.mp3",
+          "to": "husary/112003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 43.855,
+            "-75dBFS": 45.238,
+            "-60dBFS": 51.451,
+            "-45dBFS": 770.204
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/112003.mp3",
+          "to": "husary/112004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 43.832,
+            "-75dBFS": 45.215,
+            "-60dBFS": 49.546,
+            "-45dBFS": 543.651
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/112004.mp3",
+          "to": "husary/bismillah.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 185.057,
+            "-90dBFS": 213.038,
+            "-75dBFS": 226.758,
+            "-60dBFS": 249.161,
+            "-45dBFS": 1391.588
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/bismillah.mp3",
+          "to": "husary/113001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 45.374,
+            "-75dBFS": 60.862,
+            "-60dBFS": 70.658,
+            "-45dBFS": 631.224
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/113001.mp3",
+          "to": "husary/113002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 26.145,
+            "-90dBFS": 30.703,
+            "-75dBFS": 32.132,
+            "-60dBFS": 35.125,
+            "-45dBFS": 477.256
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/113002.mp3",
+          "to": "husary/113003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 44.082,
+            "-75dBFS": 44.966,
+            "-60dBFS": 47.551,
+            "-45dBFS": 359.093
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/113003.mp3",
+          "to": "husary/113004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 44.195,
+            "-75dBFS": 45.873,
+            "-60dBFS": 47.755,
+            "-45dBFS": 426.553
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "husary/113004.mp3",
+          "to": "husary/113005.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 44.036,
+            "-75dBFS": 45.737,
+            "-60dBFS": 49.569,
+            "-45dBFS": 524.376
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        }
+      ]
+    },
+    {
+      "id": "shaatree-short-surahs",
+      "items": [
+        "shaatree/001001.mp3",
+        "shaatree/112001.mp3",
+        "shaatree/112002.mp3",
+        "shaatree/112003.mp3",
+        "shaatree/112004.mp3",
+        "shaatree/001001.mp3",
+        "shaatree/113001.mp3",
+        "shaatree/113002.mp3",
+        "shaatree/113003.mp3",
+        "shaatree/113004.mp3",
+        "shaatree/113005.mp3"
+      ],
+      "boundaries": [
+        {
+          "from": "shaatree/001001.mp3",
+          "to": "shaatree/112001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 43.288,
+            "-75dBFS": 44.739,
+            "-60dBFS": 46.916,
+            "-45dBFS": 62.109
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/112001.mp3",
+          "to": "shaatree/112002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 42.154,
+            "-75dBFS": 43.515,
+            "-60dBFS": 44.943,
+            "-45dBFS": 46.281
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/112002.mp3",
+          "to": "shaatree/112003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 41.791,
+            "-75dBFS": 42.971,
+            "-60dBFS": 44.49,
+            "-45dBFS": 46.531
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/112003.mp3",
+          "to": "shaatree/112004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 41.678,
+            "-75dBFS": 43.084,
+            "-60dBFS": 44.535,
+            "-45dBFS": 45.76
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/112004.mp3",
+          "to": "shaatree/001001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 42.54,
+            "-75dBFS": 43.878,
+            "-60dBFS": 45.147,
+            "-45dBFS": 49.841
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/001001.mp3",
+          "to": "shaatree/113001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 43.288,
+            "-75dBFS": 44.739,
+            "-60dBFS": 46.916,
+            "-45dBFS": 62.109
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/113001.mp3",
+          "to": "shaatree/113002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 42.132,
+            "-75dBFS": 43.492,
+            "-60dBFS": 44.966,
+            "-45dBFS": 46.621
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/113002.mp3",
+          "to": "shaatree/113003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 41.701,
+            "-75dBFS": 43.107,
+            "-60dBFS": 44.535,
+            "-45dBFS": 46.689
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/113003.mp3",
+          "to": "shaatree/113004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 41.723,
+            "-75dBFS": 42.925,
+            "-60dBFS": 44.082,
+            "-45dBFS": 45.76
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "shaatree/113004.mp3",
+          "to": "shaatree/113005.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 42.381,
+            "-75dBFS": 43.583,
+            "-60dBFS": 44.921,
+            "-45dBFS": 46.327
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        }
+      ]
+    },
+    {
+      "id": "minshawy_mujawwad-short-surahs",
+      "items": [
+        "minshawy_mujawwad/112000.mp3",
+        "minshawy_mujawwad/112001.mp3",
+        "minshawy_mujawwad/112002.mp3",
+        "minshawy_mujawwad/112003.mp3",
+        "minshawy_mujawwad/112004.mp3",
+        "minshawy_mujawwad/112000.mp3",
+        "minshawy_mujawwad/113001.mp3",
+        "minshawy_mujawwad/113002.mp3",
+        "minshawy_mujawwad/113003.mp3",
+        "minshawy_mujawwad/113004.mp3",
+        "minshawy_mujawwad/113005.mp3"
+      ],
+      "boundaries": [
+        {
+          "from": "minshawy_mujawwad/112000.mp3",
+          "to": "minshawy_mujawwad/112001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 13.084,
+            "-90dBFS": 15.17,
+            "-75dBFS": 15.941,
+            "-60dBFS": 17.37,
+            "-45dBFS": 18.776
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/112001.mp3",
+          "to": "minshawy_mujawwad/112002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 26.145,
+            "-90dBFS": 28.322,
+            "-75dBFS": 29.206,
+            "-60dBFS": 30.726,
+            "-45dBFS": 31.565
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/112002.mp3",
+          "to": "minshawy_mujawwad/112003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 13.084,
+            "-90dBFS": 14.127,
+            "-75dBFS": 15.442,
+            "-60dBFS": 16.599,
+            "-45dBFS": 18.073
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/112003.mp3",
+          "to": "minshawy_mujawwad/112004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 13.084,
+            "-90dBFS": 15.42,
+            "-75dBFS": 16.576,
+            "-60dBFS": 17.8,
+            "-45dBFS": 18.526
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/112004.mp3",
+          "to": "minshawy_mujawwad/112000.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 26.145,
+            "-90dBFS": 43.537,
+            "-75dBFS": 317.37,
+            "-60dBFS": 326.304,
+            "-45dBFS": 328.662
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/112000.mp3",
+          "to": "minshawy_mujawwad/113001.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 13.084,
+            "-90dBFS": 15.488,
+            "-75dBFS": 16.939,
+            "-60dBFS": 17.732,
+            "-45dBFS": 19.184
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/113001.mp3",
+          "to": "minshawy_mujawwad/113002.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 13.084,
+            "-90dBFS": 15.238,
+            "-75dBFS": 16.122,
+            "-60dBFS": 17.392,
+            "-45dBFS": 18.776
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/113002.mp3",
+          "to": "minshawy_mujawwad/113003.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 13.084,
+            "-90dBFS": 14.558,
+            "-75dBFS": 16.281,
+            "-60dBFS": 17.007,
+            "-45dBFS": 18.367
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/113003.mp3",
+          "to": "minshawy_mujawwad/113004.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 26.145,
+            "-90dBFS": 30.59,
+            "-75dBFS": 32.245,
+            "-60dBFS": 34.059,
+            "-45dBFS": 107.936
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        },
+        {
+          "from": "minshawy_mujawwad/113004.mp3",
+          "to": "minshawy_mujawwad/113005.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 13.084,
+            "-90dBFS": 15.147,
+            "-75dBFS": 15.692,
+            "-60dBFS": 16.871,
+            "-45dBFS": 18.322
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        }
+      ]
+    },
+    {
+      "id": "minshawy-long-ayah-repeat",
+      "items": [
+        "minshawy_mujawwad/001007.mp3",
+        "minshawy_mujawwad/001007.mp3"
+      ],
+      "boundaries": [
+        {
+          "from": "minshawy_mujawwad/001007.mp3",
+          "to": "minshawy_mujawwad/001007.mp3",
+          "recordingQuietMs": {
+            "digitalZero": 39.206,
+            "-90dBFS": 41.497,
+            "-75dBFS": 42.268,
+            "-60dBFS": 43.696,
+            "-45dBFS": 45.102
+          },
+          "nativePlayerDelayMs": null,
+          "interpretation": "Source PCM edge quiet only, not a measured output gap or permission to trim."
+        }
+      ]
+    }
+  ]
+}

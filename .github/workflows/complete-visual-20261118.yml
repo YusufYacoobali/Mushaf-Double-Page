@@ -1,0 +1,184 @@
+name: Proven Duo and iPad mini visual check
+run-name: Pages 6–7 · Duo endpoints and iPad mini at 100%
+on:
+  push:
+    branches: [v6, v7]
+    paths:
+      - '.github/complete-visual-20261118.request'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quran-proven-duo-mini-visual-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-simulator:
+    name: Build iOS simulator application
+    runs-on: xcode-27
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - name: Install Flutter dependencies
+        run: flutter pub get
+      - name: Verify UIScene migration
+        run: |
+          /usr/libexec/PlistBuddy -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' ios/Runner/Info.plist | grep SceneDelegate
+          grep -q 'FlutterImplicitEngineDelegate' ios/Runner/AppDelegate.swift
+      - name: Set Xcode 27-only simulator minimum targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          ruby - <<'RUBY'
+          path = 'ios/Podfile'
+          text = File.read(path)
+          marker = "    flutter_additional_ios_build_settings(target)\n"
+          abort 'Podfile marker not found' unless text.include?(marker)
+          override = <<~CFG
+            target.build_configurations.each do |config|
+              config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+            end
+          CFG
+          File.write(path, text.sub(marker, marker + override.lines.map { |line| '    ' + line }.join))
+          RUBY
+      - name: Build Flutter simulator app (arm64)
+        run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub --dart-define=READER_LAYOUT_QA=true
+      - name: Archive simulator application with permissions preserved
+        run: |
+          test -d build/ios/iphonesimulator/Runner.app
+          tar -czf ios-simulator-runner.tgz -C build/ios/iphonesimulator Runner.app
+          ls -lh ios-simulator-runner.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+          path: ios-simulator-runner.tgz
+          retention-days: 2
+          if-no-files-found: error
+
+  iphone-duo:
+    name: Test clean iPhone Duo (min/max zoom)
+    needs: build-simulator
+    runs-on: xcode-27
+    timeout-minutes: 48
+    env:
+      READER_QA_PAGE: '6'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+      - name: Extract app
+        run: |
+          mkdir -p ci-app
+          tar -xzf ios-simulator-runner.tgz -C ci-app
+          test -d ci-app/Runner.app
+      - name: Install Duo controls (no accessibility dependency)
+        run: |
+          brew install skarol/tap/duoctl
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+      - name: Run folded, unfolded, and half-open reader screenshots
+        shell: bash
+        run: bash .github/scripts/proven_duo_simulator_qa.sh
+      - name: Upload actual Duo screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quran-duo-visual-qa
+          path: screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+  ipad-mini:
+    name: Test clean iPad mini portrait and landscape (100%)
+    needs: build-simulator
+    runs-on: xcode-27
+    timeout-minutes: 35
+    env:
+      READER_QA_PAGE: '6'
+      READER_QA_SINGLE_ZOOM: '100'
+      READER_QA_SPREAD_ZOOM: '100'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ios-duo-simulator-build
+      - name: Extract app
+        run: |
+          mkdir -p ci-app
+          tar -xzf ios-simulator-runner.tgz -C ci-app
+          test -d ci-app/Runner.app
+      - name: Prepare targeted XCTest rotation and capture verifier
+        run: |
+          brew install xcodegen
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+          bash .github/scripts/build_ipad_rotation_harness.sh
+      - name: Capture iPad mini portrait and landscape at 100%
+        shell: bash
+        run: bash .github/scripts/proven_ipad_simulator_qa.sh
+      - name: Upload iPad mini screenshot and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quran-ipad-mini-visual-qa
+          path: screenshots-ipad/
+          if-no-files-found: warn
+          retention-days: 14
+
+  comparison:
+    name: Assemble verified screenshot comparison
+    needs: [iphone-duo, ipad-mini]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-duo-visual-qa
+          path: screenshots
+      - uses: actions/download-artifact@v4
+        with:
+          name: quran-ipad-mini-visual-qa
+          path: screenshots-ipad
+      - run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          .qa-venv/bin/python .github/scripts/reader_comparison.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quran-layout-comparison
+          path: reader-comparison.png
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reader-originals-portrait
+          path: |
+            screenshots/duo-folded-min-*.png
+            screenshots/duo-folded-max-*.png
+            screenshots/duo-unfolded-portrait-min-*.png
+            screenshots/duo-unfolded-portrait-max-*.png
+            screenshots-ipad/ipad-mini-portrait*.png
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reader-originals-landscape
+          path: |
+            screenshots/duo-unfolded-wide-min-*.png
+            screenshots/duo-unfolded-wide-max-*.png
+            screenshots/duo-half-open-book-min-*.png
+            screenshots/duo-half-open-book-max-*.png
+            screenshots-ipad/ipad-mini-landscape.png
+          if-no-files-found: error
+          retention-days: 14

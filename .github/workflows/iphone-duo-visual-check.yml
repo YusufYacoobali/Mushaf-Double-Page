@@ -1,0 +1,142 @@
+name: iPhone Duo visual check
+run-name: ${{ inputs.level }} reader verification — ${{ inputs.target }} / ${{ inputs.test_case }}
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: Targeted development check or final full verification
+        type: choice
+        options: [targeted, full]
+        default: targeted
+      target:
+        description: Device/posture (ignored for full verification)
+        type: choice
+        options: [duo-smoke, duo-book, duo-folded, duo-portrait, duo-landscape, ipad-mini, ipad-pro11, ipad-pro13]
+        default: duo-smoke
+      test_case:
+        description: Verify layout independently of control interactions
+        type: choice
+        options: [layout, navigation, zoom, all]
+        default: layout
+      build_policy:
+        description: Compatible cache, cache required, or explicit rebuild
+        type: choice
+        options: [auto, reuse-only, rebuild]
+        default: auto
+permissions:
+  contents: read
+  actions: read
+jobs:
+  fast-checks:
+    if: github.ref == 'refs/heads/v6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/scripts/require_fast_checks.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+  reader:
+    needs: fast-checks
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      policy: ${{ inputs.build_policy }}
+      role: reader
+  reference:
+    needs: fast-checks
+    if: inputs.level == 'full' || startsWith(inputs.target, 'ipad-')
+    uses: ./.github/workflows/ios-simulator-build.yml
+    with:
+      source_ref: v5
+      role: v5
+      policy: auto
+  duo:
+    name: Focused Duo verification
+    needs: reader
+    if: inputs.level == 'full' || startsWith(inputs.target, 'duo-')
+    runs-on: xcode-27
+    timeout-minutes: 25
+    concurrency:
+      group: reader-duo-device-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.reader.outputs.artifact_name }}
+          path: reader-build
+      - run: |
+          mkdir -p ci-app
+          tar -xzf reader-build/ios-simulator-runner.tgz -C ci-app
+          brew install skarol/tap/duoctl tesseract
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache/restore@v4
+        id: pages
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - name: Capture only requested Duo cases
+        env:
+          DUO_TARGET: ${{ inputs.level == 'full' && 'duo-smoke' || inputs.target }}
+          READER_TEST_CASE: ${{ inputs.level == 'full' && 'all' || inputs.test_case }}
+          READER_CAPTURE_PROFILE: ${{ inputs.level == 'full' && 'endpoints' || 'smoke' }}
+          READER_ASSET_CACHE: ${{ github.workspace }}/.ci/quran-pages
+        run: bash .github/scripts/run_duo_simulator_qa.sh
+      - uses: actions/cache/save@v4
+        if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
+        with:
+          path: .ci/quran-pages
+          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: duo-${{ inputs.target }}-${{ inputs.test_case }}
+          path: screenshots/
+          retention-days: 30
+  mini:
+    needs: [reader, reference, duo]
+    if: >-
+      always() && !cancelled() && needs.reader.result == 'success' &&
+      needs.reference.result == 'success' &&
+      ((inputs.level == 'full' && needs.duo.result == 'success') || inputs.target == 'ipad-mini')
+    uses: ./.github/workflows/ipad-native-visual-check.yml
+    with:
+      devices: '["mini"]'
+      test_case: ${{ inputs.level == 'full' && 'all' || inputs.test_case }}
+      artifact_name: ${{ needs.reader.outputs.artifact_name }}
+      reference_artifact: ${{ needs.reference.outputs.artifact_name }}
+  ios-release:
+    name: Final unsigned iOS release build
+    needs: [duo, mini, larger-ipads]
+    if: inputs.level == 'full'
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: python3 .github/scripts/ci_run.py --operation release-build --timeout 1800 --output release-diagnostics -- flutter build ios --release --no-codesign --no-pub
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: release-build-diagnostics
+          path: release-diagnostics/
+  larger-ipads:
+    needs: [reader, reference, mini]
+    if: >-
+      always() && !cancelled() && needs.reader.result == 'success' &&
+      needs.reference.result == 'success' &&
+      ((inputs.level == 'full' && needs.mini.outputs.geometry_passed == 'true') ||
+       inputs.target == 'ipad-pro11' || inputs.target == 'ipad-pro13')
+    uses: ./.github/workflows/ipad-native-visual-check.yml
+    with:
+      devices: ${{ inputs.level == 'full' && '["pro11","pro13"]' || inputs.target == 'ipad-pro11' && '["pro11"]' || '["pro13"]' }}
+      test_case: ${{ inputs.level == 'full' && 'all' || inputs.test_case }}
+      artifact_name: ${{ needs.reader.outputs.artifact_name }}
+      reference_artifact: ${{ needs.reference.outputs.artifact_name }}

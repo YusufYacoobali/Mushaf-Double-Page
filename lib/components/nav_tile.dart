@@ -2,6 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 
 class NavTile extends StatelessWidget {
+  static double _badgeWidth(BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: '114',
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final width = (painter.width + 12).clamp(42.0, double.infinity);
+    painter.dispose();
+    return width;
+  }
+
   final int number;
   final String title;
   final String? englishTitle;
@@ -25,7 +41,10 @@ class NavTile extends StatelessWidget {
   }) {
     final theme = Theme.of(context);
     // Row padding/border, number badge, gap and trailing icon.
-    final textWidth = (width - 108).clamp(1.0, double.infinity);
+    final textWidth = (width - 24 - _badgeWidth(context) - 12 - 24 - 2).clamp(
+      1.0,
+      double.infinity,
+    );
     double height(String text, TextStyle? style) {
       final painter = TextPainter(
         text: TextSpan(text: text, style: style),
@@ -45,7 +64,16 @@ class NavTile extends StatelessWidget {
         (englishTitle == null
             ? 0
             : height(englishTitle, theme.textTheme.bodySmall));
-    return 30 + (textHeight > 42 ? textHeight : 42);
+    final badgeHeight =
+        (height(
+                  '114',
+                  theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ) +
+                12)
+            .clamp(42.0, double.infinity);
+    return 30 + (textHeight > badgeHeight ? textHeight : badgeHeight);
   }
 
   @override
@@ -64,7 +92,7 @@ class NavTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             onTap: onTap,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
@@ -76,8 +104,9 @@ class NavTile extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 42,
-                    height: 42,
+                    width: _badgeWidth(context),
+                    constraints: const BoxConstraints(minHeight: 42),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
@@ -92,7 +121,7 @@ class NavTile extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
 
                   Expanded(
                     child: Column(
@@ -118,6 +147,7 @@ class NavTile extends StatelessWidget {
                     ),
                   ),
 
+                  const SizedBox(width: 8),
                   Icon(
                     selected
                         ? Icons.my_location_rounded

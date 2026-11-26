@@ -1,0 +1,57 @@
+name: Flutter release checks
+
+on:
+  push:
+    branches: [v5, v6, v7]
+  workflow_dispatch:
+    inputs:
+      build_ios_release:
+        description: Also compile the unsigned iOS release app
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Static analysis
+        run: flutter analyze --no-pub
+      - name: Flutter tests
+        run: flutter test --no-pub --reporter expanded
+      - name: Build-cache and capture verification tests and script syntax
+        run: |
+          python3 -m venv .qa-venv
+          .qa-venv/bin/pip install Pillow
+          .qa-venv/bin/python -m unittest discover -s .github/scripts/tests
+          python3 -m py_compile .github/scripts/*.py
+          for script in .github/scripts/run_duo_simulator_qa.sh .github/scripts/simulator_host_health.sh .github/scripts/capture_duo_zoom.sh .github/scripts/proven_capture_duo_zoom.sh tools/ios_ui_qa/capture_ipad.sh; do
+            bash -n "$script"
+          done
+
+  ios-no-codesign-build:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_ios_release
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.38.1'
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Compile iOS app without signing
+        run: flutter build ios --release --no-codesign

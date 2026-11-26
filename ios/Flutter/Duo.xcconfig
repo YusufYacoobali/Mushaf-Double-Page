@@ -1,0 +1,4 @@
+// Compile the public division-region API only when building with iOS 27 SDKs.
+// Older Xcode releases still build the existing iPhone/iPad application.
+SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos27*] = $(inherited) MUSHAF_DUO_SDK
+SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator27*] = $(inherited) MUSHAF_DUO_SDK

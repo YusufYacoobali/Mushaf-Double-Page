@@ -1,0 +1,10 @@
+Verify pages 6–7 at minimum and 100% zoom on Samsung Galaxy Z Fold8 passport and Galaxy Z Fold8 Ultra regular screen profiles: folded, unfolded portrait, unfolded landscape and half-open book. Use real Android emulator fold signals, fresh rendered geometry, original screenshots and a combined comparison. These are Samsung-dimension stock-Android layout simulations, not One UI or real-device certification.
+
+Rerun with required Linux emulator libraries, verified native boot transitions and reuse of an unchanged, hash-verified Android app build.
+Load the native Samsung fold configuration from the Android 16 scanned system_ext overlay partition.
+Verify foreground focus from the active Android display and retain valid per-display failure screenshots.
+Verify centred fitting unfolded landscape spreads and the exact scroll endpoints on pages 6–7 with the updated app build.
+
+2026-11-19: Run the same native verification on v7 from app source c5947e5f9d8c2016b8860cd9879c753e836a9cc4. Capture all requested pages 6–7 layouts and zoom endpoints freshly; retain strict geometry and screenshot validation.
+
+2026-11-20: Repeat the complete 32-capture verification from latest v7 app source a6ae6a6ee8e0a248447a7afad535cf2d82585cb7. Capture fresh pages 6–7, all existing min/max zoom and posture cases, iPad mini portrait and landscape at 100%, and exact landscape scroll endpoints. Preserve strict source, geometry and screenshot checks.

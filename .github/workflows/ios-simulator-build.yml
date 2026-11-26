@@ -1,0 +1,113 @@
+name: Acquire compatible iOS simulator build
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        default: ''
+      role:
+        type: string
+        default: reader
+      policy:
+        type: string
+        default: auto
+    outputs:
+      artifact_name:
+        value: ${{ jobs.build.outputs.artifact_name }}
+      fingerprint:
+        value: ${{ jobs.build.outputs.fingerprint }}
+      application_hash:
+        value: ${{ jobs.source.outputs.application_hash }}
+      source_commit:
+        value: ${{ jobs.source.outputs.source_commit }}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      application_hash: ${{ steps.source.outputs.application_hash }}
+      source_commit: ${{ steps.source.outputs.source_commit }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          path: source-app
+      - id: source
+        working-directory: source-app
+        run: python3 ../.github/scripts/simulator_build_manifest.py source
+  build:
+    name: Build ${{ inputs.role }} simulator (${{ needs.source.outputs.application_hash }})
+    needs: source
+    runs-on: xcode-27
+    timeout-minutes: 35
+    concurrency:
+      group: reader-build-${{ needs.source.outputs.application_hash }}-flutter3381-ios27-arm64
+      cancel-in-progress: false
+    outputs:
+      artifact_name: ${{ steps.identify.outputs.artifact_name }}
+      fingerprint: ${{ steps.identify.outputs.fingerprint }}
+    defaults:
+      run:
+        working-directory: source-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.source_commit }}
+          path: source-app
+      - id: identify
+        run: python3 ../.github/scripts/simulator_build_manifest.py identify
+      - uses: actions/cache/restore@v4
+        id: cache
+        if: inputs.policy != 'rebuild'
+        with:
+          path: source-app/.ci/simulator-build
+          key: reader-ios-${{ steps.identify.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: reader-ios-${{ steps.identify.outputs.fingerprint }}-
+      - id: reuse
+        name: Validate cached source, toolchain, archive and producer job
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POLICY: ${{ inputs.policy }}
+        run: python3 ../.github/scripts/simulator_build_manifest.py reuse --policy "$POLICY"
+      - uses: subosito/flutter-action@v2
+        if: steps.reuse.outputs.reuse != 'true'
+        with:
+          flutter-version: '3.38.1'
+          channel: stable
+          cache: true
+      - name: Resolve application dependencies
+        if: steps.reuse.outputs.reuse != 'true'
+        run: flutter pub get
+      - id: compile
+        name: Build Flutter simulator app
+        if: steps.reuse.outputs.reuse != 'true'
+        run: python3 ../.github/scripts/ci_run.py --operation build --timeout 1500 --output .ci/build-diagnostics -- bash ../.github/scripts/build_ios_simulator.sh
+      - name: Record completed build provenance
+        if: steps.reuse.outputs.reuse != 'true'
+        env:
+          ROLE: ${{ inputs.role }}
+        run: python3 ../.github/scripts/simulator_build_manifest.py record --role "$ROLE"
+      - uses: actions/cache/save@v4
+        if: steps.compile.outcome == 'success'
+        with:
+          path: source-app/.ci/simulator-build
+          key: reader-ios-${{ steps.identify.outputs.fingerprint }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.identify.outputs.artifact_name }}
+          path: source-app/.ci/simulator-build/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: simulator-build-diagnostics-${{ inputs.role }}
+          path: source-app/.ci/build-diagnostics/
+          include-hidden-files: true
+          retention-days: 14

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:mushaf_two_page/utils/surah_list.dart';
@@ -5,6 +6,7 @@ import 'juz_list.dart';
 import 'app_motion.dart';
 import 'surah_mapper.dart';
 import 'juz_mapper.dart';
+import 'reader_layout.dart';
 
 class SurahJuzNavigator {
   static void show({
@@ -15,21 +17,64 @@ class SurahJuzNavigator {
     int? currentSurah,
     void Function(int surah, int page)? onJumpToSurah,
   }) {
+    final sourceContext = context;
     showGeneralDialog(
       context: context,
+      anchorPoint: const Offset(double.maxFinite, 0),
       barrierDismissible: true,
       barrierLabel: "Surah and Juz navigation",
       barrierColor: Colors.black54,
       transitionDuration: AppMotion.duration(context),
-      pageBuilder: (_, _, _) => Align(
-        alignment: Alignment.centerRight,
-        child: _Panel(
-          onJumpToPage: onJumpToPage,
-          mushaf: mushaf,
-          currentLogicalPage: currentLogicalPage,
-          currentSurah: currentSurah,
-          onJumpToSurah: onJumpToSurah,
-        ),
+      pageBuilder: (context, _, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final size = constraints.biggest;
+          final media = MediaQuery.of(context);
+          final region = navigationRegion(
+            size,
+            EdgeInsets.zero,
+            MediaQuery.displayFeaturesOf(context),
+          );
+          final window = sourceContext.mounted
+              ? MediaQuery.sizeOf(sourceContext)
+              : size;
+          final width = navigatorPanelWidth(window, region);
+          final panel = Rect.fromLTWH(
+            region.right - width,
+            region.top,
+            width,
+            region.height,
+          );
+          // Paint to the screen edges, but inset content only where this panel
+          // actually touches an unsafe edge. Hinge boundaries remain separate.
+          EdgeInsets localInsets(EdgeInsets insets) => EdgeInsets.fromLTRB(
+            math.max(0, insets.left - panel.left),
+            math.max(0, insets.top - panel.top),
+            math.max(0, panel.right - (size.width - insets.right)),
+            math.max(0, panel.bottom - (size.height - insets.bottom)),
+          );
+          return Stack(
+            children: [
+              Positioned.fromRect(
+                rect: panel,
+                child: MediaQuery(
+                  data: media.copyWith(
+                    size: Size(width, region.height),
+                    padding: localInsets(media.padding),
+                    viewPadding: localInsets(media.viewPadding),
+                    displayFeatures: const [],
+                  ),
+                  child: _Panel(
+                    onJumpToPage: onJumpToPage,
+                    mushaf: mushaf,
+                    currentLogicalPage: currentLogicalPage,
+                    currentSurah: currentSurah,
+                    onJumpToSurah: onJumpToSurah,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
       transitionBuilder: (context, anim, _, child) {
         if (AppMotion.reduced(context)) return child;
@@ -76,7 +121,6 @@ class _PanelState extends State<_Panel> {
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.of(context).size.height;
     final palette = AppPalette.of(context);
     final surahs = surahsFromLogicalPage(
       widget.currentLogicalPage,
@@ -93,34 +137,35 @@ class _PanelState extends State<_Panel> {
       color: palette.scaffold,
       elevation: 12,
       shadowColor: palette.shadow,
-      child: SizedBox(
-        width: 320,
-        height: height,
+      child: SizedBox.expand(
+        key: const ValueKey('surah-juz-panel'),
         child: SafeArea(
           minimum: const EdgeInsets.only(top: 12, bottom: 12),
           child: Column(
+            key: const ValueKey('surah-juz-content'),
             children: [
               Expanded(
                 child: PageStorage(
                   bucket: _scrollPositions,
-                  child: MotionSwitcher(
-                    offset: Offset.zero,
-                    child: _index == 0
-                        ? SurahList(
-                            key: const ValueKey("surah"),
-                            widget.onJumpToPage,
-                            mushaf: widget.mushaf,
-                            onJump: widget.onJumpToPage,
-                            currentSurah: currentSurah,
-                            onJumpToSurah: widget.onJumpToSurah,
-                          )
-                        : JuzList(
-                            key: const ValueKey("juz"),
-                            widget.onJumpToPage,
-                            onJump: widget.onJumpToPage,
-                            mushaf: widget.mushaf,
-                            currentJuz: currentJuz,
-                          ),
+                  child: IndexedStack(
+                    index: _index,
+                    children: [
+                      SurahList(
+                        key: const ValueKey("surah"),
+                        widget.onJumpToPage,
+                        mushaf: widget.mushaf,
+                        onJump: widget.onJumpToPage,
+                        currentSurah: currentSurah,
+                        onJumpToSurah: widget.onJumpToSurah,
+                      ),
+                      JuzList(
+                        key: const ValueKey("juz"),
+                        widget.onJumpToPage,
+                        onJump: widget.onJumpToPage,
+                        mushaf: widget.mushaf,
+                        currentJuz: currentJuz,
+                      ),
+                    ],
                   ),
                 ),
               ),
