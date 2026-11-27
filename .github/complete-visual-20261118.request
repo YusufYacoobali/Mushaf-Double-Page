@@ -21,3 +21,5 @@ Verify UIKit and Flutter touch coordinates, selected and unselected zoom, and or
 Trace clear cover buttons and an ongoing paused recitation across a native unfold and refold.
 Compare screenshots screenshots=15212349918 screenshots-ipad=15214666030
 Verify the actual cover controls after resolving first-launch permission on the disposable simulator.
+
+Final v9 release visual verification: rerun the existing complete screenshot checks using unchanged application source d45d33d7a166630c1e417ea9614193bcb042ebcd. Preserve all existing native geometry, interaction and baseline comparison assertions.

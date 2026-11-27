@@ -16,3 +16,5 @@ Verify centred fitting unfolded landscape spreads and the exact scroll endpoints
 Verify the permanent folded Duo dock and compare page geometry and original pixels against the preceding successful v9 run.
 Compare both Samsung profiles after scoping the resumed hide timer to an unfolded selection.
 Compare screenshots screenshots-samsung/galaxy-z-fold8=15212646271 screenshots-samsung/galaxy-z-fold8-ultra=15210459848
+
+Final v9 release visual verification: rerun the existing complete screenshot checks using unchanged application source d45d33d7a166630c1e417ea9614193bcb042ebcd. Preserve all existing native geometry, interaction and baseline comparison assertions.
