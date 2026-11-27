@@ -18,3 +18,5 @@ Compare both Samsung profiles after scoping the resumed hide timer to an unfolde
 Compare screenshots screenshots-samsung/galaxy-z-fold8=15212646271 screenshots-samsung/galaxy-z-fold8-ultra=15210459848
 
 Final v9 release visual verification: rerun the existing complete screenshot checks using unchanged application source d45d33d7a166630c1e417ea9614193bcb042ebcd. Preserve all existing native geometry, interaction and baseline comparison assertions.
+
+Repeat final Android verification with explicit baseline navigation states at every screenshot endpoint. Keep the original geometry, navigation, pixel and native-state comparisons unchanged.

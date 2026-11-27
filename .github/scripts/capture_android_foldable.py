@@ -395,7 +395,9 @@ class Capture:
                     self.dock(expanded, refresh=expanded)
                 frame = self.wait_frame(
                     lambda f: abs(f["zoom"] * 100 - percent) < 0.1
-                    and self.matches_orientation(f, posture), after=after, timeout=15,
+                    and self.matches_orientation(f, posture)
+                    and (expanded is None or f["navigationExpanded"] is expanded),
+                    after=after, timeout=15,
                 )
                 state["deviceTimestamp"] = self.device_clock()
                 raw, display_id, display_ids = self.screenshot(frame)
@@ -573,12 +575,17 @@ class Capture:
                 minimum = 70 if posture in ("folded", "unfolded-portrait") else 60
                 self.zoom(minimum)
                 source_name = f"{posture}-min-{minimum}"
-                initial = self.capture(source_name, posture, minimum, after)
+                # Reproduce the proven comparison baseline rather than racing
+                # the reader’s normal ten-second auto-hide timer.
+                initial = self.capture(
+                    source_name, posture, minimum, after,
+                    expanded=posture in ("unfolded-portrait", "half-open-book"),
+                )
                 if record_turns and posture in TURN_POSTURES:
                     self.record_turns(posture, source_name)
                     recordings.append(posture)
                 self.zoom(100)
-                maximum = self.capture(f"{posture}-max-100", posture, 100, after, before=initial, expanded=True if posture == "folded" else None)
+                maximum = self.capture(f"{posture}-max-100", posture, 100, after, before=initial, expanded=True)
                 if posture == "folded":
                     collapsed_after = self.device_clock()
                     self.dock(False)
@@ -589,7 +596,7 @@ class Capture:
                     # scroll. Native state, the actual gesture, and current PNG
                     # still prove the endpoint; retain the posture freshness gate.
                     endpoint_after = scrolled_after if endpoint["scroll"]["max"] > 0.5 else after
-                    self.capture("unfolded-landscape-max-100-bottom", posture, 100, endpoint_after, phase="bottom", before=maximum)
+                    self.capture("unfolded-landscape-max-100-bottom", posture, 100, endpoint_after, phase="bottom", before=maximum, expanded=False)
             except Exception as exc:
                 self.failures.append({"posture": posture, "error": str(exc)})
                 self.diagnostics(posture, exc)
