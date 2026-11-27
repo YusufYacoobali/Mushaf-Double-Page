@@ -227,6 +227,11 @@ class FakePlayer implements AudioPlayer {
 }
 
 class ControlledRepository implements AudioRecordingRepository {
+  final invertedFiles = <String>{};
+  @override
+  Future<bool> needsStereoCorrection(String path) async =>
+      invertedFiles.contains(path);
+
   final sourceIds = <String>[];
   final _inFlight = <String, Future<String>>{};
   final requested = <String>[],

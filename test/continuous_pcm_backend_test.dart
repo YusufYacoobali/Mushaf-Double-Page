@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart' show ProgressiveAudioSource;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/adaptive_quran_pages.dart';
@@ -303,8 +304,11 @@ void main() {
   test(
     'decode failure disposes native output before fallback, preserving cursor and pause',
     () async {
-      await controller.playPlan(plan(to: 2, count: 4));
+      final selection = plan(to: 2, count: 4);
+      repository.invertedFiles.add('/audio/${selection.reciter.id}/112:2.mp3');
+      await controller.playPlan(selection);
       await flush();
+      expect(native.sources.first['polarity'], 'inverted');
       native.clock(44100);
       await flush();
       final occurrence = controller.currentOccurrence;
@@ -321,6 +325,12 @@ void main() {
       native.stopGate = null;
       await flush();
       expect(controller.activeBackend, 'just_audio');
+      expect(
+        (legacy.sequence.first as ProgressiveAudioSource)
+            .options!
+            .invertRightChannel,
+        isTrue,
+      );
       expect(controller.currentOccurrence, occurrence);
       expect(controller.currentRepeat, 2);
       expect(controller.paused, isTrue);

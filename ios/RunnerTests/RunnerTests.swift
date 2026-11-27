@@ -4,6 +4,32 @@ import XCTest
 @testable import quran_pcm_audio
 
 final class RunnerTests: XCTestCase {
+    func testStereoPlaybackPreservesTheOriginalFrames() throws {
+        for (name, affected) in [("abdullah_juhany-112002", true), ("abdullah_juhany", false)] {
+            let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: name, withExtension: "mp3"))
+            XCTAssertEqual(StereoPolarity.needsCorrection(url: url, cancelled: { false }), affected)
+            var channels = [[Float](), [Float]()]
+            try PcmDecoder.decode(path: url.path, invert: false, cancelled: { false }) { buffer in
+                for channel in 0..<2 {
+                    channels[channel].append(contentsOf: UnsafeBufferPointer(start: buffer.floatChannelData![channel],
+                                                                            count: Int(buffer.frameLength)))
+                }
+            }
+            var position = 0
+            try PcmDecoder.decode(path: url.path, cancelled: { false }) { buffer in
+                for frame in 0..<Int(buffer.frameLength) {
+                    guard position < channels[0].count,
+                          buffer.floatChannelData![0][frame] == channels[0][position],
+                          buffer.floatChannelData![1][frame] == (affected ? -channels[1][position] : channels[1][position])
+                    else { XCTFail("Wrong sample at frame \(position) in \(name)"); return }
+                    position += 1
+                }
+            }
+            XCTAssertGreaterThan(position, 0)
+            XCTAssertEqual(position, channels[0].count)
+        }
+    }
+
     // Stage just these two originals in the test host's Documents/v9-juhany.
     func testJuhanyLongRecordingsReachEOF() throws {
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

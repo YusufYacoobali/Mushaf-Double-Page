@@ -32,6 +32,30 @@ class PcmOutputDeviceTest {
             assertTrue("Decoder chunks must remain bounded", peak < 65536)
         }
     }
+    @Test fun stereoCorrectionPreservesEveryFrameOfTheOriginalRecordings() {
+        for ((name, affected) in listOf("gapless/abdullah_juhany-112002.mp3" to true,
+                "bismillah/abdullah_juhany.mp3" to false, "gapless/alafasy-112002.mp3" to false)) {
+            val path = fixture(name).path
+            assertEquals(name, affected, Mp3Decoder.needsCorrection(path) { false })
+            val original = ArrayDeque<ShortArray>()
+            Mp3Decoder.decode(path, { false }, false) { original.addLast(it) }
+            var offset = 0
+            var frames = 0
+            Mp3Decoder.decode(path, { false }) { output ->
+                for (sample in output) {
+                    val first = original.first()
+                    val raw = first[offset]
+                    val right = offset % 2 != 0
+                    val expected = if (affected && right) (-raw.toInt()).coerceAtMost(32767).toShort() else raw
+                    if (sample != expected) fail("$name: wrong sample at frame $frames (right=$right)")
+                    if (right) frames++
+                    if (++offset == first.size) { original.removeFirst(); offset = 0 }
+                }
+            }
+            assertTrue(name, frames > 0 && original.isEmpty())
+        }
+    }
+
     @Test fun oneOutputRetainsExactOccurrenceBoundsAndPauseIntent() {
         val file = fixture("gapless/alafasy-112001.mp3")
         var frames = 0L

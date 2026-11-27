@@ -227,6 +227,8 @@ class ContinuousPcmBackend implements AudioPlaybackBackend {
   Map<String, Object> _recording(IndexedAudioSource source) => {
     'id': _id(source),
     'path': (source as UriAudioSource).uri.toFilePath(),
+    if (source is ProgressiveAudioSource && source.options != null)
+      'polarity': source.options!.invertRightChannel ? 'inverted' : 'normal',
   };
   Future<void> _invoke(String method, [Map<String, Object>? args]) async {
     await _channel.invokeMethod<void>(method, {

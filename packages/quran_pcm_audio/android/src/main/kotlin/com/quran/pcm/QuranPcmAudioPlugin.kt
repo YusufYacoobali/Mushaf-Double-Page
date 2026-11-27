@@ -18,6 +18,7 @@ import kotlin.concurrent.thread
 /** Engine-scoped, independent of Activity lifetime. audio_service is the sole
  * foreground media service; audio_session remains the sole audio focus owner. */
 class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
+    private lateinit var probes: java.util.concurrent.ExecutorService
     private lateinit var methods: MethodChannel
     private lateinit var events: EventChannel
     private val main = Handler(Looper.getMainLooper())
@@ -30,12 +31,14 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
         }
     }
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        probes = java.util.concurrent.Executors.newSingleThreadExecutor()
         methods = MethodChannel(binding.binaryMessenger, "quran/pcm")
         events = EventChannel(binding.binaryMessenger, "quran/pcm/events")
         methods.setMethodCallHandler(this)
         events.setStreamHandler(this)
     }
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        probes.shutdownNow()
         engine?.cancel()
         engine = null
         main.removeCallbacks(tick)
@@ -53,6 +56,16 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
     }
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         try {
+            if (call.method == "needsStereoCorrection") {
+                val path = requireNotNull(call.argument<String>("path"))
+                probes.execute {
+                    val restore = try {
+                        Mp3Decoder.needsCorrection(path) { Thread.currentThread().isInterrupted }
+                    } catch (_: CancellationException) { false }
+                    main.post { result.success(restore) }
+                }
+                return
+            }
             val generation = call.argument<Number>("generation")!!.toLong()
             if (call.method == "prepare") {
                 engine?.cancel()
@@ -61,7 +74,7 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
                 val sources = call.argument<List<Map<String, String>>>("sources")!!
                 require(sources.isNotEmpty() && sources.size <= 6)
                 engine = PcmOutput(generation, seconds, call.argument<Number>("seekFrames")!!.toLong())
-                sources.forEach { engine!!.enqueue(it.getValue("id"), it.getValue("path")) }
+                sources.forEach { engine!!.enqueue(it.getValue("id"), it.getValue("path"), it["polarity"]) }
                 engine!!.start()
                 main.removeCallbacks(tick)
                 if (sink != null) main.post(tick)
@@ -76,7 +89,7 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
                 if (current != null && current.generation == generation) {
                     when (call.method) {
                         "snapshot" -> { result.success(current.snapshot()); return }
-                        "enqueue" -> current.enqueue(call.argument<String>("id")!!, call.argument<String>("path")!!)
+                        "enqueue" -> current.enqueue(call.argument<String>("id")!!, call.argument<String>("path")!!, call.argument<String>("polarity"))
                         "finish" -> current.finish()
                         "play" -> current.setPlaying(true)
                         "pause" -> current.setPlaying(false)
@@ -92,7 +105,7 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
     }
 }
 
-private data class Source(val id: String, val path: String)
+private data class Source(val id: String, val path: String, val invert: Boolean?)
 private data class Row(val id: String, val start: Long, var decoded: Long = 0, var end: Long? = null)
 
 /** Two non-real-time workers with an eight-second bounded FIFO. The platform's
@@ -121,10 +134,10 @@ internal class PcmOutput(val generation: Long, seconds: Int, private val seek: L
     private var lastPresented = 0L
     private val timestamp = AudioTimestamp()
 
-    fun enqueue(id: String, path: String) = synchronized(lock) {
+    fun enqueue(id: String, path: String, polarity: String? = null) = synchronized(lock) {
         require(!complete && sources.size + rows.size < 6) { "Native recording queue overflow" }
         require(path.startsWith("/") && id.isNotEmpty())
-        sources.add(Source(id, path))
+        sources.add(Source(id, path, polarity?.let { it == "inverted" }))
         lock.notifyAll()
     }
     fun finish() = synchronized(lock) { complete = true; lock.notifyAll() }
@@ -186,7 +199,7 @@ internal class PcmOutput(val generation: Long, seconds: Int, private val seek: L
             } else {
                 val reusable = ArrayList<ShortArray>()
                 var reusableFrames = 0
-                Mp3Decoder.decode(source.path, { cancelled || failure != null }) { samples ->
+                Mp3Decoder.decode(source.path, { cancelled || failure != null }, source.invert) { samples ->
                     reusableFrames += samples.size / 2
                     if (reusableFrames <= 88200) reusable.add(samples) else reusable.clear()
                     append(samples)

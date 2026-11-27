@@ -11,7 +11,6 @@ import android.os.Looper;
 import androidx.media3.common.C;
 import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl;
 import androidx.media3.exoplayer.DefaultLoadControl;
-import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlaybackException;
 import androidx.media3.exoplayer.LivePlaybackSpeedControl;
 import androidx.media3.exoplayer.LoadControl;
@@ -642,11 +641,15 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         String id = (String)map.get("id");
         switch ((String)map.get("type")) {
         case "progressive":
+            Map<?, ?> options = (Map<?, ?>) map.get("options");
+            MediaItem.Builder item = new MediaItem.Builder().setUri(Uri.parse((String)map.get("uri"))).setTag(id);
+            if (options != null && Boolean.TRUE.equals(options.get(StereoRenderersFactory.OPTION))) {
+                android.os.Bundle extras = new android.os.Bundle();
+                extras.putBoolean(StereoRenderersFactory.OPTION, true);
+                item.setRequestMetadata(new MediaItem.RequestMetadata.Builder().setExtras(extras).build());
+            }
             return new ProgressiveMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")), buildExtractorsFactory(mapGet(map, "options")))
-                    .createMediaSource(new MediaItem.Builder()
-                            .setUri(Uri.parse((String)map.get("uri")))
-                            .setTag(id)
-                            .build());
+                    .createMediaSource(item.build());
         case "dash":
             return new DashMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
                     .createMediaSource(new MediaItem.Builder()
@@ -784,7 +787,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private void ensurePlayerInitialized() {
         if (player == null) {
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
-                Renderer[] defaultRenderers = new DefaultRenderersFactory(context)
+                Renderer[] defaultRenderers = new StereoRenderersFactory(context)
                     .createRenderers(eventHandler, videoListener, audioListener, textOutput, metadataOutput);
                 Renderer[] allRenderers = Arrays.copyOf(defaultRenderers, defaultRenderers.length + 1);
                 allRenderers[defaultRenderers.length] = new ObserverRenderer();

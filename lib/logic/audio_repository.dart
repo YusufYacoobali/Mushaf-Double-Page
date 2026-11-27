@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path_provider/path_provider.dart';
 import '../models/quran_audio.dart';
 import '../utils/bismillah_sources.dart';
+import 'recording_stereo_probe.dart';
 
 enum AudioFailureKind { connectivity, missing, corrupt, decoder, unavailable }
 
@@ -21,6 +22,7 @@ class AudioFailure implements Exception {
 }
 
 abstract class AudioRecordingRepository {
+  Future<bool> needsStereoCorrection(String path);
   Future<String> recording(
     Reciter reciter,
     QuranAudioItem item,
@@ -54,6 +56,10 @@ class _DownloadJob {
 /// foreground and offline work to two requests. Only one background request can
 /// run at a time, reserving capacity for upcoming playback recordings.
 class AudioRepository implements AudioRecordingRepository {
+  final _stereo = RecordingStereoProbe();
+  @override
+  Future<bool> needsStereoCorrection(String path) => _stereo.inspect(path);
+
   AudioRepository({Dio? dio, Future<Directory> Function()? directory})
     : _dio =
           dio ??
@@ -110,6 +116,7 @@ class AudioRepository implements AudioRecordingRepository {
   @override
   Future<void> invalidate(Reciter reciter, QuranAudioItem item) async {
     final file = await fileFor(reciter, item);
+    _stereo.forget(file.path);
     if (await file.exists()) await file.delete();
   }
 

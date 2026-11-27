@@ -49,6 +49,7 @@ class _QueueEntry {
   String? path;
   bool urgentPreparation = false;
   bool retriedRenderedPosition = false;
+  bool invertRightChannel = false;
   int attempts = 0, decoderRestarts = 0, alternative = 0;
   QuranPlaybackCursor get cursor => occurrence.cursor;
   QuranAudioItem get item => occurrence.item;
@@ -667,7 +668,7 @@ class QuranAudioController extends ChangeNotifier {
         return source.uri.toString();
       }
       final generation = _session, revision = _revision;
-      return _repository.recording(
+      final path = await _repository.recording(
         _plan!.reciter,
         entry.item,
         _token,
@@ -686,14 +687,25 @@ class QuranAudioController extends ChangeNotifier {
               }
             : null,
       );
+      if (generation == _session && ContinuousPcmBackend.supported) {
+        entry.invertRightChannel = await _repository.needsStereoCorrection(
+          path,
+        );
+      }
+      return path;
     }();
   }
 
   AudioSource _source(_QueueEntry entry, String path) =>
-      entry.source ??= AudioSource.uri(
-        _legacyPreparer == null ? Uri.file(path) : Uri.parse(path),
-        tag: entry.occurrence,
-      );
+      entry.source ??= _legacyPreparer != null
+      ? AudioSource.uri(Uri.parse(path), tag: entry.occurrence)
+      : ProgressiveAudioSource(
+          Uri.file(path),
+          options: ProgressiveAudioSourceOptions(
+            invertRightChannel: entry.invertRightChannel,
+          ),
+          tag: entry.occurrence,
+        );
   AudioFailure _problem(Object error) => error is AudioFailure
       ? error
       : const AudioFailure(

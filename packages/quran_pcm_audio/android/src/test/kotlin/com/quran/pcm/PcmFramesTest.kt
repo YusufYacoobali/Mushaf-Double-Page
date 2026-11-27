@@ -26,6 +26,26 @@ class PcmFramesTest {
             }
         }
     }
+    @Test fun correctionRequiresSeparatedActiveWindowsAndRejectsContradictorySpeech() {
+        val opposed = 100.0 to 2.0
+        val quiet = 0.0 to 0.0
+        val centered = 100.0 to 100.0
+        fun decision(vararg data: Pair<Double, Double>): Boolean {
+            val windows = data.iterator()
+            return StereoPolarity.needsCorrection { windows.next() }
+        }
+        assertTrue(decision(opposed, quiet, opposed))
+        assertFalse(decision(quiet, opposed, quiet))
+        assertFalse(decision(opposed, centered, opposed))
+        assertFalse(decision(quiet, quiet, quiet))
+        val dc = StereoWindow()
+        dc.add(shortArrayOf(12000, -12000, 12000, -12000))
+        assertEquals(0.0 to 0.0, dc.energies())
+        val rails = shortArrayOf(Short.MIN_VALUE, Short.MIN_VALUE, 0, Short.MAX_VALUE)
+        StereoPolarity.restore(rails)
+        assertArrayEquals(shortArrayOf(Short.MIN_VALUE, Short.MAX_VALUE, 0, -32767), rails)
+    }
+
     @Test fun monoDuplicatesChannelsAndKeepsQuietSamples() {
         val input = shortArrayOf(0, 0, 19, -19, 0, 0)
         val output = PcmFrames(44100, 1).convert(input, true)

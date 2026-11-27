@@ -2453,16 +2453,37 @@ class ProgressiveAudioSourceOptions {
   final AndroidExtractorOptions? androidExtractorOptions;
   final DarwinAssetOptions? darwinAssetOptions;
 
+  /// Reverse the right PCM channel for a recording with verified opposite polarity.
+  final bool invertRightChannel;
+
   const ProgressiveAudioSourceOptions({
+    this.invertRightChannel = false,
     this.androidExtractorOptions,
     this.darwinAssetOptions,
   });
 
   ProgressiveAudioSourceOptionsMessage _toMessage() =>
-      ProgressiveAudioSourceOptionsMessage(
+      _StereoSourceOptionsMessage(
+        invertRightChannel: invertRightChannel,
         androidExtractorOptions: androidExtractorOptions?._toMessage(),
         darwinAssetOptions: darwinAssetOptions?._toMessage(),
       );
+}
+
+class _StereoSourceOptionsMessage extends ProgressiveAudioSourceOptionsMessage {
+  const _StereoSourceOptionsMessage({
+    required this.invertRightChannel,
+    super.androidExtractorOptions,
+    super.darwinAssetOptions,
+  });
+
+  final bool invertRightChannel;
+
+  @override
+  Map<dynamic, dynamic> toMap() => {
+    ...super.toMap(),
+    if (invertRightChannel) 'invertRightChannel': true,
+  };
 }
 
 class DarwinAssetOptions {

@@ -12,10 +12,16 @@ enum PcmDecoder {
         }
         return result
     }
-    static func decode(path: String, cancelled: @escaping () -> Bool, emit: (AVAudioPCMBuffer) -> Void) throws {
-        let file = try AVAudioFile(forReading: URL(fileURLWithPath: path), commonFormat: .pcmFormatFloat32, interleaved: false)
+    static func decode(path: String, invert: Bool? = nil, cancelled: @escaping () -> Bool, emit: (AVAudioPCMBuffer) -> Void) throws {
+        let url = URL(fileURLWithPath: path)
+        let file = try AVAudioFile(forReading: url, commonFormat: .pcmFormatFloat32, interleaved: false)
         let source = file.processingFormat
         guard source.channelCount == 1 || source.channelCount == 2 else { throw PcmError.invalidRecording }
+        let restore = source.channelCount == 2 && (invert ?? StereoPolarity.needsCorrection(url: url, cancelled: cancelled))
+        func deliver(_ buffer: AVAudioPCMBuffer) {
+            if restore { StereoPolarity.restore(buffer) }
+            emit(buffer)
+        }
         let target = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
         if source.sampleRate == target.sampleRate && source.channelCount == target.channelCount {
             // A compressed file can report an estimated length. A successful
@@ -25,7 +31,7 @@ enum PcmDecoder {
                     let buffer = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: 4096)!
                     try file.read(into: buffer, frameCount: 4096)
                     guard buffer.frameLength > 0 else { return true }
-                    emit(buffer)
+                    deliver(buffer)
                     return false
                 }
                 if ended { return }
@@ -52,7 +58,7 @@ enum PcmDecoder {
                 }
                 if let error = readError { throw error }
                 if let error = error { throw error }
-                if output.frameLength > 0 { emit(output) }
+                if output.frameLength > 0 { deliver(output) }
                 if status == .error { throw PcmError.invalidRecording }
                 return status == .endOfStream
             }
