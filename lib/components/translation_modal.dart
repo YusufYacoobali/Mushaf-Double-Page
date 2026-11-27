@@ -1,18 +1,17 @@
-import 'package:mushaf_two_page/components/adaptive_surface.dart';
-import '../progress/journey_tracking.dart';
-import 'package:mushaf_two_page/utils/app_motion.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:mushaf_two_page/utils/app_palette.dart';
-import 'package:mushaf_two_page/utils/translation_preferences.dart';
-import 'package:share_plus/share_plus.dart';
-import '../utils/surah_mapper.dart';
-import '../utils/translation_manager.dart';
-import '../utils/tafseer_manager.dart';
-import '../utils/surah_summary_manager.dart';
-import '../utils/arabic_text_manager.dart';
+
+import '../utils/app_motion.dart';
+import '../utils/app_palette.dart';
 import '../utils/page_ayah_index.dart';
-import '../utils/quran_arabic_style.dart';
+import '../utils/surah_mapper.dart';
+import '../utils/tafseer_manager.dart';
+import '../utils/translation_manager.dart';
+import '../utils/translation_preferences.dart';
+import 'adaptive_surface.dart';
+import 'translation/surah_summary_sheet.dart';
+import 'translation/translation_ayah_row.dart';
+import 'translation/translation_content.dart';
+import 'translation/translation_settings_sheet.dart';
 
 class TranslationModal extends StatefulWidget {
   final int logicalPage;
@@ -79,13 +78,15 @@ class TranslationModal extends StatefulWidget {
 }
 
 class _TranslationModalState extends State<TranslationModal> {
-  final List<String> _selectedTrans = ['Saheeh International'];
-  final List<String> _selectedTafseer = ['Tafseer Ibn Kathir'];
-  bool _showArabic = true;
-  String _fontSize = 'Medium';
-  String _arabicScript = 'uthmani';
+  TranslationPreferencesData _preferences = const TranslationPreferencesData(
+    translations: ['Saheeh International'],
+    tafseers: ['Tafseer Ibn Kathir'],
+    showArabic: true,
+    fontSize: 'Medium',
+    arabicScript: 'uthmani',
+  );
   bool _loading = true;
-  List<dynamic> _items = [];
+  List<TranslationEntry> _items = [];
   final Set<int> _collapsedSurahs = {};
   final Set<String> _collapsedTrans = {};
   final Set<String> _collapsedTafseers = {};
@@ -113,51 +114,31 @@ class _TranslationModalState extends State<TranslationModal> {
     super.dispose();
   }
 
-  List<Map> get _allAyahs => _items.whereType<Map>().toList();
+  List<TranslationAyah> get _allAyahs =>
+      _items.whereType<TranslationAyah>().toList();
 
   int get _totalPages => (_allAyahs.length / _pageSize).ceil().clamp(1, 99999);
 
   /// The list rendered by the builder (headers + ayahs), honouring collapsed
   /// surahs. In page mode `_items` already holds just the current page.
-  List<dynamic> get _visibleItems {
-    if (!_pageMode) return _pageContent;
-    final out = <dynamic>[];
-    for (final it in _items) {
-      if (it is SurahRange) {
-        out.add(it);
-      } else if (!_collapsedSurahs.contains((it as Map)['surah'] as int)) {
-        out.add(it);
-      }
+  List<TranslationEntry> get _visibleItems {
+    if (_pageMode) {
+      return [
+        for (final item in _items)
+          if (item is! TranslationAyah ||
+              !_collapsedSurahs.contains(item.surah))
+            item,
+      ];
     }
-    return out;
-  }
-
-  List<dynamic> get _pageContent {
     final ayahs = _allAyahs;
     final start = _currentPage * _pageSize;
     if (start >= ayahs.length) return [];
-    final end = (start + _pageSize).clamp(0, ayahs.length);
-    final result = <dynamic>[];
-    bool headerAdded = false;
-    for (final ayah in ayahs.sublist(start, end)) {
-      final surahNum = ayah['surah'] as int;
-      if (!headerAdded) {
-        result.add(_activeSurah);
-        headerAdded = true;
-      }
-      if (!_collapsedSurahs.contains(surahNum)) {
-        result.add(ayah);
-      }
-    }
-    return result;
+    return [
+      TranslationHeader(_activeSurah),
+      if (!_collapsedSurahs.contains(_activeSurah.surah))
+        ...ayahs.skip(start).take(_pageSize),
+    ];
   }
-
-  static const Map<String, ({double arabic, double trans, double tafseer})>
-  _fontSizeMap = {
-    'Small': (arabic: 18.0, trans: 13.0, tafseer: 13.0),
-    'Medium': (arabic: 22.0, trans: 16.0, tafseer: 16.0),
-    'Large': (arabic: 26.0, trans: 19.0, tafseer: 19.0),
-  };
 
   @override
   void initState() {
@@ -192,44 +173,27 @@ class _TranslationModalState extends State<TranslationModal> {
     final tafseers = preferences.tafseers
         .where(TafseerManager.sources.containsKey)
         .toList();
-    _selectedTrans
-      ..clear()
-      ..addAll(translations);
-    _selectedTafseer
-      ..clear()
-      ..addAll(tafseers);
-    _showArabic = preferences.showArabic;
-    _fontSize = preferences.fontSize;
-    _arabicScript = preferences.arabicScript;
+
+    _preferences = TranslationPreferencesData(
+      translations: translations,
+      tafseers: tafseers,
+      showArabic: preferences.showArabic,
+      fontSize: preferences.fontSize,
+      arabicScript: preferences.arabicScript,
+    );
     await PageAyahIndex.load();
     _pageMode = PageAyahIndex.supportsMushaf(_mushaf);
     _load();
-  }
-
-  Future<void> _savePrefs() async {
-    await TranslationPreferences.save(
-      TranslationPreferencesData(
-        translations: List<String>.from(_selectedTrans),
-        tafseers: List<String>.from(_selectedTafseer),
-        showArabic: _showArabic,
-        fontSize: _fontSize,
-        arabicScript: _arabicScript,
-      ),
-    );
   }
 
   Future<void> _load({int? restorePage}) async {
     if (!mounted) return;
     setState(() => _loading = true);
 
-    for (final src in _selectedTrans) {
-      await TranslationManager.loadSource(src);
-    }
-
+    final loader = TranslationContentLoader(_preferences);
     final items = _pageMode
-        ? await _buildPageItems()
-        : await _buildSurahItems();
-
+        ? await loader.loadPage(_mushaf, _viewPages)
+        : await loader.loadSurah(_activeSurah);
     if (!mounted) return;
     setState(() {
       _items = items;
@@ -261,104 +225,6 @@ class _TranslationModalState extends State<TranslationModal> {
   List<List<int>> _viewSegments() =>
       PageAyahIndex.segmentsForPages(_viewPages, mushaf: _mushaf);
 
-  /// Build the items for the ayahs printed across the current view. A view can
-  /// span the tail of one surah and the start of the next, so we group by surah
-  /// and emit a header whenever the surah changes.
-  Future<List<dynamic>> _buildPageItems() async {
-    final segments = _viewSegments();
-    final surahNums = segments.map((s) => s[0]).toSet();
-
-    // Each surah's data is fetched once; the managers cache per surah.
-    final transBySurah = <int, Map<String, Map<int, String>>>{};
-    final tafseerBySurah = <int, Map<String, Map<int, String>>>{};
-    final arabicBySurah = <int, Map<int, String>>{};
-    for (final s in surahNums) {
-      final t = <String, Map<int, String>>{};
-      for (final src in _selectedTrans) {
-        t[src] = TranslationManager.getSurah(s, source: src);
-      }
-      transBySurah[s] = t;
-      final tf = <String, Map<int, String>>{};
-      for (final src in _selectedTafseer) {
-        tf[src] = await TafseerManager.getSurah(s, src);
-      }
-      tafseerBySurah[s] = tf;
-      arabicBySurah[s] = await ArabicTextManager.getSurah(
-        s,
-        source: _arabicScript,
-      );
-    }
-
-    final items = <dynamic>[];
-    int? lastSurah;
-    for (final seg in segments) {
-      final s = seg[0];
-      if (s != lastSurah) {
-        items.add(_rangeForSurah(s));
-        lastSurah = s;
-      }
-      for (int a = seg[1]; a <= seg[2]; a++) {
-        final trans = <String, String>{};
-        for (final src in _selectedTrans) {
-          trans[src] = transBySurah[s]![src]?[a] ?? '';
-        }
-        final tafseer = <String, String>{};
-        for (final src in _selectedTafseer) {
-          tafseer[src] = tafseerBySurah[s]![src]?[a] ?? '';
-        }
-        items.add({
-          'surah': s,
-          'ayah': a,
-          'trans': trans,
-          'tafseer': tafseer,
-          'arabic': arabicBySurah[s]?[a] ?? '',
-        });
-      }
-    }
-    return items;
-  }
-
-  /// Build the items for the whole active surah (fallback for mushafs without a
-  /// page layout map). The list is chunked into pages of [_pageSize] for display.
-  Future<List<dynamic>> _buildSurahItems() async {
-    final items = <dynamic>[];
-    final surah = _activeSurah;
-    items.add(surah);
-
-    final transData = <String, Map<int, String>>{};
-    for (final src in _selectedTrans) {
-      transData[src] = TranslationManager.getSurah(surah.surah, source: src);
-    }
-    final tafseerData = <String, Map<int, String>>{};
-    for (final src in _selectedTafseer) {
-      tafseerData[src] = await TafseerManager.getSurah(surah.surah, src);
-    }
-    final arabicData = await ArabicTextManager.getSurah(
-      surah.surah,
-      source: _arabicScript,
-    );
-
-    final ayahs = (transData[_selectedTrans.first] ?? {}).keys.toList()..sort();
-    for (final ayah in ayahs) {
-      final trans = <String, String>{};
-      for (final src in _selectedTrans) {
-        trans[src] = transData[src]?[ayah] ?? '';
-      }
-      final tafseer = <String, String>{};
-      for (final src in _selectedTafseer) {
-        tafseer[src] = tafseerData[src]?[ayah] ?? '';
-      }
-      items.add({
-        'surah': surah.surah,
-        'ayah': ayah,
-        'trans': trans,
-        'tafseer': tafseer,
-        'arabic': arabicData[ayah] ?? '',
-      });
-    }
-    return items;
-  }
-
   SurahRange _rangeForSurah(int surah) {
     final ranges = getSurahRanges(_mushaf);
     return ranges.firstWhere(
@@ -383,281 +249,28 @@ class _TranslationModalState extends State<TranslationModal> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SummarySheet(surah: surah, fontSize: _fontSize),
+      builder: (_) =>
+          SurahSummarySheet(surah: surah, fontSize: _preferences.fontSize),
     );
   }
 
   void _showSettings() {
-    final tempTrans = List<String>.from(_selectedTrans);
-    final tempTafseer = List<String>.from(_selectedTafseer);
-    var tempShowArabic = _showArabic;
-    var tempFontSize = _fontSize;
-    var tempArabicScript = _arabicScript;
-
     showModalBottomSheet(
       sheetAnimationStyle: AppMotion.style(context),
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final palette = AppPalette.of(context);
-        return StatefulBuilder(
-          builder: (ctx, setS) {
-            void persistSourceSelections() {
-              TranslationPreferences.saveSourceSelections(
-                translations: List<String>.from(tempTrans),
-                tafseers: List<String>.from(tempTafseer),
-              ).ignore();
-            }
-
-            void toggleTrans(String src) {
-              setS(() {
-                if (tempTrans.contains(src)) {
-                  if (tempTrans.length > 1) tempTrans.remove(src);
-                } else {
-                  tempTrans.add(src);
-                }
-              });
-              persistSourceSelections();
-            }
-
-            void toggleTafseer(String src) {
-              setS(() {
-                tempTafseer.contains(src)
-                    ? tempTafseer.remove(src)
-                    : tempTafseer.add(src);
-              });
-              persistSourceSelections();
-            }
-
-            return ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx).size.height * 0.88,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: palette.scaffold,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: palette.border,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Text(
-                            'Sources',
-                            style: TextStyle(
-                              color: palette.text,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () {
-                              final pageToRestore = _currentPage;
-                              Navigator.pop(ctx);
-                              setState(() {
-                                _selectedTrans
-                                  ..clear()
-                                  ..addAll(tempTrans);
-                                _selectedTafseer
-                                  ..clear()
-                                  ..addAll(tempTafseer);
-                                _showArabic = tempShowArabic;
-                                _fontSize = tempFontSize;
-                                _arabicScript = tempArabicScript;
-                              });
-                              _savePrefs();
-                              _load(restorePage: pageToRestore);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: palette.accent,
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                              child: Text(
-                                'Done',
-                                style: TextStyle(
-                                  color: palette.onAccent,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      _SectionLabel(palette: palette, label: 'Display'),
-                      const SizedBox(height: 6),
-                      _CheckTile(
-                        palette: palette,
-                        label: 'Show Arabic text',
-                        checked: tempShowArabic,
-                        onTap: () =>
-                            setS(() => tempShowArabic = !tempShowArabic),
-                      ),
-                      if (tempShowArabic) ...[
-                        const SizedBox(height: 12),
-                        _SectionLabel(palette: palette, label: 'Arabic Script'),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            for (final script in [
-                              ('uthmani', 'Uthmani'),
-                              ('indopak', 'Indo-Pak'),
-                            ])
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: GestureDetector(
-                                  onTap: () =>
-                                      setS(() => tempArabicScript = script.$1),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 160),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: tempArabicScript == script.$1
-                                          ? palette.accent
-                                          : palette.surface,
-                                      borderRadius: BorderRadius.circular(99),
-                                      border: Border.all(
-                                        color: tempArabicScript == script.$1
-                                            ? palette.accent
-                                            : palette.border,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      script.$2,
-                                      style: TextStyle(
-                                        color: tempArabicScript == script.$1
-                                            ? palette.onAccent
-                                            : palette.text,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      _SectionLabel(palette: palette, label: 'Font Size'),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          for (final size in ['Small', 'Medium', 'Large'])
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: GestureDetector(
-                                onTap: () => setS(() => tempFontSize = size),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 160),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: tempFontSize == size
-                                        ? palette.accent
-                                        : palette.surface,
-                                    borderRadius: BorderRadius.circular(99),
-                                    border: Border.all(
-                                      color: tempFontSize == size
-                                          ? palette.accent
-                                          : palette.border,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    size,
-                                    style: TextStyle(
-                                      color: tempFontSize == size
-                                          ? palette.onAccent
-                                          : palette.text,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionLabel(palette: palette, label: 'Translation'),
-                      const SizedBox(height: 6),
-                      ...TranslationManager.sources.keys.map(
-                        (src) => _CheckTile(
-                          palette: palette,
-                          label: src,
-                          checked: tempTrans.contains(src),
-                          onTap: () => toggleTrans(src),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _SectionLabel(palette: palette, label: 'Tafseer'),
-                      const SizedBox(height: 6),
-                      ...TafseerManager.sources.keys.map(
-                        (src) => _CheckTile(
-                          palette: palette,
-                          label: src,
-                          checked: tempTafseer.contains(src),
-                          onTap: () => toggleTafseer(src),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (_) => TranslationSettingsSheet(
+        initial: _preferences,
+        onApply: (value) {
+          final page = _currentPage;
+          setState(() => _preferences = value);
+          TranslationPreferences.save(value);
+          _load(restorePage: page);
+        },
+      ),
     );
-  }
-
-  Future<void> _copyText(
-    BuildContext context,
-    AppPalette palette,
-    String text,
-  ) {
-    return Clipboard.setData(ClipboardData(text: text)).then((_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: palette.accent,
-          behavior: SnackBarBehavior.floating,
-          content: const Text('Copied'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
-    });
   }
 
   void _showSurahPicker() {
@@ -909,9 +522,9 @@ class _TranslationModalState extends State<TranslationModal> {
     if (focusSurah == null || focusAyah == null) return -1;
     return _visibleItems.indexWhere(
       (item) =>
-          item is Map &&
-          item['surah'] == focusSurah &&
-          item['ayah'] == focusAyah,
+          item is TranslationAyah &&
+          item.surah == focusSurah &&
+          item.ayah == focusAyah,
     );
   }
 
@@ -1013,59 +626,6 @@ class _TranslationModalState extends State<TranslationModal> {
     });
   }
 
-  static final _arabicRunRe = RegExp(r'[؀-ۿﭐ-﷿ﹰ-﻿]{2,}(?:\s+[؀-ۿﭐ-﷿ﹰ-﻿]{2,})*');
-
-  List<Widget> _tafseerParaWidgets(String para, double fontSize, Color color) {
-    final widgets = <Widget>[];
-    int last = 0;
-    for (final m in _arabicRunRe.allMatches(para)) {
-      final before = para.substring(last, m.start).trim();
-      if (before.isNotEmpty) {
-        widgets.add(_tafseerRun(before, fontSize, color, rtl: false));
-      }
-      final arabic = m.group(0)!.trim();
-      if (arabic.isNotEmpty) {
-        widgets.add(_tafseerRun(arabic, fontSize, color, rtl: true));
-      }
-      last = m.end;
-    }
-    final tail = para.substring(last).trim();
-    if (tail.isNotEmpty) {
-      widgets.add(_tafseerRun(tail, fontSize, color, rtl: false));
-    }
-    if (widgets.isEmpty) {
-      widgets.add(_tafseerRun(para, fontSize, color, rtl: false));
-    }
-    return widgets;
-  }
-
-  Widget _tafseerRun(
-    String text,
-    double fontSize,
-    Color color, {
-    required bool rtl,
-  }) {
-    return SelectableText(
-      text,
-      textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-      textAlign: rtl ? TextAlign.right : TextAlign.left,
-      style: TextStyle(
-        fontSize: rtl ? fontSize + 2 : fontSize,
-        height: 1.5,
-        color: color,
-        fontFamily: rtl ? 'NotoNaskh' : null,
-      ),
-    );
-  }
-
-  BorderRadius _rowRadius({required bool first, required bool last}) {
-    const r = Radius.circular(18);
-    return BorderRadius.vertical(
-      top: first ? r : Radius.zero,
-      bottom: last ? r : Radius.zero,
-    );
-  }
-
   @override
   Widget build(BuildContext context) =>
       AdaptiveSurface(child: Builder(builder: _buildScaffold));
@@ -1073,6 +633,7 @@ class _TranslationModalState extends State<TranslationModal> {
   Widget _buildScaffold(BuildContext context) {
     final palette = AppPalette.of(context);
 
+    final items = _visibleItems;
     return Scaffold(
       backgroundColor: palette.scaffold,
       appBar: AppBar(
@@ -1161,12 +722,11 @@ class _TranslationModalState extends State<TranslationModal> {
                         child: ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
-                          itemCount: _visibleItems.length,
+                          itemCount: items.length,
                           itemBuilder: (context, index) {
-                            final items = _visibleItems;
                             final item = items[index];
 
-                            if (item is SurahRange) {
+                            if (item case TranslationHeader(:final range)) {
                               return Padding(
                                 padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
                                 child: Row(
@@ -1186,7 +746,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            item.name,
+                                            range.name,
                                             style: TextStyle(
                                               color: palette.text,
                                               fontSize: 18,
@@ -1195,7 +755,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                           ),
                                           const SizedBox(height: 1),
                                           Text(
-                                            item.english,
+                                            range.english,
                                             style: TextStyle(
                                               color: palette.muted,
                                               fontSize: 13,
@@ -1206,7 +766,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                       ),
                                     ),
                                     GestureDetector(
-                                      onTap: () => _showSummary(item),
+                                      onTap: () => _showSummary(range),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 10,
@@ -1246,8 +806,10 @@ class _TranslationModalState extends State<TranslationModal> {
                                     ),
                                     const SizedBox(width: 6),
                                     GestureDetector(
-                                      onTap: () =>
-                                          _toggle(_collapsedSurahs, item.surah),
+                                      onTap: () => _toggle(
+                                        _collapsedSurahs,
+                                        range.surah,
+                                      ),
                                       child: Container(
                                         padding: const EdgeInsets.all(5),
                                         decoration: BoxDecoration(
@@ -1260,7 +822,7 @@ class _TranslationModalState extends State<TranslationModal> {
                                           ),
                                         ),
                                         child: Icon(
-                                          _collapsedSurahs.contains(item.surah)
+                                          _collapsedSurahs.contains(range.surah)
                                               ? Icons
                                                     .keyboard_arrow_down_rounded
                                               : Icons.keyboard_arrow_up_rounded,
@@ -1274,408 +836,33 @@ class _TranslationModalState extends State<TranslationModal> {
                               );
                             }
 
-                            final surahNum = item['surah'] as int;
-                            final ayahNumber = item['ayah'] as int;
-                            final trans = item['trans'] as Map<String, String>;
-                            final tafseer =
-                                item['tafseer'] as Map<String, String>;
-                            final arabic = item['arabic'] as String;
-                            final prevIsHeader =
-                                index == 0 || items[index - 1] is SurahRange;
-                            final nextIsHeader =
-                                index == items.length - 1 ||
-                                items[index + 1] is SurahRange;
-
-                            final allText = [
-                              ...trans.values,
-                              if (_selectedTafseer.isNotEmpty)
-                                ...tafseer.values,
-                            ].join('\n\n');
-                            final isBookmarked = _bookmarkedAyahs.contains(
-                              '$surahNum:$ayahNumber',
-                            );
+                            final ayah = item as TranslationAyah;
                             final isFocused =
-                                surahNum == widget.focusSurah &&
-                                ayahNumber == widget.focusAyah;
-                            final rowBorder = isFocused
-                                ? palette.accent
-                                : palette.border;
-
-                            return Container(
+                                ayah.surah == widget.focusSurah &&
+                                ayah.ayah == widget.focusAyah;
+                            return TranslationAyahRow(
                               key: isFocused ? _focusedAyahKey : null,
-                              decoration: BoxDecoration(
-                                color: isFocused
-                                    ? palette.accentSoft
-                                    : palette.surface,
-                                borderRadius: _rowRadius(
-                                  first: prevIsHeader,
-                                  last: nextIsHeader,
-                                ),
-                                border: Border(
-                                  left: BorderSide(
-                                    color: rowBorder,
-                                    width: isFocused ? 2 : 1,
-                                  ),
-                                  right: BorderSide(
-                                    color: rowBorder,
-                                    width: isFocused ? 2 : 1,
-                                  ),
-                                  top: prevIsHeader
-                                      ? BorderSide(color: rowBorder)
-                                      : BorderSide.none,
-                                  bottom: BorderSide(color: rowBorder),
-                                ),
+                              item: ayah,
+                              preferences: _preferences,
+                              first:
+                                  index == 0 ||
+                                  items[index - 1] is TranslationHeader,
+                              last:
+                                  index == items.length - 1 ||
+                                  items[index + 1] is TranslationHeader,
+                              isFocused: isFocused,
+                              isBookmarked: _bookmarkedAyahs.contains(
+                                '${ayah.surah}:${ayah.ayah}',
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(10, 6, 4, 8),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Top row: ayah badge + menu
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: palette.accentSoft,
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                            border: Border.all(
-                                              color: palette.accent.withValues(
-                                                alpha: .18,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            ayahNumber.toString(),
-                                            style: TextStyle(
-                                              color: palette.accent,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                              height: 1,
-                                            ),
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        GestureDetector(
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: () => _toggleAyahBookmark(
-                                            surahNum,
-                                            ayahNumber,
-                                          ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(4),
-                                            child: Icon(
-                                              isBookmarked
-                                                  ? Icons.bookmark_rounded
-                                                  : Icons
-                                                        .bookmark_border_rounded,
-                                              color: isBookmarked
-                                                  ? palette.accent
-                                                  : palette.surfaceMuted,
-                                              size: 19,
-                                            ),
-                                          ),
-                                        ),
-                                        PopupMenuButton<String>(
-                                          popUpAnimationStyle: AppMotion.style(
-                                            context,
-                                          ),
-                                          icon: Icon(
-                                            Icons.more_vert_rounded,
-                                            color: palette.surfaceMuted,
-                                            size: 18,
-                                          ),
-                                          padding: EdgeInsets.zero,
-                                          tooltip: 'Actions',
-                                          color: palette.surfaceRaised,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                          ),
-                                          onSelected: (value) {
-                                            if (value == 'copy') {
-                                              _copyText(
-                                                context,
-                                                palette,
-                                                allText,
-                                              );
-                                            } else {
-                                              SharePlus.instance.share(
-                                                ShareParams(text: allText),
-                                              );
-                                            }
-                                          },
-                                          itemBuilder: (context) => [
-                                            PopupMenuItem(
-                                              value: 'copy',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.copy_rounded,
-                                                    color: palette.accent,
-                                                    size: 18,
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  const Text('Copy'),
-                                                ],
-                                              ),
-                                            ),
-                                            PopupMenuItem(
-                                              value: 'share',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.ios_share_rounded,
-                                                    color: palette.accent,
-                                                    size: 18,
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  const Text('Share'),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-
-                                    // Text content (full width)
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        // Arabic text
-                                        if (_showArabic &&
-                                            arabic.isNotEmpty) ...[
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: Text(
-                                              arabic,
-                                              textDirection: TextDirection.rtl,
-                                              textAlign: TextAlign.right,
-                                              style: QuranArabicStyle.ayah(
-                                                script: _arabicScript,
-                                                fontSize: _fontSize,
-                                                color: palette.text,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                        ],
-                                        // Translation blocks
-                                        ..._selectedTrans.asMap().entries.map((
-                                          e,
-                                        ) {
-                                          final src = e.value;
-                                          final text = trans[src] ?? '';
-                                          final srcKey =
-                                              '$surahNum:$ayahNumber:$src';
-                                          final srcCollapsed = _collapsedTrans
-                                              .contains(srcKey);
-                                          return Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              if (e.key > 0)
-                                                Divider(
-                                                  height: 16,
-                                                  color: palette.border,
-                                                ),
-                                              GestureDetector(
-                                                behavior:
-                                                    HitTestBehavior.opaque,
-                                                onTap: () => _toggle(
-                                                  _collapsedTrans,
-                                                  srcKey,
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    Text(
-                                                      src,
-                                                      style: TextStyle(
-                                                        color: palette.accent,
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        letterSpacing: 0.3,
-                                                      ),
-                                                    ),
-                                                    const Spacer(),
-                                                    Icon(
-                                                      srcCollapsed
-                                                          ? Icons
-                                                                .keyboard_arrow_down_rounded
-                                                          : Icons
-                                                                .keyboard_arrow_up_rounded,
-                                                      size: 16,
-                                                      color: palette.accent,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              if (!srcCollapsed &&
-                                                  text.trim().isNotEmpty) ...[
-                                                const SizedBox(height: 4),
-                                                TranslationExposure(
-                                                  verse:
-                                                      '$surahNum:$ayahNumber',
-                                                  seen: _translationsSeen,
-                                                  child: SelectableText(
-                                                    text,
-                                                    style: TextStyle(
-                                                      fontSize:
-                                                          _fontSizeMap[_fontSize]!
-                                                              .trans,
-                                                      height: 1.45,
-                                                      color:
-                                                          palette.surfaceText,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          );
-                                        }),
-
-                                        // Tafseer blocks
-                                        if (_selectedTafseer.isNotEmpty &&
-                                            _selectedTafseer.any(
-                                              (s) =>
-                                                  (tafseer[s] ?? '').isNotEmpty,
-                                            )) ...[
-                                          const SizedBox(height: 6),
-                                          Container(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              8,
-                                              6,
-                                              6,
-                                              6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: palette.scaffold,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border(
-                                                left: BorderSide(
-                                                  color: palette.accent
-                                                      .withValues(alpha: .2),
-                                                  width: 2,
-                                                ),
-                                              ),
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: _selectedTafseer.asMap().entries.map<Widget>((
-                                                e,
-                                              ) {
-                                                final src = e.value;
-                                                final text = tafseer[src] ?? '';
-                                                if (text.isEmpty) {
-                                                  return const SizedBox.shrink();
-                                                }
-                                                final srcKey =
-                                                    '$surahNum:$ayahNumber:$src';
-                                                final srcCollapsed =
-                                                    _collapsedTafseers.contains(
-                                                      srcKey,
-                                                    );
-                                                return Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    if (e.key > 0)
-                                                      Divider(
-                                                        height: 16,
-                                                        color: palette.border,
-                                                      ),
-                                                    GestureDetector(
-                                                      behavior: HitTestBehavior
-                                                          .opaque,
-                                                      onTap: () => _toggle(
-                                                        _collapsedTafseers,
-                                                        srcKey,
-                                                      ),
-                                                      child: Row(
-                                                        children: [
-                                                          Text(
-                                                            src,
-                                                            style: TextStyle(
-                                                              color:
-                                                                  palette.muted,
-                                                              fontSize: 11,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w700,
-                                                              letterSpacing:
-                                                                  0.3,
-                                                            ),
-                                                          ),
-                                                          const Spacer(),
-                                                          Icon(
-                                                            srcCollapsed
-                                                                ? Icons
-                                                                      .keyboard_arrow_down_rounded
-                                                                : Icons
-                                                                      .keyboard_arrow_up_rounded,
-                                                            size: 16,
-                                                            color:
-                                                                palette.muted,
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    if (!srcCollapsed) ...[
-                                                      const SizedBox(height: 4),
-                                                      for (final para
-                                                          in text
-                                                              .split('\n\n')
-                                                              .map(
-                                                                (p) => p.trim(),
-                                                              )
-                                                              .where(
-                                                                (p) => p
-                                                                    .isNotEmpty,
-                                                              ))
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets.only(
-                                                                bottom: 36,
-                                                              ),
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .stretch,
-                                                            children: _tafseerParaWidgets(
-                                                              para,
-                                                              _fontSizeMap[_fontSize]!
-                                                                  .tafseer,
-                                                              palette.text
-                                                                  .withValues(
-                                                                    alpha: .95,
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                    ],
-                                                  ],
-                                                );
-                                              }).toList(),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              translationsSeen: _translationsSeen,
+                              collapsedTranslations: _collapsedTrans,
+                              collapsedTafseers: _collapsedTafseers,
+                              onBookmark: () =>
+                                  _toggleAyahBookmark(ayah.surah, ayah.ayah),
+                              onToggleTranslation: (key) =>
+                                  _toggle(_collapsedTrans, key),
+                              onToggleTafseer: (key) =>
+                                  _toggle(_collapsedTafseers, key),
                             );
                           },
                         ),
@@ -1685,302 +872,6 @@ class _TranslationModalState extends State<TranslationModal> {
                   _buildPageNav(palette),
                 ],
               ),
-      ),
-    );
-  }
-}
-
-class _SummarySheet extends StatefulWidget {
-  final SurahRange surah;
-  final String fontSize;
-  const _SummarySheet({required this.surah, required this.fontSize});
-
-  static const Map<String, ({double heading, double body})> _sizes = {
-    'Small': (heading: 13.0, body: 13.0),
-    'Medium': (heading: 14.0, body: 15.0),
-    'Large': (heading: 16.0, body: 17.0),
-  };
-
-  @override
-  State<_SummarySheet> createState() => _SummarySheetState();
-}
-
-class _SummarySheetState extends State<_SummarySheet> {
-  bool _urdu = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AppPalette.of(context);
-    final summary = SurahSummaryManager.get(widget.surah.surah, urdu: _urdu);
-    final sizes = _SummarySheet._sizes[widget.fontSize]!;
-
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: palette.scaffold,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              // Drag handle
-              Padding(
-                padding: const EdgeInsets.only(top: 10, bottom: 10),
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: palette.border,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-
-              // Header: surah name + language toggle
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 16, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.surah.name,
-                            style: TextStyle(
-                              color: palette.text,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            'Summary',
-                            style: TextStyle(
-                              color: palette.muted,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Language pill toggle
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: palette.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: palette.border),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _LangSegment(
-                            palette: palette,
-                            label: 'English',
-                            active: !_urdu,
-                            onTap: () => setState(() => _urdu = false),
-                          ),
-                          _LangSegment(
-                            palette: palette,
-                            label: 'اردو',
-                            active: _urdu,
-                            onTap: () => setState(() => _urdu = true),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              Divider(height: 1, color: palette.border),
-
-              // Content
-              Expanded(
-                child: summary == null
-                    ? Center(
-                        child: Text(
-                          'No summary available',
-                          style: TextStyle(color: palette.muted),
-                        ),
-                      )
-                    : Scrollbar(
-                        controller: scrollController,
-                        thumbVisibility: true,
-                        radius: const Radius.circular(10),
-                        thickness: 6,
-                        child: ListView.builder(
-                          controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                          itemCount: summary.sections.length,
-                          itemBuilder: (context, i) {
-                            final section = summary.sections[i];
-                            if (section.isHeading) {
-                              return Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 20,
-                                  bottom: 6,
-                                ),
-                                child: Text(
-                                  section.text,
-                                  textDirection: _urdu
-                                      ? TextDirection.rtl
-                                      : TextDirection.ltr,
-                                  style: TextStyle(
-                                    color: palette.accent,
-                                    fontSize: sizes.heading,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                              );
-                            }
-                            final paras = section.text
-                                .split('\n\n')
-                                .map((p) => p.trim())
-                                .where((p) => p.isNotEmpty)
-                                .toList();
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                for (final para in paras)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 36),
-                                    child: Text(
-                                      para,
-                                      textDirection: _urdu
-                                          ? TextDirection.rtl
-                                          : TextDirection.ltr,
-                                      style: TextStyle(
-                                        color: palette.text,
-                                        fontSize: sizes.body,
-                                        height: 1.6,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _LangSegment extends StatelessWidget {
-  final AppPalette palette;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _LangSegment({
-    required this.palette,
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: active ? palette.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(9),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? palette.onAccent : palette.muted,
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final AppPalette palette;
-  final String label;
-
-  const _SectionLabel({required this.palette, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label.toUpperCase(),
-      style: TextStyle(
-        color: palette.muted,
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.1,
-      ),
-    );
-  }
-}
-
-class _CheckTile extends StatelessWidget {
-  final AppPalette palette;
-  final String label;
-  final bool checked;
-  final VoidCallback onTap;
-
-  const _CheckTile({
-    required this.palette,
-    required this.label,
-    required this.checked,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: Checkbox(
-                value: checked,
-                onChanged: (_) => onTap(),
-                activeColor: palette.accent,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                side: BorderSide(color: palette.border, width: 1.5),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                color: palette.text,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
