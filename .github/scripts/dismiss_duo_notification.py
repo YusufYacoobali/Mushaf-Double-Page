@@ -39,13 +39,62 @@ def screenshot(path):
         raise RuntimeError('No genuine Duo screenshot after capture')
     return inspect_frame(path, dock='bottom')
 
+def wait_for_decision(udid, output, authorization):
+    # A fresh simulator reports 0 (notDetermined) until SpringBoard accepts a
+    # choice. In the failed run the alert first appeared AFTER the setup tap.
+    evidence = []
+    deadline = time.monotonic() + 120
+    clear = 0
+    taps = 0
+    tried_xctest = False
+    while time.monotonic() < deadline:
+        authorization.with_name("duo-refresh-permission").touch()
+        index = len(evidence)
+        path = output / f'notification-check-{index}.png'
+        frame = screenshot(path)
+        status = int(authorization.read_text()) if authorization.exists() else None
+        button = frame.get('denyNotification')
+        evidence.append({'status': status, 'screen': path.name, 'nearWhiteFraction': frame['nearWhiteFraction'],
+                         'notificationPrompt': frame['notificationPrompt'], 'button': button})
+        (output / 'permission-verification.json').write_text(json.dumps(evidence, indent=2))
+        print('Notification check:', evidence[-1], flush=True)
+        if status in (1, 2, 3, 4) and not button and not frame['notificationPrompt'] and frame['nearWhiteFraction'] > .08:
+            clear += 1
+            if clear == 2:
+                return
+        else:
+            clear = 0
+        if frame['notificationPrompt'] and button and status in (0, None) and taps < 2:
+            width, height = screen_geometry(udid)
+            run(['duoctl', '-d', udid, 'tap', str(button['x'] * width), str(button['y'] * height)], 35)
+            taps += 1
+        elif status in (0, None) and (taps == 2 or index >= 6) and not tried_xctest:
+            # The iPad optical/AX harness independently foregrounds the reader
+            # and dismisses only its observed SpringBoard notifications alert.
+            tried_xctest = True
+            subprocess.run([
+                'xcodebuild', 'test-without-building', '-project', 'tools/ios_ui_qa/ReaderUIHarness.xcodeproj',
+                '-scheme', 'ReaderVisualTests', '-derivedDataPath', 'ui-build',
+                '-destination', 'platform=iOS Simulator,id=' + udid, '-parallel-testing-enabled', 'NO',
+                '-only-testing:ReaderVisualTests/ReaderVisualTests/testPreparePortrait',
+                '-resultBundlePath', str(output / 'permission.xcresult'), 'CODE_SIGNING_ALLOWED=NO'
+            ], check=True, timeout=230)
+            deadline = time.monotonic() + 30
+        time.sleep(1)
+    raise RuntimeError('No confirmed OS notification decision followed by two unobstructed reader frames')
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('udid')
     p.add_argument('output',type=Path)
+    p.add_argument('--authorization', type=Path, help='OS authorization status from the disposable native probe')
     args = p.parse_args()
     args.output.mkdir(parents=True,exist_ok=True)
     assert shutil.which('duoctl') and shutil.which('tesseract')
+    if args.authorization:
+        wait_for_decision(args.udid, args.output, args.authorization)
+        return
     evidence=[]
     for attempt in range(3):
         path=args.output/f'notification-check-{attempt}.png'

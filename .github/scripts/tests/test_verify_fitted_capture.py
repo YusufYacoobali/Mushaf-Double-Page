@@ -203,6 +203,23 @@ class CaptureTests(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, "possible obscuring overlay"):
                     capture.verify(self.png, self.metadata, 100, posture=posture, expected_page=6)
 
+    def test_duo_touches_require_clear_paper_even_when_geometry_passes(self):
+        import capture_reader_endpoint
+        frame = snapshot("duo-folded", page=6)
+        self.save(frame)
+        # Reuse the printed-paper pattern from the iPad overlay regression.
+        with Image.open(self.png) as image:
+            draw = ImageDraw.Draw(image)
+            for y in range(24, 500, 32):
+                draw.rectangle((12, y, 355, y + 16), fill="white")
+            image.save(self.png)
+        capture_reader_endpoint.assert_clear_duo_page(self.png, frame)
+        with Image.open(self.png) as image:
+            image.point(lambda channel: round(channel * 0.8)).save(self.png)
+        capture.check_geometry(frame, "duo-folded")
+        with self.assertRaisesRegex(AssertionError, "possible obscuring overlay"):
+            capture_reader_endpoint.assert_clear_duo_page(self.png, frame)
+
     def test_duo_book_uses_bottom_strip_without_crossing_hinge(self):
         frame = snapshot("duo-half-open-book", page=6, centered_book=True)
         self.save(frame)

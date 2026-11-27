@@ -31,6 +31,10 @@ def inspect_frame(path, dock='side', scale=3):
     # button is touched; page text and application state are never changed.
     box = (round(width * .05), round(height * .25), round(width * .95), round(height * .78))
     rows = words(image.crop(box))
+    compact = re.sub(r'[^a-z]', '', ' '.join(row['text'].lower() for row in rows))
+    state['notificationPrompt'] = 'qurandualpage' in compact and 'notifications' in compact
+    sample = image.resize((128, 128))
+    state['nearWhiteFraction'] = sum(min(p) >= 245 for p in sample.getdata()) / (128 * 128)
     for index, row in enumerate(rows):
         normalized = re.sub(r'\W', '', row['text']).lower()
         group = [row]

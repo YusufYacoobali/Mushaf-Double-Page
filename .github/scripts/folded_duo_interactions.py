@@ -1,5 +1,4 @@
 """Exercise both sides of the cover using real touches on page six."""
-from pathlib import Path
 import subprocess
 import time
 
@@ -103,8 +102,8 @@ def verify_folded_controls(source):
         expect('Bookmarks sheet', lambda s: not s['reader'] and 'Add' in s['items'])
         tap('Add')
         expect('Page bookmark saved', lambda s: 'p' + str(page) in s['bookmarks'])
-        if not device.snapshot()['reader']:
-            dismiss()
+        tap('Dismiss bookmarks', [12, device.size[1] * .18])
+        expect('Bookmarks dismissed with saved page', lambda s: s['reader'] and 'p' + str(page) in s['bookmarks'])
         tap('Audio')
         expect('Audio sheet', lambda s: 'AudioModal' in s['routeWidgets'])
         # The real editor scrolls on compact displays. Reveal Play by dragging
@@ -120,12 +119,19 @@ def verify_folded_controls(source):
         tap('Pause')
         paused = expect('Playback paused', lambda s: s['audio']['paused'])
         original = paused['audio']['ayah']
+        def paused_verse(s, ayah):
+            reference = f"{paused['audio']['surah']}:{ayah}"
+            # A manually queued verse has no audible cursor until Resume.
+            # Require the new verse label and paused status in the visible dock.
+            return s['audio']['paused'] and any(
+                reference in label.split('\n')[0] and 'Paused' in label for label in s['items'])
         tap('Next ayah')
-        expect('Next ayah rendered', lambda s: s['audio']['ayah'] == original + 1)
+        expect('Next ayah displayed while paused', lambda s: paused_verse(s, original + 1))
         tap('Previous ayah')
-        expect('Previous ayah rendered', lambda s: s['audio']['ayah'] == original)
+        expect('Previous ayah displayed while paused', lambda s: paused_verse(s, original))
         tap('Resume')
-        expect('Playback resumed', lambda s: s['audio']['audible'])
+        expect('Previous ayah audible after resume', lambda s: s['audio']['audible'] and
+               s['audio']['ayah'] == original and s['audio']['positionMs'] > 0)
         tap('Stop audio')
         expect('Playback stopped', lambda s: not s['audio']['active'])
         expect('Clean reader after controls', lambda s: s['reader'] and s['selected'] is None and s['zoom'] == 1)

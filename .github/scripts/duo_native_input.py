@@ -97,8 +97,20 @@ class NativeInput:
 
     def gesture(self, label, point, end=None):
         action = 'swipe' if end else 'tap'
+        token = uuid4().hex
+        atomic(self.docs / 'duo-hit-request.json', json.dumps({'id': token, 'point': point}))
+        path = self.docs / 'duo-hit.json'
+        def current_hit():
+            if path.exists():
+                hit = read(path)
+                if hit['id'] == token:
+                    return hit
+        hit = wait_for(current_hit, 'UIKit window hit test', 8)
+        self.record(dict(label=label, point=point, nativeHit=hit))
+        assert hit['size'] == self.size, (hit, self.display)
         for route in (['xc'] if self.use_xctest else ['duoctl', 'xc']):
-            start = time.time()
+            paths = {key: self.docs / ('duo-' + key + '.jsonl') for key in ('uikit', 'flutter')}
+            offsets = {key: path.stat().st_size if path.exists() else 0 for key, path in paths.items()}
             if route == 'xc':
                 self.xc(action=action, point=point, end=end)
             else:
@@ -107,18 +119,33 @@ class NativeInput:
                     args += [*map(str, end), '--duration', '.3']
                 subprocess.run(args, check=True, timeout=35)
             def events(name):
-                path = self.docs / ('duo-' + name + '.jsonl')
-                rows = [json.loads(s) for s in path.read_text().splitlines()] if path.exists() else []
-                return [r for r in rows if r['time'] >= start - .01]
-            def matched(rows):
-                return any('x' in row and math.dist(point, (row['x'], row['y'])) <= 2 for row in rows)
-            time.sleep(.25)
-            native = events('uikit')
-            flutter = events('flutter')
+                path = paths[name]
+                if not path.exists():
+                    return []
+                with path.open('rb') as stream:
+                    stream.seek(offsets[name])
+                    return [json.loads(line) for line in stream if line.endswith(b'\n')]
+            def matched(rows, at):
+                return any('x' in row and math.dist(at, (row['x'], row['y'])) <= 2 for row in rows)
+            deadline = time.monotonic() + 1.5
+            while True:
+                native = events('uikit')
+                flutter = events('flutter')
+                delivered = (
+                    matched([r for r in native if r['keyWindow'] and r['hit'] != 'ReaderRegionProbe'], point)
+                    and matched([r for r in flutter if r.get('pointer') == 'PointerDownEvent'], point)
+                    and matched([r for r in flutter if r.get('pointer') == 'PointerUpEvent'], end or point)
+                )
+                if delivered or time.monotonic() >= deadline:
+                    break
+                time.sleep(.1)
             self.record(dict(label=label, via=route, point=point, end=end, uikit=native, flutter=flutter))
-            if matched(native) and matched([r for r in flutter if r.get('pointer') == 'PointerDownEvent']):
+            if delivered:
+                if label in ('Zoom in', 'Zoom out'):
+                    delta = .05 if label == 'Zoom in' else -.05
+                    callbacks = [r['delta'] for r in flutter if r.get('callback') == 'zoom']
+                    if callbacks != [delta]:
+                        raise RuntimeError(f'{label}: expected one zoom callback, saw {callbacks}')
                 self.use_xctest = route == 'xc'
                 return
-            if route == 'xc' or matched(native):
-                raise RuntimeError(f'{label}: input reached an unexpected native or Flutter target')
         raise RuntimeError(f'{label}: no verified touch')

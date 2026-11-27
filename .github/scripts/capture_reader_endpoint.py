@@ -7,11 +7,27 @@ from pathlib import Path
 import subprocess
 import time
 
+from PIL import Image, ImageOps
+
 from verify_fitted_capture import MODES, assert_capture_state, bounds, check_geometry, check_pair, verify
 
 
 def read(path):
     return json.loads(path.read_text())
+
+
+def assert_clear_duo_page(png, frame):
+    # The failed native zoom and swipe had valid geometry and textured pages
+    # behind a SpringBoard dialog. Sample the visible, printed page itself.
+    with Image.open(png) as image:
+        screen = ImageOps.exif_transpose(image).convert("RGB")
+        dpr = frame["pixelRatio"]
+        for page in frame["pages"].values():
+            l, t, r, b = (round(v * dpr) for v in bounds(page))
+            crop = screen.crop((max(0, l), max(0, t), min(screen.width, r), min(screen.height, b)))
+            samples = crop.resize((192, 256), Image.Resampling.BILINEAR)
+            ratio = sum(min(pixel) >= 245 for pixel in samples.getdata()) / (192 * 256)
+            assert ratio >= .08, f"possible obscuring overlay: near-white paper fraction {ratio:.3f}"
 
 
 def capture(source, png, posture, percent, after, phase, before, state, udid, expected_page=None):
@@ -56,6 +72,8 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
             # Allow an in-progress hide/scroll to publish its settled state.
             time.sleep(0.5)
             assert immediately_after == frame == read(source), "reader changed during screenshot"
+            if not ipad:
+                assert_clear_duo_page(png, frame)
             layout.write_text(json.dumps(frame, indent=2) + "\n")
             verify(
                 png,
