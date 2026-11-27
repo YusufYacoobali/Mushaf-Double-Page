@@ -80,6 +80,10 @@ The Duo harness waits for the OS notification authorization decision and two uno
 
 Selecting an ayah or starting playback while the cover dock is pinned now updates the visibility used on unfolding. A selection that held the dock open on unfolding restarts the normal idle timer when cleared. Regression tests start from hidden controls, cover both arrow-only settings, and check the selected verse, page, 95% zoom, playback session, position and native queue load count.
 
+Flutter analysis passed. The full suite passed 621 tests with two conditional skips. Both conditional tests passed separately with release mode and the generated Yasser recording artifact respectively. The seven folded-Duo widget tests passed, including selection and playback started with the dock previously hidden. Restoring the old guards made both default-preference transition tests fail. The 32 dock renders and four responsive renders matched their pre-change images byte for byte. All 35 Python verification tests passed.
+
+Both Samsung simulators passed. The Galaxy foldable and passport-style foldable each reproduced all ten expected page geometries, control bounds and dock states. Every screenshot matched its reference to 100.000% at the comparison’s three-decimal precision. [Comparison and original Android captures](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46052490922)
+
 ## Regression results
 
 - Flutter static analysis passed. The full Flutter suite passed 603 tests with two existing conditional skips (release-only test and optional generated Yasser artifact). The focused navigation, verse-index and continuous-PCM suite passed 39 tests.
