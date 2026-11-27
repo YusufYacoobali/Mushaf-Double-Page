@@ -11,6 +11,16 @@
 
 The pre-refactor Flutter suite passed 611 tests, with two conditional skips. The four phase-specific runs passed 113 reader tests, 25 translation tests, 145 audio tests and 35 storage tests. The populated translation view, settings sheet and Surah summary matched the reference phone renders pixel for pixel.
 
+## Final validation
+
+The application revision tested was `eb4afbe`, compared with `8d29f3e` before extraction.
+
+- Flutter analysis passed. The full suite passed 614 tests. Both conditional tests also passed separately. One exercised the release guard with `dart.vm.product=true`. The other validated a sample-exact PCM fixture generated from eleven checksummed Yasser recordings.
+- All 45 before-and-after Flutter renders matched pixel for pixel. These included the phone dock, navigator, reader selection, translation surfaces, and iPad mini portrait and landscape at 100% zoom. The iPad comparison opened page 6, rotated the running reader and verified the facing pages 6 and 7.
+- An Android emulator played cached Al-Juhany 112:2–3 twice through continuous PCM, in the order 2, 3, 2, 3, with one queue load. Both ayahs and listening time persisted. Recovery, highlighting and navigation passed their regression tests. The emulator reported output underruns, so this run verifies ordering and continuity in the engine. Audible continuity on physical speakers was not measured.
+- The Android debug build and both Samsung foldable profiles passed, including the screenshot comparison. [Android build and visual results](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46024159684)
+- The arm64 iOS simulator build passed. The Duo passed all four postures at minimum and maximum zoom. The iPad mini passed portrait and landscape at 100%, and the workflow assembled the twelve verified captures. Two earlier iPad attempts stopped at page installation and portrait screenshot verification respectively. The successful run used the same application build and screenshot checks. [iOS build and visual results](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46024159688)
+
 ## Remaining concentrations
 
 - The audio controller is the largest Dart file at 1,477 lines. Queue installation, cancellation and recovery all validate the same session and revision before accepting asynchronous results. Keeping these operations together makes their ordering reviewable. Revisit extraction if a backend gains independent policy.
