@@ -46,9 +46,10 @@ def compare(folder, archive):
 
 
 if __name__ == "__main__":
-    last = Path(sys.argv[1]).read_text().strip().splitlines()[-1]
-    if last.startswith("Compare screenshots "):
-        for mapping in last.removeprefix("Compare screenshots ").split():
+    requests = Path(sys.argv[1]).read_text().splitlines()
+    baseline = next((line for line in reversed(requests) if line.startswith("Compare screenshots ")), None)
+    if baseline:
+        for mapping in baseline.removeprefix("Compare screenshots ").split():
             directory, artifact_id = mapping.split("=")
             endpoint = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/artifacts/{int(artifact_id)}/zip"
             archive = subprocess.check_output(["gh", "api", endpoint])
