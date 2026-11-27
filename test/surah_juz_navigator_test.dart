@@ -61,6 +61,78 @@ void main() {
     },
   );
 
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'quarter height, opacity and chevron follow motion settings: reduced=$reduced',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(disableAnimations: reduced),
+              child: Scaffold(
+                body: JuzList(mushaf: 'indopak', onJump: (_) {}),
+              ),
+            ),
+          ),
+        );
+        double nextRowY() => tester.getTopLeft(find.text('Juz 2')).dy;
+        double arrowCosine() => tester
+            .widget<Transform>(
+              find.descendant(
+                of: find.byTooltip('Hide quarters of Juz 1'),
+                matching: find.byType(Transform),
+              ),
+            )
+            .transform
+            .storage[0];
+        final closed = nextRowY();
+        await tester.tap(find.byTooltip('Show quarters of Juz 1'));
+        await tester.pump();
+        if (!reduced) {
+          expect(nextRowY(), closed);
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(arrowCosine(), allOf(greaterThan(-1), lessThan(1)));
+          final opacity = tester.widget<Opacity>(
+            find
+                .ancestor(
+                  of: find.text('¼ Juz'),
+                  matching: find.byType(Opacity),
+                )
+                .first,
+          );
+          expect(opacity.opacity, allOf(greaterThan(0), lessThan(1)));
+        }
+        final intermediate = nextRowY();
+        await tester.pump(const Duration(milliseconds: 150));
+        final open = nextRowY();
+        expect(open, greaterThan(closed));
+        expect(arrowCosine(), closeTo(-1, 0.001));
+        expect(
+          intermediate,
+          reduced ? equals(open) : inExclusiveRange(closed, open),
+        );
+        await tester.tap(find.byTooltip('Hide quarters of Juz 1'));
+        await tester.pump();
+        if (!reduced) {
+          expect(nextRowY(), open);
+          await tester.pump(const Duration(milliseconds: 100));
+          final closing = nextRowY();
+          expect(closing, inExclusiveRange(closed, open));
+          // A different section can open before the first has finished closing.
+          await tester.tap(find.byTooltip('Show quarters of Juz 2'));
+          await tester.pump();
+          expect(nextRowY(), closing);
+          await tester.pump(const Duration(milliseconds: 250));
+          expect(find.byTooltip('Hide quarters of Juz 2'), findsOneWidget);
+        } else {
+          expect(find.text('¼ Juz'), findsNothing);
+        }
+        expect(nextRowY(), closed);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final mushaf in ['indopak_tajweed', 'madani']) {
     for (final portrait in [true, false]) {
       for (final scale in [1.0, 1.5]) {
