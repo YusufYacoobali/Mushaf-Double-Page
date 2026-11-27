@@ -54,7 +54,7 @@ jobs:
         id: pages
         with:
           path: .ci/quran-pages
-          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+          key: reader-pages-${{ hashFiles('lib/logic/mushaf_installer.dart', 'lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - name: Capture four real foldable postures, full 100% pages and swipe
         env:
           DUO_TARGET: duo-smoke
@@ -66,7 +66,7 @@ jobs:
         if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
         with:
           path: .ci/quran-pages
-          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+          key: reader-pages-${{ hashFiles('lib/logic/mushaf_installer.dart', 'lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - name: Save original screenshots and diagnostics (even on failure)
         if: always()
         uses: actions/upload-artifact@v4

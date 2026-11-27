@@ -104,7 +104,7 @@ jobs:
         id: pages
         with:
           path: .ci/quran-pages
-          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+          key: reader-pages-${{ hashFiles('lib/logic/mushaf_installer.dart', 'lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.artifact_name || needs.reader.outputs.artifact_name }}
@@ -187,7 +187,7 @@ jobs:
         if: always() && steps.pages.outputs.cache-hit != 'true' && hashFiles('.ci/quran-pages/pages.json') != ''
         with:
           path: .ci/quran-pages
-          key: reader-pages-${{ hashFiles('lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
+          key: reader-pages-${{ hashFiles('lib/logic/mushaf_installer.dart', 'lib/logic/storage_manager.dart', 'lib/pages/loading.dart') }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
