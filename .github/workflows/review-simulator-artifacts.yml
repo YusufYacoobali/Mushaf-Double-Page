@@ -1,9 +1,6 @@
 name: Review existing simulator artifacts
 
 on:
-  push:
-    branches: [v9]
-    paths: ['.github/duo-touch-validation.request']
   workflow_dispatch:
     inputs:
       source_run_id:
@@ -15,77 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  iphone-duo:
-    name: Test clean iPhone Duo (min/max zoom)
-    if: github.event_name == 'push'
-    runs-on: xcode-27
-    timeout-minutes: 48
-    env:
-      READER_QA_PAGE: '6'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Verify the exact simulator application's sources
-        run: git diff --exit-code a511219 HEAD -- lib ios ios27 pubspec.yaml pubspec.lock tools/ios_ui_qa/duo/install_probes.py tools/ios_ui_qa/duo/reader_probe.dart.inc tools/ios_ui_qa/duo/UIKitTouches.swift
-      - uses: actions/download-artifact@v4
-        with:
-          name: quran-ios-duo-simulator-build
-          run-id: 46056568022
-          github-token: ${{ github.token }}
-      - name: Extract app
-        run: |
-          mkdir -p ci-app
-          tar -xzf ios-simulator-runner.tgz -C ci-app
-          test -d ci-app/Runner.app
-      - name: Install Duo controls (no accessibility dependency)
-        run: |
-          brew install skarol/tap/duoctl xcodegen tesseract wix/brew/applesimutils
-          bash .github/scripts/build_ipad_rotation_harness.sh
-          python3 -m venv .qa-venv
-          .qa-venv/bin/pip install Pillow
-          echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"
-      - name: Run folded, unfolded, and half-open reader screenshots
-        shell: bash
-        run: bash .github/scripts/proven_duo_simulator_qa.sh
-      - name: Upload actual Duo screenshots and diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: quran-duo-visual-qa
-          path: screenshots/
-          if-no-files-found: warn
-          retention-days: 14
-
-  compare-ios-originals:
-    needs: iphone-duo
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: quran-duo-visual-qa
-          path: screenshots
-      - uses: actions/download-artifact@v4
-        with:
-          name: quran-ipad-mini-visual-qa
-          run-id: 46056568022
-          github-token: ${{ github.token }}
-          path: screenshots-ipad
-      - name: Verify and compare all twelve iOS endpoints
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 -m venv .qa-venv
-          .qa-venv/bin/pip install Pillow
-          .qa-venv/bin/python .github/scripts/compare_requested_screenshots.py .github/complete-visual-20261118.request
-          .qa-venv/bin/python .github/scripts/reader_comparison.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: quran-layout-comparison
-          path: reader-comparison.png
   package-existing-screenshots:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

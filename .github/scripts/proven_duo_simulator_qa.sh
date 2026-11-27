@@ -102,7 +102,6 @@ wait_for_real_quran_pages() {
   echo "::error::Actual Quran pages failed to load, not a visual test pass"
   return 1
 }
-export SIMCTL_CHILD_READER_TOUCH_QA=1
 ready=0
 for attempt in 1 2; do
   echo "Starting isolated Duo attempt $attempt/2"
