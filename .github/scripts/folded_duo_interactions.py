@@ -1,4 +1,5 @@
 """Exercise both sides of the cover using real touches on page six."""
+import json
 import subprocess
 import time
 
@@ -149,10 +150,11 @@ def verify_folded_controls(source):
         expect('Playback switched to selected ayah', lambda s: s['audio']['audible'] and
                s['audio']['ayah'] == other[1] and s['audio']['session'] != held['audio']['session'])
         tap('Pause')
-        paused_session = expect('Selected playback paused', lambda s: s['audio']['paused'])['audio']['session']
+        paused_audio = expect('Selected playback paused', lambda s: s['audio']['paused'])['audio']
         def retained(s):
             return (s['page'] == page and s['selected'] == verse and s['zoom'] == 1 and
-                    s['audio']['paused'] and s['audio']['session'] == paused_session and
+                    s['audio']['paused'] and s['audio']['session'] == paused_audio['session'] and
+                    s['audio']['positionMs'] == paused_audio['positionMs'] and
                     s['audio']['ayah'] == other[1])
         subprocess.run(['duoctl', '-d', device.udid, 'open'], check=True, timeout=60)
         subprocess.run(['duoctl', '-d', device.udid, 'rotate', 'portrait'], check=True, timeout=60)
@@ -161,6 +163,14 @@ def verify_folded_controls(source):
         expect('Unfold kept selection and paused audio', lambda s: retained(s) and 'Resume' in s['items'])
         screenshot('unfolded-paused-selection')
         subprocess.run(['duoctl', '-d', device.udid, 'close'], check=True, timeout=60)
+        # The inner and cover panels have different physical axes. The same
+        # device orientation that made the inner portrait returned a 678×466
+        # landscape cover on the hosted Duo. Restore the observed cover pose.
+        returned = subprocess.check_output(['duoctl', '-d', device.udid, 'rotate', device.display['orientation']],
+                                           text=True, timeout=75)
+        cover = json.loads(returned)
+        device.record({'refoldedDisplay': cover})
+        assert cover['activeScreen'] == 'cover' and cover['sizePoints'] == device.size, cover
         wait_for(lambda: layout()['native']['closed'] and layout()['viewport']['width'] == device.size[0],
                  'return to the cover', 20)
         expect('Cover restored same session', retained)
