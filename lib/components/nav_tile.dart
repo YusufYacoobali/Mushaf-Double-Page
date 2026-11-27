@@ -19,6 +19,7 @@ class NavTile extends StatelessWidget {
   }
 
   final int number;
+  final String? badgeText;
   final String title;
   final String? englishTitle;
   final VoidCallback onTap;
@@ -28,6 +29,7 @@ class NavTile extends StatelessWidget {
   const NavTile({
     super.key,
     required this.number,
+    this.badgeText,
     required this.title,
     this.englishTitle,
     required this.onTap,
@@ -117,7 +119,7 @@ class NavTile extends StatelessWidget {
                       color: palette.accentSoft,
                     ),
                     child: Text(
-                      number.toString(),
+                      badgeText ?? number.toString(),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: palette.accent,

@@ -24,7 +24,7 @@ class JuzList extends StatefulWidget {
 
 class _JuzListState extends State<JuzList> {
   int? expanded;
-  static const labels = ['Quarter 2 · ¼', 'Quarter 3 · ½', 'Quarter 4 · ¾'];
+  static const fractions = ['¼', '½', '¾'];
 
   Future<void> jump(int juz, int quarter) async {
     if (!PageAyahIndex.isReady) await PageAyahIndex.load();
@@ -55,10 +55,11 @@ class _JuzListState extends State<JuzList> {
         );
         return header +
             (expanded == juz
-                ? labels.fold(
+                ? fractions.fold(
                     0.0,
-                    (height, label) =>
-                        height + NavTile.extentFor(context, width - 12, label),
+                    (height, fraction) =>
+                        height +
+                        NavTile.extentFor(context, width - 12, '$fraction Juz'),
                   )
                 : 0.0);
       },
@@ -85,12 +86,13 @@ class _JuzListState extends State<JuzList> {
               ),
             ),
             if (open)
-              for (var i = 0; i < labels.length; i++)
+              for (var i = 0; i < fractions.length; i++)
                 Padding(
                   padding: const EdgeInsets.only(left: 12),
                   child: NavTile(
                     number: i + 2,
-                    title: labels[i],
+                    badgeText: fractions[i],
+                    title: '${fractions[i]} Juz',
                     onTap: () => jump(juz, i + 2),
                   ),
                 ),

@@ -36,19 +36,26 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Juz'));
       await tester.pumpAndSettle();
-      expect(find.text('Quarter 2 · ¼'), findsNothing);
+      expect(find.text('¼ Juz'), findsNothing);
       await tester.tap(find.byTooltip('Show quarters of Juz 2'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Show quarters of Juz 1'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Show quarters of Juz 2'), findsOneWidget);
-      expect(find.text('Quarter 2 · ¼'), findsOneWidget);
+      for (final fraction in ['¼', '½', '¾']) {
+        final row = find.widgetWithText(NavTile, '$fraction Juz');
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(of: row, matching: find.text(fraction)),
+          findsOneWidget,
+        );
+      }
       await tester.tap(find.text('Surah'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Juz'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Hide quarters of Juz 1'), findsOneWidget);
-      await tester.tap(find.text('Quarter 2 · ¼'));
+      await tester.tap(find.text('¼ Juz'));
       await tester.pumpAndSettle();
       expect(jumps, [(2, 12)]);
     },
