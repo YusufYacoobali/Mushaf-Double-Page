@@ -269,6 +269,27 @@ void main() {
     }
   });
 
+  test(
+    'Indo-Pak marginal signs shared by multiple verses have one destination',
+    () async {
+      await PageAyahIndex.load();
+      for (final edition in ['indopak', 'indopak_tajweed']) {
+        for (final (juz, surah, first, last) in [
+          (23, 38, 53, 54),
+          (25, 44, 22, 24),
+        ]) {
+          final destination = juzDestination(juz, 4, edition);
+          for (var ayah = first; ayah <= last; ayah++) {
+            expect(
+              PageAyahIndex.pageOfAyah(surah, ayah, mushaf: edition),
+              destination.page,
+            );
+          }
+        }
+      }
+    },
+  );
+
   test('PageAyahIndex loads the Indo-Pak layout and maps pages', () async {
     await PageAyahIndex.load();
 

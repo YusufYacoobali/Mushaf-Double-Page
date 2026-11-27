@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mushaf_two_page/utils/page_ayah_index.dart';
+import 'package:mushaf_two_page/utils/app_palette.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/utils/navigator.dart';
 import 'package:mushaf_two_page/utils/juz_list.dart';
@@ -17,7 +18,7 @@ void main() {
       final jumps = <(int, int)>[];
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData.dark(),
+          theme: AppPalette.blackDark.toThemeData(),
           home: Builder(
             builder: (context) => TextButton(
               onPressed: () => SurahJuzNavigator.show(

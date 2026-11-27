@@ -58,8 +58,10 @@ const indopakJuzQuarters = <List<VerseReference>>[
   [(27, 60), (28, 14), (28, 53), (29, 1)],
   [(29, 45), (30, 28), (31, 15), (32, 28)],
   [(33, 31), (33, 63), (34, 31), (35, 15)],
+  // The Q4 marginal sign shares a line with verse ends 38:53 and 38:54.
   [(36, 22), (37, 24), (37, 145), (38, 54)],
   [(39, 32), (40, 1), (40, 42), (41, 6)],
+  // The Q4 marginal sign is beside 44:22–24. Both anchors resolve to the marked page.
   [(41, 47), (42, 30), (43, 26), (44, 23)],
   [(46, 1), (47, 1), (48, 18), (49, 11)],
   [(51, 31), (53, 31), (55, 26), (56, 75)],
