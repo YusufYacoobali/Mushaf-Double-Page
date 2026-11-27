@@ -14,3 +14,6 @@ Verify centred fitting unfolded landscape spreads and the exact scroll endpoints
 
 Verify the permanent folded Duo dock and compare page geometry and original pixels against the preceding successful v9 run.
 Compare screenshots screenshots=15212349918 screenshots-ipad=15214666030
+
+Match the unfolded reference dock state at each endpoint and verify actual folded zoom button touches before the idle capture.
+Compare screenshots screenshots=15212349918 screenshots-ipad=15214666030

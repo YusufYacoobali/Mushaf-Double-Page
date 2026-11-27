@@ -27,6 +27,9 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
             frame = read(source)
             assert_capture_state(frame, percent, mode, after, expected_page)
             check_geometry(frame, posture, phase, state)
+            if posture.startswith("duo-unfolded") or posture == "duo-half-open-book":
+                # These reference frames were captured after the ordinary dock hid.
+                assert not frame["navigationExpanded"], "waiting for the reference dock state"
             if previous:
                 check_pair(previous, frame, phase)
             command = (
@@ -100,6 +103,28 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
     raise RuntimeError(f"{png}: no matching stable capture within 35s: {error}")
 
 
+def check_folded_zoom_taps(source):
+    # Interact with the real Flutter buttons in the cover strip. Re-read their
+    # positions after each zoom; a page resize can trigger a layout pass.
+    original = read(source)
+    for name, target in [("Zoom out", 0.95), ("Zoom in", 1.0)]:
+        frame = read(source)
+        box = frame["controls"][name]
+        x = round(box["left"] + box["width"] / 2)
+        y = round(box["top"] + box["height"] / 2)
+        subprocess.run(["duoctl", "tap", str(x), str(y)], check=True, timeout=30)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            updated = read(source)
+            if abs(updated["zoom"] - target) < 0.001:
+                assert updated["focusedPage"] == original["focusedPage"] and updated["navigationExpanded"]
+                print(f"Cover tap on {name} at ({x}, {y}): rendered zoom {target:.0%}", flush=True)
+                break
+            time.sleep(0.2)
+        else:
+            raise RuntimeError(f"{name} tap in the folded strip did not reach {target:.0%}")
+
+
 def swipe_to_bottom(frame):
     # Touch the currently focused leaf. Both leaves share this viewport.
     page = frame["pages"][str(frame["focusedPage"])]
@@ -138,6 +163,7 @@ if __name__ == "__main__":
             swipe_to_bottom(read(args.source))
         elif args.phase == "idle":
             assert args.posture == "duo-folded"
+            check_folded_zoom_taps(args.source)
             # Take another real screenshot after the ordinary ten-second hide timer.
             time.sleep(11)
     capture(
