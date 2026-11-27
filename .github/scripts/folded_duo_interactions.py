@@ -129,11 +129,44 @@ def verify_folded_controls(source):
         expect('Next ayah displayed while paused', lambda s: paused_verse(s, original + 1))
         tap('Previous ayah')
         expect('Previous ayah displayed while paused', lambda s: paused_verse(s, original))
+        tap('Audio settings')
+        expect('Playback settings opened from strip', lambda s: 'AudioModal' in s['routeWidgets'] and
+               s['audio']['paused'])
+        dismiss()
         tap('Resume')
         expect('Previous ayah audible after resume', lambda s: s['audio']['audible'] and
                s['audio']['ayah'] == original and s['audio']['positionMs'] > 0)
+        tap('Pause')
+        held = expect('Playback held on previous ayah', lambda s: s['audio']['paused'] and
+                      s['audio']['ayah'] == original)
+        other = min((r for r in initial['ayahTargets'] if r[1] != original), key=lambda r: abs(r[3] - .65))
+        verse = f'{other[0]}:{other[1]}'
+        xy = [p['left'] + other[2]*p['width'], p['top'] + other[3]*p['height']]
+        tap('Select another printed ayah', xy)
+        expect('Separate selection during playback', lambda s: s['selected'] == verse and
+               'Play selected ayah' in s['items'])
+        tap('Play selected ayah')
+        expect('Playback switched to selected ayah', lambda s: s['audio']['audible'] and
+               s['audio']['ayah'] == other[1] and s['audio']['session'] != held['audio']['session'])
+        tap('Pause')
+        paused_session = expect('Selected playback paused', lambda s: s['audio']['paused'])['audio']['session']
+        def retained(s):
+            return (s['page'] == page and s['selected'] == verse and s['zoom'] == 1 and
+                    s['audio']['paused'] and s['audio']['session'] == paused_session and
+                    s['audio']['ayah'] == other[1])
+        subprocess.run(['duoctl', '-d', device.udid, 'open'], check=True, timeout=60)
+        subprocess.run(['duoctl', '-d', device.udid, 'rotate', 'portrait'], check=True, timeout=60)
+        wait_for(lambda: not layout()['native']['closed'] and layout()['mode'] == 'single' and
+                 layout()['navigationExpanded'], 'unfolded portrait controls', 20)
+        expect('Unfold kept selection and paused audio', lambda s: retained(s) and 'Resume' in s['items'])
+        screenshot('unfolded-paused-selection')
+        subprocess.run(['duoctl', '-d', device.udid, 'close'], check=True, timeout=60)
+        wait_for(lambda: layout()['native']['closed'] and layout()['viewport']['width'] == device.size[0],
+                 'return to the cover', 20)
+        expect('Cover restored same session', retained)
         tap('Stop audio')
         expect('Playback stopped', lambda s: not s['audio']['active'])
+        tap('Clear selection after playback', xy)
         expect('Clean reader after controls', lambda s: s['reader'] and s['selected'] is None and s['zoom'] == 1)
     finally:
         device.close()
