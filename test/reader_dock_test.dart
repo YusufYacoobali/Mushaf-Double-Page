@@ -8,12 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/components/nav_bar_icon.dart';
 import 'package:mushaf_two_page/components/reader_dock.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
+import 'package:mushaf_two_page/utils/reader_layout.dart';
 
 void main() {
   for (final size in [
     const Size(390, 844),
     const Size(844, 390),
     const Size(320, 568),
+    const Size(360, 800), // Folded outer display with side controls.
   ]) {
     for (final dark in [false, true]) {
       for (final withAudio in [false, true]) {
@@ -36,7 +38,14 @@ void main() {
                 ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
               await icons.load();
             });
-            final portrait = size.height > size.width;
+            final cover = size == const Size(360, 800);
+            final layout = ReaderLayout.resolve(
+              size: size,
+              androidCoverDock: cover,
+            );
+            final portrait = layout.bottomDock;
+            Widget positionDock(Widget dock) =>
+                cover ? ReaderDockOverlay(layout: layout, child: dock) : dock;
             final palette = dark ? AppPalette.blackDark : AppPalette.emerald;
             final boundaryKey = GlobalKey();
             var expanded = true;
@@ -56,9 +65,9 @@ void main() {
                           Center(
                             child: Padding(
                               padding: EdgeInsets.only(
-                                right: portrait ? 0 : 95,
+                                right: size.height > size.width ? 0 : 95,
                               ),
-                              child: portrait
+                              child: size.height > size.width
                                   ? Image.asset(
                                       'assets/mushaf/indopak_tajweed_preview.png',
                                       fit: BoxFit.contain,
@@ -81,57 +90,60 @@ void main() {
                                     ),
                             ),
                           ),
-                          ReaderDock(
-                            contextControls: ReaderAudioControls(
-                              portrait: portrait,
-                              palette: palette,
-                              title: '2:7 · Al-Baqarah',
-                              reference: '2:7',
-                              subtitle: withAudio
-                                  ? 'Abdullah Al-Juhany · 2/10'
-                                  : 'Selected ayah',
-                              playing: withAudio,
-                              playbackActive: withAudio,
-                              selection: ReaderAudioSelection(
+                          positionDock(
+                            ReaderDock(
+                              contextControls: ReaderAudioControls(
+                                portrait: portrait,
+                                palette: palette,
+                                title: '2:7 · Al-Baqarah',
                                 reference: '2:7',
-                                bookmarked: false,
-                                onBookmark: () => ayahTaps++,
-                                onTranslate: () => ayahTaps++,
-                              ),
-                              onPrevious: () => audioTaps++,
-                              onPlayPause: () =>
-                                  withAudio ? audioTaps++ : ayahTaps++,
-                              onNext: () => audioTaps++,
-                              onStop: withAudio ? () => audioTaps++ : null,
-                              onSettings: () => audioTaps++,
-                            ),
-                            portrait: portrait,
-                            expanded: expanded,
-                            onToggle: () => refresh(() => expanded = !expanded),
-                            palette: palette,
-                            zoom: ReaderZoom(
-                              portrait: portrait,
-                              palette: palette,
-                              scale: 1.0,
-                              minimum: .6,
-                              onDecrease: () {},
-                              onIncrease: () {},
-                            ),
-                            actions: [
-                              for (final icon in [
-                                Icons.headphones_rounded,
-                                Icons.chat_outlined,
-                                Icons.menu_book_outlined,
-                                Icons.bookmarks_rounded,
-                                Icons.settings,
-                              ])
-                                barIcon(
-                                  icon: icon,
-                                  onPressed: () => taps++,
-                                  palette: palette,
-                                  compact: true,
+                                subtitle: withAudio
+                                    ? 'Abdullah Al-Juhany · 2/10'
+                                    : 'Selected ayah',
+                                playing: withAudio,
+                                playbackActive: withAudio,
+                                selection: ReaderAudioSelection(
+                                  reference: '2:7',
+                                  bookmarked: false,
+                                  onBookmark: () => ayahTaps++,
+                                  onTranslate: () => ayahTaps++,
                                 ),
-                            ],
+                                onPrevious: () => audioTaps++,
+                                onPlayPause: () =>
+                                    withAudio ? audioTaps++ : ayahTaps++,
+                                onNext: () => audioTaps++,
+                                onStop: withAudio ? () => audioTaps++ : null,
+                                onSettings: () => audioTaps++,
+                              ),
+                              portrait: portrait,
+                              expanded: expanded,
+                              onToggle: () =>
+                                  refresh(() => expanded = !expanded),
+                              palette: palette,
+                              zoom: ReaderZoom(
+                                portrait: portrait,
+                                palette: palette,
+                                scale: 1.0,
+                                minimum: .6,
+                                onDecrease: () {},
+                                onIncrease: () {},
+                              ),
+                              actions: [
+                                for (final icon in [
+                                  Icons.headphones_rounded,
+                                  Icons.chat_outlined,
+                                  Icons.menu_book_outlined,
+                                  Icons.bookmarks_rounded,
+                                  Icons.settings,
+                                ])
+                                  barIcon(
+                                    icon: icon,
+                                    onPressed: () => taps++,
+                                    palette: palette,
+                                    compact: true,
+                                  ),
+                              ],
+                            ),
                           ),
                         ],
                       ),

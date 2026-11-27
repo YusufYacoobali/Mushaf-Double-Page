@@ -65,6 +65,7 @@ def snapshot(posture="duo-folded", z=1, bottom=False, page=4, centered_book=Fals
             for p, r in zip([page + 1, page], regions)
         }
     tab = (
+        rect(band["width"] - 26, band["height"] / 2 - 36, 22, 72) if folded else
         rect((band["width"] - 72) / 2, h - 40, 72, 24)
         if mode == "single"
         else rect(w - 26, h / 2 - 36, 22, 72)

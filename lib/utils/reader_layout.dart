@@ -60,6 +60,7 @@ class ReaderLayout {
     bool preserveLegacyIPadPortrait = false,
     bool iosPhoneWidePortrait = false,
     bool foldedCover = false,
+    bool androidCoverDock = false,
   }) {
     final regions = safeDisplayRegions(size, padding, displayFeatures);
     final largest = regions.reduce(
@@ -320,12 +321,16 @@ class ReaderLayout {
             size.height,
           )
         : combined;
+    final coverDock =
+        !preserveLegacyIPadPortrait && (foldedCover || androidCoverDock);
     return ReaderLayout(
       pageMode: canSpread
           ? (book ? ReaderPageMode.dualScreenBook : ReaderPageMode.spread)
           : ReaderPageMode.single,
       spreadLayout: spreadLayout,
-      dockPlacement: bottom ? DockPlacement.bottom : DockPlacement.side,
+      dockPlacement: bottom && !coverDock
+          ? DockPlacement.bottom
+          : DockPlacement.side,
       usableContentBounds: canSpread ? spreadBounds : singleBounds,
       pageRegions: List.unmodifiable(
         canSpread ? readingSpreadRegions : [singleBounds],
@@ -343,15 +348,16 @@ class ReaderLayout {
       fitPagesToViewport: fitPages,
       centerShortLandscapeSpread: fitPages && continuousSpread,
       centerSideDock:
+          coverDock ||
           landscape &&
-          (tablet ||
-              foldedCover ||
-              (iosPhoneWidePortrait && size.shortestSide >= 600) ||
-              displayFeatures.any(
-                (f) =>
-                    f.type == DisplayFeatureType.fold ||
-                    f.type == DisplayFeatureType.hinge,
-              )),
+              (tablet ||
+                  foldedCover ||
+                  (iosPhoneWidePortrait && size.shortestSide >= 600) ||
+                  displayFeatures.any(
+                    (f) =>
+                        f.type == DisplayFeatureType.fold ||
+                        f.type == DisplayFeatureType.hinge,
+                  )),
     );
   }
 }

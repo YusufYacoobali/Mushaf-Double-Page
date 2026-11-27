@@ -713,7 +713,13 @@ void main() {
           }
 
           final collapsedDock = tester.getRect(find.byKey(dockKey));
-          if (portrait) {
+          if (cover) {
+            final tab = tester.getRect(find.byTooltip('Open navigation'));
+            expect(layout.bottomDock, isFalse);
+            expect(tab.right, lessThanOrEqualTo(safe.right));
+            expect(tab.center.dx, greaterThan(safe.center.dx));
+            expect(tab.center.dy, closeTo(safe.center.dy, 1));
+          } else if (portrait) {
             final tab = tester.getRect(find.byTooltip('Open navigation'));
             expect(tab.bottom, size.height - 16);
             expect(tab.center.dx, reading.center.dx);
@@ -726,7 +732,7 @@ void main() {
               layout.bottomDock ? collapsedDock.height : collapsedDock.width,
             ),
           );
-          if (portrait) {
+          if (portrait && layout.bottomDock) {
             expect(expandedDock.bottom, size.height - padding.bottom);
             expect(
               maximum[4]!.overlaps(expandedDock),

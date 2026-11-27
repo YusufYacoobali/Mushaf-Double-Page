@@ -144,7 +144,11 @@ def check_geometry(data, posture, phase="initial", state=None):
         expected = [dict(reading, top=h * (1 - z) / 2, height=h * z)]
         if phase == "collapsed":
             assert not expanded, "navigation must be collapsed"
-        if not expanded:
+        if not expanded and posture == "duo-folded":
+            assert math.isclose(bounds(tab)[2], bounds(band)[2] - 4, abs_tol=0.5), "wrong folded tab right edge"
+            assert math.isclose(tab["top"] + tab["height"] / 2, band["top"] + band["height"] / 2,
+                                abs_tol=0.5), "folded tab is off centre"
+        elif not expanded:
             assert math.isclose(bounds(tab)[3], h - 16, abs_tol=0.5), "wrong collapsed tab bottom"
         assert data["scroll"] is None
     else:
@@ -361,7 +365,8 @@ def verify(
             assert sum(histogram[101:]) > sum(histogram) / 2, f"missing paper edge: page {page}"
     if phase == "collapsed":
         tab = data["controls"]["Open navigation"]
-        assert abs(tab["width"] - 72) < 0.5 and abs(tab["height"] - 24) < 0.5
+        width, height = (22, 72) if posture == "duo-folded" else (72, 24)
+        assert abs(tab["width"] - width) < 0.5 and abs(tab["height"] - height) < 0.5
         x, y = tab["left"] + tab["width"] / 2, tab["top"] + tab["height"] / 2
         glyph = image.crop(tuple(round(v * dpr) for v in (x - 6, y - 4, x + 6, y + 4)))
         assert max(high - low for low, high in glyph.getextrema()) > 30, (

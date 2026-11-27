@@ -23,6 +23,7 @@ void main() {
         iosPhoneWidePortrait: true,
         foldedCover: true,
       );
+      expect(hinted.dockPlacement, original.dockPlacement);
       expect(hinted.pageMode, original.pageMode);
       expect(hinted.pageRegions, original.pageRegions);
       expect(hinted.controlsRegion, original.controlsRegion);
@@ -30,14 +31,16 @@ void main() {
     }
   });
   test('folded cover stays single even in landscape', () {
-    expect(
-      ReaderLayout.resolve(
-        size: const Size(678, 466),
+    for (final size in [const Size(466, 678), const Size(678, 466)]) {
+      final layout = ReaderLayout.resolve(
+        size: size,
         iosPhoneWidePortrait: true,
         foldedCover: true,
-      ).pageMode,
-      ReaderPageMode.single,
-    );
+      );
+      expect(layout.pageMode, ReaderPageMode.single);
+      expect(layout.dockPlacement, DockPlacement.side);
+      expect(layout.centerSideDock, isTrue);
+    }
   });
   test('flat portrait is single; flat landscape is the original spread', () {
     for (final size in [const Size(669, 951), const Size(951, 669)]) {

@@ -115,13 +115,11 @@ else:
 print(f"Validated display: {active}, hinge={angle}, orientation={state.get('orientation')}")
 PY
   local dock=side
-  local bottom_tab=60
-  if [[ "$LABEL" == "duo-folded" || "$LABEL" == "duo-unfolded-portrait" ]]; then dock=bottom; fi
-  if [[ "$LABEL" == "duo-folded" ]]; then bottom_tab=28; fi
+  if [[ "$LABEL" == "duo-unfolded-portrait" ]]; then dock=bottom; fi
   local mode=spread
-  if [[ "$dock" == bottom ]]; then mode=single; fi
+  if [[ "$LABEL" == "duo-folded" || "$dock" == bottom ]]; then mode=single; fi
   if [[ "$LABEL" == duo-half-open-book ]]; then mode=dualScreenBook; fi
-  python3 .github/scripts/ci_run.py --operation screenshot --timeout 90 --output screenshots/operations -- python3 .github/scripts/simulator_reader_input.py capture "$UDID" "$name.png" --zoom "$percent" --dock "$dock" --bottom-tab-from-edge "$bottom_tab" --layout-metadata "$DATA/Documents/reader-geometry.json" --expected-mode "$mode"
+  python3 .github/scripts/ci_run.py --operation screenshot --timeout 90 --output screenshots/operations -- python3 .github/scripts/simulator_reader_input.py capture "$UDID" "$name.png" --zoom "$percent" --dock "$dock" --layout-metadata "$DATA/Documents/reader-geometry.json" --expected-mode "$mode"
   [[ -s "$name.png" ]] || { echo "::error::No screenshot created: $name.png"; return 1; }
   sips -g pixelWidth -g pixelHeight "$name.png"
   echo "PASS: real $LABEL reader at $percent% ($name.png)" | tee -a "screenshots/$LABEL-result.txt"

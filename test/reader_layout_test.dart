@@ -35,6 +35,27 @@ void main() {
       });
     }
   }
+  test('Android cover detection moves only the dock in either orientation', () {
+    for (final size in [const Size(360, 800), const Size(800, 360)]) {
+      const padding = EdgeInsets.fromLTRB(7, 24, 12, 30);
+      final open = ReaderLayout.resolve(size: size, padding: padding);
+      final cover = ReaderLayout.resolve(
+        size: size,
+        padding: padding,
+        androidCoverDock: true,
+      );
+      expect(cover.dockPlacement, DockPlacement.side);
+      expect(cover.centerSideDock, isTrue);
+      expect(cover.pageMode, open.pageMode);
+      expect(cover.sizing, open.sizing);
+      expect(cover.fitPagesToViewport, open.fitPagesToViewport);
+      expect(cover.controlsRegion, open.controlsRegion);
+      expect(cover.usableContentBounds, open.usableContentBounds);
+      expect(cover.pageRegions, open.pageRegions);
+      expect(open.bottomDock, size.height > size.width);
+    }
+  });
+
   test('safe insets and available height can prevent an unreadable spread', () {
     expect(
       ReaderLayout.resolve(

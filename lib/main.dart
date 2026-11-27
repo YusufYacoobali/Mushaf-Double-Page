@@ -166,6 +166,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
   bool _ready = false;
   bool _isIPad = false;
   StreamSubscription<dynamic>? _displayRegionSubscription;
+  bool _androidCoverDock = false;
   IosDisplayRegions _iosDisplayRegions = IosDisplayRegions.fromEvent(null);
   bool _singlePage = true;
   bool _bottomDock = true;
@@ -252,6 +253,23 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
               );
             }
           }, onError: (Object _) {});
+    }
+    if (Platform.isAndroid) {
+      _displayRegionSubscription =
+          const EventChannel(
+            'mushaf_two_page/folded_cover',
+          ).receiveBroadcastStream().listen(
+            (event) {
+              if (mounted && _androidCoverDock != (event == true)) {
+                setState(() => _androidCoverDock = event == true);
+              }
+            },
+            onError: (Object _) {
+              if (mounted && _androidCoverDock) {
+                setState(() => _androidCoverDock = false);
+              }
+            },
+          );
     }
     _docDir = await getApplicationDocumentsDirectory();
     _mushaf = await StorageManager.getMushaf();
@@ -1116,6 +1134,7 @@ class _MyPDFViewerState extends State<MyPDFViewer> with WidgetsBindingObserver {
             pageAspectRatio: QuranPageView.aspectRatioForMushaf(_mushaf),
             preserveLegacyIPadPortrait: _isIPad,
             foldedCover: !_isIPad && _iosDisplayRegions.closed,
+            androidCoverDock: _androidCoverDock,
             iosPhoneWidePortrait:
                 Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
           );
