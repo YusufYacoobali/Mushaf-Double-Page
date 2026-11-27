@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import plistlib
 import subprocess
 import sys
 import tempfile
@@ -64,3 +65,16 @@ class DuoPermissionTest(unittest.TestCase):
             runner.assert_called_once()
             audit = json.loads((output / 'permission-verification.json').read_text())
             self.assertEqual([row['status'] for row in audit], [0, 1, 1])
+
+    def test_springboard_decision_requires_exact_app_and_explicit_denial(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(Path, 'home', return_value=Path(tmp)):
+            folder = Path(tmp) / 'Library/Developer/CoreSimulator/Devices/cover/data/Library/BulletinBoard'
+            folder.mkdir(parents=True)
+            path = folder / 'VersionedSectionInfo.plist'
+            bundle = 'test.reader'
+            for allowed in (True, False):
+                settings = plistlib.dumps({'$objects': [bundle, {'allowsNotifications': allowed}]},
+                                          fmt=plistlib.FMT_BINARY)
+                path.write_bytes(plistlib.dumps({'sectionInfo': {bundle: settings}}, fmt=plistlib.FMT_BINARY))
+                self.assertIsNone(permission.springboard_denied('cover', 'other.app'))
+                self.assertEqual(permission.springboard_denied('cover', bundle), None if allowed else str(path))
