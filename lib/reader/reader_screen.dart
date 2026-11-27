@@ -48,7 +48,9 @@ part 'reader_annotations.dart';
 part 'reader_overlays.dart';
 
 class MyPDFViewer extends StatefulWidget {
-  const MyPDFViewer({super.key});
+  const MyPDFViewer({super.key, this.audioController});
+
+  final QuranAudioController? audioController;
 
   @override
   State<MyPDFViewer> createState() => _MyPDFViewerState();
@@ -107,7 +109,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
   void initState() {
     super.initState();
     _audioVerticalFollower = AudioVerticalFollower(
-      canFollow: () => _readerVisible && QuranAudioController.instance.audible,
+      canFollow: () => _readerVisible && _audio.audible,
       obstructions: () {
         if (!_isScrollbarVisible && !_dockPinned) return const [];
         final dock = _readerDockGeometryKey.currentContext?.findRenderObject();
@@ -126,7 +128,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
     WidgetsBinding.instance.addObserver(this);
-    QuranAudioController.instance.addListener(_audioChanged);
+    _audio.addListener(_audioChanged);
     _init();
   }
 
@@ -203,7 +205,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
     _welcomeTimer?.cancel();
     _displayRegionSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    QuranAudioController.instance.removeListener(_audioChanged);
+    _audio.removeListener(_audioChanged);
     _audioVerticalFollower.dispose();
     _hideScrollbarTimer?.cancel();
     _paging?.dispose();
@@ -297,7 +299,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
     _hideScrollbarTimer = Timer(const Duration(seconds: 10), () {
       // An explicitly hidden dock stays hidden, but the timer must not remove
       // the playback controls while a recitation is running.
-      if (QuranAudioController.instance.playing) return;
+      if (_audio.playing) return;
       if (mounted) setState(() => _isScrollbarVisible = false);
     });
   }
@@ -329,7 +331,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
 
   void _audioChanged() {
     if (mounted && _ready) {
-      final audio = QuranAudioController.instance;
+      final audio = _audio;
       if (audio.hasActivePlayback) {
         _hideScrollbarTimer?.cancel();
         if (!_audioWasActive && !_controlsArrowOnly) {
@@ -353,7 +355,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
       final paging = _paging;
       if (!mounted || !_ready || paging == null) return;
       _audioPageFollower.followReader(
-        audio: QuranAudioController.instance,
+        audio: _audio,
         paging: paging,
         vertical: _audioVerticalFollower,
         visible: _readerVisible,

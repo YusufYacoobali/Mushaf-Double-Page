@@ -88,9 +88,9 @@ class _CoverProbe {
         'session': audio.playbackSessionId, 'ayah': audio.currentAyah, 'surah': audio.currentSurah,
         'positionMs': audio.playbackPosition.inMilliseconds, 'status': audio.statusLabel},
       'ayahTargets': [
-        for (final segment in PageAyahIndex.segmentsForPages([page], mushaf: reader._mushaf))
-          for (final rect in AyahRectIndex.rectsFor(page, segment[0], segment[1], mushaf: reader._mushaf))
-            [segment[0], segment[1], rect.center.dx, rect.center.dy],
+        for (final region in AyahRectIndex.forPage(page, mushaf: reader._mushaf))
+          for (final rect in region.rects)
+            [region.surah, region.ayah, rect.center.dx, rect.center.dy],
       ],
     };
   }

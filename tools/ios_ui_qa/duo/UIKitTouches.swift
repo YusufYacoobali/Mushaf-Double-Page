@@ -18,7 +18,7 @@ private final class CoverTouchObserver: UIGestureRecognizer {
     let hit = window.hitTest(point, with: event)
     let row: [String: Any] = ["time": Date().timeIntervalSince1970,
       "x": point.x, "y": point.y, "keyWindow": window.isKeyWindow,
-      "window": NSStringFromCGRect(window.bounds),
+      "window": [window.bounds.width, window.bounds.height],
       "hit": hit.map { String(describing: type(of: $0)) } ?? "none",
       "target": touch.view.map { String(describing: type(of: $0)) } ?? "none"]
     let file = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

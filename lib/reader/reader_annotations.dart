@@ -1,6 +1,7 @@
 part of 'reader_screen.dart';
 
 mixin _ReaderAnnotations on State<MyPDFViewer> {
+  late final _audio = widget.audioController ?? QuranAudioController.instance;
   String get _mushaf;
   int get _logicalPage;
   bool get _ayahHighlightingEnabled;
@@ -64,7 +65,7 @@ mixin _ReaderAnnotations on State<MyPDFViewer> {
           ayah: _selAyah,
         );
       }
-      final audio = QuranAudioController.instance;
+      final audio = _audio;
       if (saved == null &&
           !audio.preparing &&
           audio.hasActivePlayback &&
@@ -96,7 +97,7 @@ mixin _ReaderAnnotations on State<MyPDFViewer> {
 
   /// Playback highlighting is independent of the contextual tap selection.
   List<Rect> _highlightFor(int logicalPage) {
-    final audio = QuranAudioController.instance;
+    final audio = _audio;
     if (audio.hasActivePlayback && audio.currentAyah == null) return const [];
     if (_ayahHighlightingEnabled &&
         !audio.preparing &&

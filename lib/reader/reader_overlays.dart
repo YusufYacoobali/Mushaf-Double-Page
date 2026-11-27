@@ -2,7 +2,7 @@ part of 'reader_screen.dart';
 
 extension _ReaderOverlays on _MyPDFViewerState {
   Future<void> _playAyah(int surah, int ayah) async {
-    final activePlan = QuranAudioController.instance.plan;
+    final activePlan = _audio.plan;
     final saved = activePlan == null ? await AudioPreferences.load() : null;
     final reciter =
         activePlan?.reciter ??
@@ -10,7 +10,7 @@ extension _ReaderOverlays on _MyPDFViewerState {
           (candidate) => candidate.id == saved?.reciterId,
           orElse: () => quranReciters.first,
         );
-    QuranAudioController.instance.playPlan(
+    _audio.playPlan(
       AudioPlaybackPlan(
         reciter: reciter,
         surah: surah,
@@ -325,7 +325,7 @@ extension _ReaderOverlays on _MyPDFViewerState {
   ];
 
   Widget? _readerAudioControls(AppPalette palette) {
-    final controller = QuranAudioController.instance;
+    final controller = _audio;
     final plan = controller.plan;
     if (plan == null || !controller.hasActivePlayback) {
       return null;

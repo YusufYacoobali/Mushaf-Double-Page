@@ -104,6 +104,8 @@ export DUOCTL_UDID="$UDID"
 # Target only an observed notification prompt. A blind tap also selects a
 # printed ayah if the permission sheet was already dismissed.
 python3 .github/scripts/dismiss_duo_notification.py "$UDID" screenshots/permission
+data="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
+python3 tools/ios_ui_qa/duo/seed_cover_audio.py "$data/Documents" | tee screenshots/cover-audio-sha256.txt
 export SIMCTL_CHILD_READER_TOUCH_QA=1
 duoctl state > screenshots/duo-initial-state.json
 echo "App launched; 851 Quran images exist. Capturing actual reader renders."
