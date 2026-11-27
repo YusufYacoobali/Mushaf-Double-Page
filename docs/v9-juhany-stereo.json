@@ -1,0 +1,601 @@
+{
+  "format": "44100 Hz stereo S16LE",
+  "captureFrames": {
+    "continuous": 464256,
+    "legacy": 464973
+  },
+  "recordings": [
+    {
+      "file": "112001.mp3",
+      "mp3Sha256": "75324dac8a3a0e777ce792bd4fe554d52fa3ec77b7a799c9596572811af40b22",
+      "reference": {
+        "frames": 106031,
+        "channelCorrelation": -0.9504072879978768,
+        "monoMixDbRelativeToStereo": -15.68727,
+        "rms": [
+          5257.1636159913605,
+          4774.322015244319
+        ],
+        "peak": [
+          31710.0,
+          29642.0
+        ],
+        "railSamples": [
+          0,
+          0
+        ]
+      },
+      "continuous": {
+        "alignedStart": 0,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 47,
+        "extraAtEnd": 0,
+        "stereo": {
+          "frames": 105984,
+          "channelCorrelation": -0.9503395833993279,
+          "monoMixDbRelativeToStereo": -15.68129,
+          "rms": [
+            5253.695302566615,
+            4770.8093509321425
+          ],
+          "peak": [
+            31710.0,
+            29643.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 105984,
+          "maxErrorLSB": [
+            7767.0,
+            7593.0
+          ],
+          "rmsErrorLSB": [
+            219.42705483501535,
+            207.94036321027946
+          ],
+          "differentSamples": [
+            17480,
+            15082
+          ],
+          "gainDb": [
+            -0.00757,
+            -0.00825
+          ],
+          "snrDb": [
+            27.59107,
+            27.22132
+          ],
+          "channelCorrelationWithReference": [
+            0.99912893076169,
+            0.9990514826355588
+          ]
+        }
+      },
+      "legacy": {
+        "alignedStart": 0,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 0,
+        "extraAtEnd": 0,
+        "stereo": {
+          "frames": 106031,
+          "channelCorrelation": -0.9503341360262063,
+          "monoMixDbRelativeToStereo": -15.68084,
+          "rms": [
+            5252.581231921915,
+            4769.789166670323
+          ],
+          "peak": [
+            31710.0,
+            29643.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 106031,
+          "maxErrorLSB": [
+            7767.0,
+            7593.0
+          ],
+          "rmsErrorLSB": [
+            219.37841716765567,
+            207.89427170735468
+          ],
+          "differentSamples": [
+            17483,
+            15087
+          ],
+          "gainDb": [
+            -0.00757,
+            -0.00825
+          ],
+          "snrDb": [
+            27.59115,
+            27.22138
+          ],
+          "channelCorrelationWithReference": [
+            0.9991289475495906,
+            0.9990514973630674
+          ]
+        }
+      },
+      "backendComparison": {
+        "framesCompared": 105984,
+        "maxErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "rmsErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "differentSamples": [
+          0,
+          0
+        ],
+        "gainDb": [
+          0.0,
+          0.0
+        ],
+        "snrDb": [
+          null,
+          null
+        ],
+        "channelCorrelationWithReference": [
+          1.0,
+          0.9999999999999998
+        ]
+      }
+    },
+    {
+      "file": "112002.mp3",
+      "mp3Sha256": "aaf7894410f1cfa9797a796b19b745cb22f616b3d9bdedff5dba8607fdca28a5",
+      "reference": {
+        "frames": 87599,
+        "channelCorrelation": -0.9450941294637933,
+        "monoMixDbRelativeToStereo": -15.41774,
+        "rms": [
+          5787.359317231397,
+          5377.8943403496705
+        ],
+        "peak": [
+          32444.0,
+          32203.0
+        ],
+        "railSamples": [
+          0,
+          0
+        ]
+      },
+      "continuous": {
+        "alignedStart": 105984,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 47,
+        "extraAtEnd": 0,
+        "stereo": {
+          "frames": 87552,
+          "channelCorrelation": -0.9453364313735673,
+          "monoMixDbRelativeToStereo": -15.43627,
+          "rms": [
+            5787.83613528954,
+            5378.562855250812
+          ],
+          "peak": [
+            32443.0,
+            32202.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 87552,
+          "maxErrorLSB": [
+            4115.0,
+            3017.0
+          ],
+          "rmsErrorLSB": [
+            102.39473326674349,
+            85.09965455946546
+          ],
+          "differentSamples": [
+            17398,
+            15351
+          ],
+          "gainDb": [
+            -0.00138,
+            -0.00111
+          ],
+          "snrDb": [
+            35.04615,
+            36.01588
+          ],
+          "channelCorrelationWithReference": [
+            0.9998435451818799,
+            0.999874856124796
+          ]
+        }
+      },
+      "legacy": {
+        "alignedStart": 106031,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 0,
+        "extraAtEnd": 0,
+        "stereo": {
+          "frames": 87599,
+          "channelCorrelation": -0.9453058513353427,
+          "monoMixDbRelativeToStereo": -15.43389,
+          "rms": [
+            5786.44094988494,
+            5377.206965553464
+          ],
+          "peak": [
+            32443.0,
+            32202.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 87599,
+          "maxErrorLSB": [
+            4115.0,
+            3017.0
+          ],
+          "rmsErrorLSB": [
+            102.36726058390205,
+            85.07682219186192
+          ],
+          "differentSamples": [
+            17402,
+            15354
+          ],
+          "gainDb": [
+            -0.00138,
+            -0.00111
+          ],
+          "snrDb": [
+            35.04639,
+            36.01602
+          ],
+          "channelCorrelationWithReference": [
+            0.9998435536952132,
+            0.9998748601980337
+          ]
+        }
+      },
+      "backendComparison": {
+        "framesCompared": 87552,
+        "maxErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "rmsErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "differentSamples": [
+          0,
+          0
+        ],
+        "gainDb": [
+          0.0,
+          0.0
+        ],
+        "snrDb": [
+          null,
+          null
+        ],
+        "channelCorrelationWithReference": [
+          0.9999999999999999,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "112003.mp3",
+      "mp3Sha256": "0d8b9e3b80e94317271db4a3b740c7af7786da61db018db61847d0d5c9c4469c",
+      "reference": {
+        "frames": 115247,
+        "channelCorrelation": -0.944902236360095,
+        "monoMixDbRelativeToStereo": -15.3604,
+        "rms": [
+          4415.2214622387055,
+          4070.765926097091
+        ],
+        "peak": [
+          30984.0,
+          29701.0
+        ],
+        "railSamples": [
+          0,
+          0
+        ]
+      },
+      "continuous": {
+        "alignedStart": 193536,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 47,
+        "extraAtEnd": 0,
+        "stereo": {
+          "frames": 115200,
+          "channelCorrelation": -0.944912762109572,
+          "monoMixDbRelativeToStereo": -15.3611,
+          "rms": [
+            4416.07366575856,
+            4071.4965395429745
+          ],
+          "peak": [
+            30984.0,
+            29700.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 115200,
+          "maxErrorLSB": [
+            3.0,
+            3.0
+          ],
+          "rmsErrorLSB": [
+            0.3894997682212975,
+            0.35485227755911175
+          ],
+          "differentSamples": [
+            16728,
+            14244
+          ],
+          "gainDb": [
+            -1e-05,
+            -2e-05
+          ],
+          "snrDb": [
+            81.0906,
+            81.19415
+          ],
+          "channelCorrelationWithReference": [
+            0.9999999962269904,
+            0.9999999963359439
+          ]
+        }
+      },
+      "legacy": {
+        "alignedStart": 193630,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 0,
+        "extraAtEnd": 0,
+        "stereo": {
+          "frames": 115247,
+          "channelCorrelation": -0.9449023444891401,
+          "monoMixDbRelativeToStereo": -15.3604,
+          "rms": [
+            4415.214396045768,
+            4070.7581856520396
+          ],
+          "peak": [
+            30984.0,
+            29700.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 115247,
+          "maxErrorLSB": [
+            3.0,
+            3.0
+          ],
+          "rmsErrorLSB": [
+            0.38947603798271263,
+            0.3548410506826641
+          ],
+          "differentSamples": [
+            16733,
+            14249
+          ],
+          "gainDb": [
+            -1e-05,
+            -2e-05
+          ],
+          "snrDb": [
+            81.08943,
+            81.19285
+          ],
+          "channelCorrelationWithReference": [
+            0.9999999962260518,
+            0.9999999963349172
+          ]
+        }
+      },
+      "backendComparison": {
+        "framesCompared": 115200,
+        "maxErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "rmsErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "differentSamples": [
+          0,
+          0
+        ],
+        "gainDb": [
+          0.0,
+          0.0
+        ],
+        "snrDb": [
+          null,
+          null
+        ],
+        "channelCorrelationWithReference": [
+          1.0,
+          0.9999999999999999
+        ]
+      }
+    },
+    {
+      "file": "112004.mp3",
+      "mp3Sha256": "50d2ac1fc39f69bcb31a7f61c3d158478f78cea86d2521276446d249a7c2afd5",
+      "reference": {
+        "frames": 155567,
+        "channelCorrelation": -0.9470506835917831,
+        "monoMixDbRelativeToStereo": -15.53901,
+        "rms": [
+          4791.341925953559,
+          4429.453970687238
+        ],
+        "peak": [
+          32077.0,
+          30032.0
+        ],
+        "railSamples": [
+          0,
+          0
+        ]
+      },
+      "continuous": {
+        "alignedStart": 308736,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 47,
+        "extraAtEnd": 0,
+        "stereo": {
+          "frames": 155520,
+          "channelCorrelation": -0.9472220579859567,
+          "monoMixDbRelativeToStereo": -15.55203,
+          "rms": [
+            4791.744094754858,
+            4429.610851922856
+          ],
+          "peak": [
+            32077.0,
+            30032.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 155520,
+          "maxErrorLSB": [
+            3823.0,
+            2829.0
+          ],
+          "rmsErrorLSB": [
+            55.37322661560409,
+            67.3085086231758
+          ],
+          "differentSamples": [
+            24022,
+            20784
+          ],
+          "gainDb": [
+            -0.00058,
+            -0.001
+          ],
+          "snrDb": [
+            38.74446,
+            36.36692
+          ],
+          "channelCorrelationWithReference": [
+            0.9999332367133967,
+            0.9998845740287687
+          ]
+        }
+      },
+      "legacy": {
+        "alignedStart": 308877,
+        "missingReferenceHead": 0,
+        "missingReferenceTail": 0,
+        "extraAtEnd": 529,
+        "stereo": {
+          "frames": 155567,
+          "channelCorrelation": -0.9472220550639919,
+          "monoMixDbRelativeToStereo": -15.55203,
+          "rms": [
+            4791.02020177912,
+            4428.941667372274
+          ],
+          "peak": [
+            32077.0,
+            30032.0
+          ],
+          "railSamples": [
+            0,
+            0
+          ]
+        },
+        "vsReference": {
+          "framesCompared": 155567,
+          "maxErrorLSB": [
+            3823.0,
+            2829.0
+          ],
+          "rmsErrorLSB": [
+            55.36486169304008,
+            67.29834035386607
+          ],
+          "differentSamples": [
+            24029,
+            20787
+          ],
+          "gainDb": [
+            -0.00058,
+            -0.001
+          ],
+          "snrDb": [
+            38.74446,
+            36.36692
+          ],
+          "channelCorrelationWithReference": [
+            0.9999332367126118,
+            0.9998845740284493
+          ]
+        }
+      },
+      "backendComparison": {
+        "framesCompared": 155520,
+        "maxErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "rmsErrorLSB": [
+          0.0,
+          0.0
+        ],
+        "differentSamples": [
+          0,
+          0
+        ],
+        "gainDb": [
+          0.0,
+          0.0
+        ],
+        "snrDb": [
+          null,
+          null
+        ],
+        "channelCorrelationWithReference": [
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ]
+}

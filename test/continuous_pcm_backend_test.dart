@@ -494,9 +494,11 @@ void main() {
         }
       }
 
-      await until(
-        () => native.count('snapshot') > 0,
-      ).timeout(const Duration(seconds: 3));
+      // The platform receives the request before Flutter applies its reply.
+      await native.backend.positionStream
+          .firstWhere((position) => position.inMilliseconds == 589)
+          .timeout(const Duration(seconds: 3));
+      expect(native.count('snapshot'), greaterThanOrEqualTo(1));
       expect(native.count('prepare'), 1);
       expect(controller.playbackPosition.inMilliseconds, 589);
       // A second watchdog interval with exactly the same output and queue.

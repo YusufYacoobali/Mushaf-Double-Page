@@ -96,6 +96,19 @@ class ProgressRepository extends ControlledRepository {
 }
 
 void main() {
+  test('recitations use neutral media playback and retain pause-on-duck', () {
+    const config = QuranAudioHandler.playbackSession;
+    expect(config.androidAudioAttributes?.usage, AndroidAudioUsage.media);
+    expect(
+      config.androidAudioAttributes?.contentType,
+      AndroidAudioContentType.unknown,
+    );
+    expect(config.androidAudioFocusGainType, AndroidAudioFocusGainType.gain);
+    expect(config.androidWillPauseWhenDucked, isTrue);
+    expect(config.avAudioSessionCategory, AVAudioSessionCategory.playback);
+    expect(config.avAudioSessionMode, AVAudioSessionMode.defaultMode);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
   test(

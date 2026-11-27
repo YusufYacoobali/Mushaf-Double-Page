@@ -1,5 +1,7 @@
 # v9 validation
 
+For the subsequent Samsung speaker investigation, see the [backend waveform comparison and playback-setting change](v9-samsung-audio.md).
+
 ## Al-Juhany’s premature restart
 
 The cached originals for 2:253, 2:255 and 2:282 each played through one occurrence to EOF in the production Android PCM output probe. Scheduled, decoded and presented frame counts agreed at completion. The probe bypasses Flutter and network acquisition. It did not reproduce a spontaneous native error. The trigger on the reporting device remains unknown.

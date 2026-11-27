@@ -200,8 +200,8 @@ internal class PcmOutput(val generation: Long, seconds: Int, private val seek: L
         val minimum = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
         require(minimum > 0) { "PCM output unsupported" }
         val output = AudioTrack.Builder()
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            // Match the neutral media attributes of QuranAudioHandler.playbackSession.
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
             .setAudioFormat(AudioFormat.Builder().setSampleRate(44100)
                 .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
             .setTransferMode(AudioTrack.MODE_STREAM)
