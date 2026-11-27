@@ -160,10 +160,10 @@ class _PanelState extends State<_Panel> {
                       ),
                       JuzList(
                         key: const ValueKey("juz"),
-                        widget.onJumpToPage,
                         onJump: widget.onJumpToPage,
                         mushaf: widget.mushaf,
                         currentJuz: currentJuz,
+                        onJumpToSurah: widget.onJumpToSurah,
                       ),
                     ],
                   ),

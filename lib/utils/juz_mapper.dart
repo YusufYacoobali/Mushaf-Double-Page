@@ -1,3 +1,14 @@
+import 'juz_quarters.dart';
+import 'page_ayah_index.dart';
+
+({int surah, int page}) juzDestination(int juz, int quarter, String mushaf) {
+  final divisions = mushaf == 'madani' ? madaniJuzQuarters : indopakJuzQuarters;
+  final (surah, ayah) = divisions[juz - 1][quarter - 1];
+  final page = PageAyahIndex.pageOfAyah(surah, ayah, mushaf: mushaf);
+  if (page == null) throw StateError('Missing $mushaf page for $surah:$ayah');
+  return (surah: surah, page: page);
+}
+
 List<JuzRange> getJuzRanges(String mushaf) {
   switch (mushaf) {
     case "madani":
@@ -69,7 +80,7 @@ const List<JuzRange> madaniJuzRanges = [
   JuzRange(5, 85),
   JuzRange(6, 105),
   JuzRange(7, 124),
-  JuzRange(8, 143),
+  JuzRange(8, 145),
   JuzRange(9, 165),
   JuzRange(10, 185),
   JuzRange(11, 204),

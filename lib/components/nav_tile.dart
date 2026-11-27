@@ -23,6 +23,7 @@ class NavTile extends StatelessWidget {
   final String? englishTitle;
   final VoidCallback onTap;
   final bool selected;
+  final Widget? trailing;
 
   const NavTile({
     super.key,
@@ -31,6 +32,7 @@ class NavTile extends StatelessWidget {
     this.englishTitle,
     required this.onTap,
     this.selected = false,
+    this.trailing,
   });
 
   static double extentFor(
@@ -38,13 +40,15 @@ class NavTile extends StatelessWidget {
     double width,
     String title, {
     String? englishTitle,
+    double trailingWidth = 16,
   }) {
     final theme = Theme.of(context);
     // Row padding/border, number badge, gap and trailing icon.
-    final textWidth = (width - 24 - _badgeWidth(context) - 12 - 24 - 2).clamp(
-      1.0,
-      double.infinity,
-    );
+    final textWidth =
+        (width - 24 - _badgeWidth(context) - 12 - 8 - trailingWidth - 2).clamp(
+          1.0,
+          double.infinity,
+        );
     double height(String text, TextStyle? style) {
       final painter = TextPainter(
         text: TextSpan(text: text, style: style),
@@ -148,13 +152,14 @@ class NavTile extends StatelessWidget {
                   ),
 
                   const SizedBox(width: 8),
-                  Icon(
-                    selected
-                        ? Icons.my_location_rounded
-                        : Icons.arrow_forward_ios_rounded,
-                    size: 16,
-                    color: selected ? palette.accent : palette.surfaceMuted,
-                  ),
+                  trailing ??
+                      Icon(
+                        selected
+                            ? Icons.my_location_rounded
+                            : Icons.arrow_forward_ios_rounded,
+                        size: 16,
+                        color: selected ? palette.accent : palette.surfaceMuted,
+                      ),
                 ],
               ),
             ),

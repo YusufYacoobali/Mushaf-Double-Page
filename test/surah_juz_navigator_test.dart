@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mushaf_two_page/utils/page_ayah_index.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mushaf_two_page/utils/navigator.dart';
 import 'package:mushaf_two_page/utils/juz_list.dart';
@@ -7,6 +8,51 @@ import 'package:mushaf_two_page/utils/surah_mapper.dart';
 import 'package:mushaf_two_page/components/nav_tile.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(PageAyahIndex.load);
+
+  testWidgets(
+    'only the chevron expands quarters and the child supplies its surah',
+    (tester) async {
+      final jumps = <(int, int)>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => SurahJuzNavigator.show(
+                context: context,
+                mushaf: 'indopak',
+                onJumpToPage: (_) => fail('Lost surah'),
+                onJumpToSurah: (s, p) => jumps.add((s, p)),
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Juz'));
+      await tester.pumpAndSettle();
+      expect(find.text('Quarter 2 · ¼'), findsNothing);
+      await tester.tap(find.byTooltip('Show quarters of Juz 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Show quarters of Juz 1'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Show quarters of Juz 2'), findsOneWidget);
+      expect(find.text('Quarter 2 · ¼'), findsOneWidget);
+      await tester.tap(find.text('Surah'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Juz'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Hide quarters of Juz 1'), findsOneWidget);
+      await tester.tap(find.text('Quarter 2 · ¼'));
+      await tester.pumpAndSettle();
+      expect(jumps, [(2, 12)]);
+    },
+  );
+
   for (final mushaf in ['indopak_tajweed', 'madani']) {
     for (final portrait in [true, false]) {
       for (final scale in [1.0, 1.5]) {
