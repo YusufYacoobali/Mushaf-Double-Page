@@ -245,7 +245,7 @@ final class PcmOutput {
     func snapshot() -> [String: Any] {
         condition.lock(); defer { condition.unlock() }
         var result: [String: Any] = ["generation": generation, "frames": clock.played,
-            "bufferedFrames": clock.scheduled, "state": state, "underruns": underruns,
+            "bufferedFrames": clock.scheduled, "scheduledFrames": clock.scheduled, "decodedFrames": decoded, "state": state, "underruns": underruns,
             "pcmBufferedFrames": max(0, clock.scheduled - clock.played), "pcmCapacityFrames": capacity,
             "scheduledBuffers": scheduledBuffers, "completedBuffers": completedBuffers,
             "scheduleWaitMaxMs": scheduleWaitMaxMs, "queuedRecordings": sources.count,

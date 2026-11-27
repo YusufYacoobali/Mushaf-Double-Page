@@ -18,12 +18,17 @@ enum PcmDecoder {
         guard source.channelCount == 1 || source.channelCount == 2 else { throw PcmError.invalidRecording }
         let target = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
         if source.sampleRate == target.sampleRate && source.channelCount == target.channelCount {
-            while !cancelled() && file.framePosition < file.length {
-                try autoreleasepool {
+            // A compressed file can report an estimated length. A successful
+            // zero-frame read is EOF even if that estimate is larger.
+            while !cancelled() {
+                let ended: Bool = try autoreleasepool {
                     let buffer = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: 4096)!
                     try file.read(into: buffer, frameCount: 4096)
-                    if buffer.frameLength > 0 { emit(buffer) }
+                    guard buffer.frameLength > 0 else { return true }
+                    emit(buffer)
+                    return false
                 }
+                if ended { return }
             }
             return
         }
@@ -35,7 +40,7 @@ enum PcmDecoder {
                 let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: 4096)!
                 var error: NSError?
                 let status = converter.convert(to: output, error: &error) { requested, status in
-                    if cancelled() || file.framePosition >= file.length { status.pointee = .endOfStream; return nil }
+                    if cancelled() { status.pointee = .endOfStream; return nil }
                     do {
                         let input = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: min(requested, 4096))!
                         try file.read(into: input, frameCount: input.frameCapacity)

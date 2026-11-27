@@ -1,8 +1,34 @@
 import AVFoundation
+import CryptoKit
 import XCTest
 @testable import quran_pcm_audio
 
 final class RunnerTests: XCTestCase {
+    // Stage just these two originals in the test host's Documents/v9-juhany.
+    func testJuhanyLongRecordingsReachEOF() throws {
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("v9-juhany", isDirectory: true)
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: directory.path),
+                          "Stage the pinned Al-Juhany originals for the real-recording probe")
+        let fixtures = [
+            ("002255.mp3", "d3c51199cc6d2e6e4b1cbc1c9d93bf95646f12d42493c80fa71835b4dee6d753", 1812143),
+            ("002282.mp3", "326b122d6f3b0ab8af6efa24aa39a9ab35a9e2a29581abdd3a6b628b6ebc0e08", 5516975)
+        ]
+        for (name, expectedHash, referenceFrames) in fixtures {
+            let url = directory.appendingPathComponent(name)
+            let bytes = try Data(contentsOf: url)
+            let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+            XCTAssertEqual(hash, expectedHash, name)
+            var frames = 0
+            let deadline = ProcessInfo.processInfo.systemUptime + 20
+            try PcmDecoder.decode(path: url.path, cancelled: { ProcessInfo.processInfo.systemUptime > deadline }) { chunk in
+                frames += Int(chunk.frameLength)
+            }
+            XCTAssertLessThan(ProcessInfo.processInfo.systemUptime, deadline, "Decoder did not reach EOF for " + name)
+            XCTAssertEqual(frames, referenceFrames, "Compare any Core Audio padding difference with the FFmpeg reference for " + name)
+        }
+    }
+
     func testThreeRecordingsContinueWhileMainThreadIsBlocked() throws {
         XCTAssertTrue(Thread.isMainThread)
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("caf")

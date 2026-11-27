@@ -132,21 +132,25 @@ AudioSession activation uses the existing speech configuration. No native plugin
 creates an independent focus owner or foreground service. Existing notification,
 lock-screen, Bluetooth, noisy-route and interruption commands still reach the same
 controller. Interruption end does not grant permission to resume. Route changes
-that invalidate Apple's scheduled output fail explicitly into legacy playback
-instead of silently losing scheduled recitation.
+that invalidate Apple's scheduled output enter the recovery path below.
 
 ## Recovery
 
-A continuous failure first disposes its native output, then installs the legacy
-backend at the **rendered current occurrence**, even when a future decode failed.
-The plan, occurrence ID, repeat counters and paused intent survive. The current
-ayah restarts from its beginning because decoder-relative offsets cannot be
-guaranteed equivalent. Failure to release output prevents a competing engine from
-starting. Cancellation generations reject late native events and focus requests.
+The rendered occurrence, its repeat counters and the user’s play or pause intent
+govern recovery. A stalled UI clock prompts a fresh sample of the native output
+worker. An advancing clock or queue gets another watchdog interval.
 
-`activeBackend`, `continuousFallbackReason` and native `diagnostics` expose backend,
-rendered frames, buffered/capacity frames and underruns for development. Fallback
-reasons are logged with `debugPrint`; no diagnostic labels are added to the UI.
+For an unfinished occurrence with a verified source and rendered frame, the
+controller recreates the same decoder once and discards exactly the frames
+already presented. A second failure, an install failure or an unavailable
+checkpoint releases native output before handing the current occurrence to the
+legacy player. That player starts from the beginning because frame equivalence
+across these decoders has not been established. Cancellation generations reject
+late events and focus requests.
+
+Development logs identify the recording, occurrence, counters, generation,
+rendered position, queue depth, native error and recovery decision.
+See the [v9 source and device measurements](v9-validation.md).
 
 ## Reproduce validation
 

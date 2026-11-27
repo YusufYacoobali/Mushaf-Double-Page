@@ -48,6 +48,7 @@ class _QueueEntry {
   AudioFailure? failure;
   String? path;
   bool urgentPreparation = false;
+  bool retriedRenderedPosition = false;
   int attempts = 0, decoderRestarts = 0, alternative = 0;
   QuranPlaybackCursor get cursor => occurrence.cursor;
   QuranAudioItem get item => occurrence.item;
@@ -64,6 +65,7 @@ class QuranAudioController extends ChangeNotifier {
     bool trackJourney = true,
     ListeningTracker? listeningTracker,
     this.retryDelay = const Duration(seconds: 1),
+    this.stallTimeout = const Duration(seconds: 30),
     this.loadTimeout = const Duration(seconds: 20),
     this.resolveIntroduction = BismillahSources.resolve,
     Future<List<AudioSource>> Function(AudioPlaybackPlan)? prepareSources,
@@ -139,6 +141,7 @@ class QuranAudioController extends ChangeNotifier {
     BismillahResolver resolveIntroduction = BismillahSources.resolve,
     ListeningTracker? listeningTracker,
     Duration retryDelay = Duration.zero,
+    Duration stallTimeout = const Duration(seconds: 30),
     Duration loadTimeout = const Duration(seconds: 20),
   }) => QuranAudioController._(
     player: player,
@@ -151,6 +154,7 @@ class QuranAudioController extends ChangeNotifier {
     resolveIntroduction: resolveIntroduction,
     retryDelay: retryDelay,
     loadTimeout: loadTimeout,
+    stallTimeout: stallTimeout,
   );
 
   static const nativeQueueLimit = 6;
@@ -179,7 +183,7 @@ class QuranAudioController extends ChangeNotifier {
       usingContinuousPcm ? 'continuous-pcm' : 'just_audio';
   final AudioRecordingRepository _repository;
   final BismillahResolver resolveIntroduction;
-  final Duration retryDelay, loadTimeout;
+  final Duration retryDelay, loadTimeout, stallTimeout;
   final Future<List<AudioSource>> Function(AudioPlaybackPlan)? _legacyPreparer;
   final _subscriptions = <StreamSubscription<dynamic>>[];
   final _queue = <_QueueEntry>[];
@@ -497,9 +501,39 @@ class QuranAudioController extends ChangeNotifier {
   void _watchStall() {
     if (!_intent || (_stall?.isActive ?? false)) return;
     final generation = _session, revision = _revision;
-    _stall = Timer(const Duration(seconds: 30), () {
-      if (_valid(generation, revision) && _intent && _current != null) {
-        unawaited(_recoverCurrent(invalidate: false));
+    final entry = _current, backend = _backend;
+    final position = backend.position, buffered = backend.bufferedPosition;
+    _stall = Timer(stallTimeout, () async {
+      bool watching() =>
+          _valid(generation, revision) &&
+          _active &&
+          _intent &&
+          !_installing &&
+          !_exhausted &&
+          identical(backend, _backend);
+      if (!watching()) return;
+      Object? clockError;
+      if (backend is ContinuousPcmBackend) {
+        try {
+          await backend.refreshClock().timeout(loadTimeout);
+        } catch (error) {
+          clockError = error;
+        }
+      }
+      if (!watching()) return;
+      if (backend.processingState == ProcessingState.ready && backend.playing) {
+        return;
+      }
+      if (_current != entry ||
+          backend.position > position ||
+          backend.bufferedPosition > buffered) {
+        _watchStall();
+        return;
+      }
+      if (clockError != null) {
+        await _fallbackContinuous(clockError);
+      } else {
+        await _recoverCurrent(invalidate: false);
       }
     });
   }
@@ -1221,12 +1255,14 @@ class QuranAudioController extends ChangeNotifier {
 
   Future<void> _fallbackContinuous(Object reason) async {
     if (!usingContinuousPcm || !_active || _continuousHandoff) return;
-    _continuousHandoff = true;
     final failedBackend = _backend;
-    _retiringBackend = failedBackend;
+    final pcm = failedBackend is ContinuousPcmBackend ? failedBackend : null;
     // Only the rendered cursor is authoritative. A failure in a future decode
     // must never skip from the audible ayah to the failed future recording.
-    final entry = _current ?? _waiting;
+    final entry = _installing ? _waiting : _current ?? _waiting;
+    final position = _installing || entry == null || entry != _current
+        ? null
+        : pcm?.recoveryPosition(entry.occurrence.occurrenceId, entry.source);
     final generation = _session, revision = ++_revision;
     _token.cancel('Continuous backend handoff');
     _token = CancelToken();
@@ -1235,14 +1271,28 @@ class QuranAudioController extends ChangeNotifier {
     _starting = false;
     _playRequest++;
     _stall?.cancel();
-    continuousFallbackReason = reason.toString();
-    debugPrint('Quran audio fallback: $continuousFallbackReason');
-    if (failedBackend is ContinuousPcmBackend) {
+    final retryNative = position != null && !entry!.retriedRenderedPosition;
+    if (!kReleaseMode) {
       debugPrint(
-        'Quran audio handoff at ${entry?.item.key}: '
-        '${failedBackend.diagnostics}',
+        'Quran PCM recovery reciter=${_plan!.reciter.id} recording=${entry?.item.recordingId} '
+        'occurrence=${entry?.occurrence.occurrenceId} repeat=${entry?.cursor.repetition} '
+        'generation=$generation revision=$revision position=$position nativeRetry=$retryNative '
+        'reason=$reason ${pcm?.diagnostics}',
       );
     }
+    if (retryNative) {
+      entry.retriedRenderedPosition = true;
+      _pending.clear();
+      // _install reuses this occurrence's prepared source and the same decoder.
+      // prepare cancels its old output before installing the new generation.
+      await _install(entry, generation, revision, position: position);
+      if (_valid(generation, revision)) _kickFill();
+      return;
+    }
+    _continuousHandoff = true;
+    _retiringBackend = failedBackend;
+    continuousFallbackReason =
+        '$reason (legacy seek equivalence unverified; restart current occurrence)';
     try {
       // Release output before the legacy player can activate the shared session.
       await failedBackend.dispose();

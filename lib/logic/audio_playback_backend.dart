@@ -165,6 +165,43 @@ class ContinuousPcmBackend implements AudioPlaybackBackend {
   Duration _time(int frames) => Duration(
     microseconds: frames * Duration.microsecondsPerSecond ~/ sampleRate,
   );
+
+  /// Safe only when restarting this native decoder on the same prepared file.
+  /// Round the microseconds UP so prepare's floor conversion is frame-exact.
+  Duration? recoveryPosition(String occurrence, AudioSource? source) {
+    final row = _row;
+    if (row == null ||
+        row.id != occurrence ||
+        !identical(_sources[_index], source)) {
+      return null;
+    }
+    final offset = _frames - row.start;
+    if (offset <= 0 ||
+        offset > row.decoded ||
+        (row.end != null && _frames >= row.end!)) {
+      return null;
+    }
+    return Duration(
+      microseconds:
+          (offset * Duration.microsecondsPerSecond + sampleRate - 1) ~/
+          sampleRate,
+    );
+  }
+
+  /// Sample the output worker even when UI-thread telemetry has been delayed.
+  Future<void> refreshClock() async {
+    final snapshot = await _channel.invokeMethod<dynamic>('snapshot', {
+      'generation': _generation,
+    });
+    // A pushed event may have passed the sampled position while the method
+    // reply was in flight. A seek or reinstall uses a new generation.
+    if (snapshot is Map &&
+        (snapshot['frames'] as num?) != null &&
+        (snapshot['frames'] as num) >= _frames) {
+      _event(snapshot);
+    }
+  }
+
   @override
   Duration get position =>
       _time((_frames - (_row?.start ?? 0)).clamp(0, _row?.decoded ?? _frames));
@@ -228,6 +265,8 @@ class ContinuousPcmBackend implements AudioPlaybackBackend {
       'pcmBufferedFrames': raw['pcmBufferedFrames'],
       'pcmCapacityFrames': raw['pcmCapacityFrames'],
       'renderedFrames': _frames,
+      'scheduledFrames': raw['scheduledFrames'] ?? _buffered,
+      'decodedFrames': raw['decodedFrames'] ?? _buffered,
       'scheduledBuffers': raw['scheduledBuffers'],
       'completedBuffers': raw['completedBuffers'],
       'scheduleWaitMaxMs': raw['scheduleWaitMaxMs'],

@@ -75,6 +75,7 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
                 val current = engine
                 if (current != null && current.generation == generation) {
                     when (call.method) {
+                        "snapshot" -> { result.success(current.snapshot()); return }
                         "enqueue" -> current.enqueue(call.argument<String>("id")!!, call.argument<String>("path")!!)
                         "finish" -> current.finish()
                         "play" -> current.setPlaying(true)
@@ -277,6 +278,7 @@ internal class PcmOutput(val generation: Long, seconds: Int, private val seek: L
                 else -> "ready"
             }
             mapOf("generation" to generation, "frames" to frame, "bufferedFrames" to decoded,
+                "scheduledFrames" to written + discarded, "decodedFrames" to decoded, "queuedRecordings" to sources.size,
                 "state" to state, "underruns" to underruns, "error" to failure,
                 "pcmBufferedFrames" to maxOf(0, decoded - frame), "pcmCapacityFrames" to capacity,
                 "rows" to rows.map { mapOf("id" to it.id, "start" to it.start, "end" to it.end, "decoded" to it.decoded) })

@@ -38,9 +38,11 @@ class NativeClock {
     },
   );
   int generation = 0, frame = 0, total = 0;
+  int framesPerRecording = 44100;
   bool finished = false;
   Completer<void>? prepareGate, stopGate;
   String? failMethod;
+  Map<String, Object>? workerSnapshot;
   NativeClock() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('test/quran/pcm'), (
@@ -51,6 +53,7 @@ class NativeClock {
           if (call.method == failMethod) {
             throw PlatformException(code: 'decoder');
           }
+          if (call.method == 'snapshot') return workerSnapshot;
           if (call.method == 'prepare') {
             generation = args['generation'] as int;
             frame = args['seekFrames'] as int;
@@ -83,10 +86,10 @@ class NativeClock {
     rows.add({
       'id': source['id']!,
       'start': total,
-      'end': total + 44100,
-      'decoded': 44100,
+      'end': total + framesPerRecording,
+      'decoded': framesPerRecording,
     });
-    total += 44100;
+    total += framesPerRecording;
   }
 
   int count(String method) => calls.where((c) => c.method == method).length;
@@ -445,20 +448,111 @@ void main() {
     },
   );
 
-  test('an error snapshot adopts the rendered ayah before fallback', () async {
-    await controller.playPlan(plan(count: 2));
+  test(
+    'an error snapshot retries the latest rendered occurrence at its exact frame',
+    () async {
+      await controller.playPlan(plan(count: 2));
+      await flush();
+      native.clock(5000);
+      expect(controller.currentAyah, 2);
+      // The UI missed a boundary while busy. The native error carries the latest
+      // played clock; handing off the previous UI cursor would repeat ayah 2.
+      native.clock(44100 + 1000, error: 'decoder failed');
+      await flush();
+      expect(controller.usingContinuousPcm, isTrue);
+      expect(native.frame, 1000);
+      expect(controller.currentItem!.ayah, 3);
+      expect(controller.currentRepeat, 1);
+      expect(legacy.sourceLoads, 0);
+      expect(native.count('prepare'), 2);
+    },
+  );
+
+  test(
+    'watchdog samples the worker before recovering a stalled UI clock',
+    () async {
+      controller.dispose();
+      controller = QuranAudioController.forTesting(
+        player: FakePlayer(),
+        repository: repository,
+        continuousBackend: native.backend,
+        stallTimeout: const Duration(milliseconds: 100),
+      );
+      await controller.playPlan(plan());
+      await flush();
+      native.clock(200, state: 'buffering');
+      native.workerSnapshot = {
+        'generation': native.generation,
+        'frames': 26000,
+        'bufferedFrames': native.total,
+        'rows': List.of(native.rows),
+        'state': 'buffering',
+      };
+      Future<void> until(bool Function() predicate) async {
+        while (!predicate()) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }
+
+      await until(
+        () => native.count('snapshot') > 0,
+      ).timeout(const Duration(seconds: 3));
+      expect(native.count('prepare'), 1);
+      expect(controller.playbackPosition.inMilliseconds, 589);
+      // A second watchdog interval with exactly the same output and queue.
+      await until(
+        () => native.count('prepare') == 2,
+      ).timeout(const Duration(seconds: 3));
+      expect(native.frame, 26000);
+      expect(native.count('snapshot'), greaterThanOrEqualTo(2));
+    },
+  );
+
+  test(
+    'a second native failure on the same occurrence hands off once',
+    () async {
+      await controller.playPlan(plan());
+      await flush();
+      native.clock(6500, error: 'route invalidated');
+      await flush();
+      native.clock(8000, error: 'decoder failed again');
+      await flush();
+      expect(native.count('prepare'), 2);
+      expect(controller.usingContinuousPcm, isFalse);
+      expect(legacy.sourceLoads, 1);
+      expect(controller.playbackPosition, Duration.zero);
+    },
+  );
+
+  test('long Al-Juhany selection resumes once and ends at true EOF', () async {
+    // Actual decoded length of the pinned 2:282 reference in the source audit.
+    native.framesPerRecording = 5516975;
+    await controller.playPlan(
+      plan(
+        reciter: quranReciters.firstWhere((r) => r.id == 'abdullah_juhany'),
+        surah: 2,
+        from: 282,
+        to: 282,
+      ),
+    );
     await flush();
-    native.clock(5000);
-    expect(controller.currentAyah, 2);
-    // The UI missed a boundary while busy. The native error carries the latest
-    // played clock; handing off the previous UI cursor would repeat ayah 2.
-    native.clock(44100 + 1000, error: 'decoder failed');
+    final first = native.generation;
+    final occurrence = controller.currentOccurrence;
+    const position = 1800001;
+    native.clock(position, error: 'route invalidated');
     await flush();
-    expect(controller.activeBackend, 'just_audio');
-    expect(controller.currentItem!.ayah, 3);
+    expect(native.frame, position);
+    expect(native.generation, isNot(first));
+    expect(controller.currentOccurrence, occurrence);
     expect(controller.currentRepeat, 1);
-    expect(legacy.played.first.item.ayah, 3);
-    expect(legacy.starts, 1);
+    native.clock(0, eventGeneration: first);
+    native.clock(position + 1);
+    expect(controller.playbackPosition.inSeconds, 40);
+    native.clock(native.total, state: 'completed');
+    await flush();
+    expect(controller.phase, QuranPlaybackPhase.completed);
+    expect(native.count('prepare'), 2);
+    expect(legacy.sourceLoads, 0);
   });
 
   testWidgets(

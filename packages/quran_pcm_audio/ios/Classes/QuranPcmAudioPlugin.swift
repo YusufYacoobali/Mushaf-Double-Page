@@ -86,6 +86,9 @@ public final class QuranPcmAudioPlugin: NSObject, FlutterPlugin, FlutterStreamHa
                     }
                 } else if let current = self.currentOutput, current.generation == generation {
                     switch method {
+                    case "snapshot":
+                        let snapshot = current.snapshot()
+                        DispatchQueue.main.async { result(snapshot) }; return
                     case "enqueue":
                         guard let id = args["id"] as? String, let path = args["path"] as? String else { throw PcmError.invalidCommand }
                         try current.enqueue(["id": id, "path": path])
