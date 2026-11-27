@@ -162,8 +162,6 @@ if __name__ == "__main__":
             swipe_to_bottom(args.source)
         elif args.phase == "idle":
             assert args.posture == "duo-folded"
-            from folded_duo_interactions import verify_folded_controls
-            verify_folded_controls(args.source)
             # Take another real screenshot after the ordinary ten-second hide timer.
             time.sleep(11)
     capture(

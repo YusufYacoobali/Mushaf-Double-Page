@@ -1,2 +1,3 @@
 Verify native touches and all Duo reference frames on the same compiled simulator app as the successful iPad job.
 Restore the cover orientation independently after native portrait unfolding; match the held playback position to the millisecond.
+Capture the original idle frame and exercise each control after its visible target settles.

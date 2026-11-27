@@ -1,5 +1,8 @@
 """Exercise both sides of the cover using real touches on page six."""
 import json
+import math
+from pathlib import Path
+import sys
 import subprocess
 import time
 
@@ -31,10 +34,16 @@ def verify_folded_controls(source):
     def tap(label, point=None):
         time.sleep(.35)
         if point is None:
-            observed = device.snapshot()
-            points = observed['items'].get(label, [])
-            assert len(points) == 1, (label, observed['items'])
-            point = points[0]
+            previous = None
+            def settled_target():
+                nonlocal previous
+                points = device.snapshot()['items'].get(label, [])
+                assert len(points) <= 1, (label, points)
+                current = points[0] if points else None
+                settled = current and previous and math.dist(current, previous) <= .5
+                previous = current
+                return current if settled else None
+            point = wait_for(settled_target, f'visible and settled {label} button', 30)
         device.gesture(label, point)
 
     def zoom(selected):
@@ -105,6 +114,9 @@ def verify_folded_controls(source):
         expect('Page bookmark saved', lambda s: 'p' + str(page) in s['bookmarks'])
         tap('Dismiss bookmarks', [12, device.size[1] * .18])
         expect('Bookmarks dismissed with saved page', lambda s: s['reader'] and 'p' + str(page) in s['bookmarks'])
+        # Exercise the independent native input path with the recording stopped.
+        # Starting an XCTest session mid-verse can take longer than a short ayah.
+        device.use_xctest = True
         tap('Audio')
         expect('Audio sheet', lambda s: 'AudioModal' in s['routeWidgets'])
         # The real editor scrolls on compact displays. Reveal Play by dragging
@@ -180,3 +192,7 @@ def verify_folded_controls(source):
         expect('Clean reader after controls', lambda s: s['reader'] and s['selected'] is None and s['zoom'] == 1)
     finally:
         device.close()
+
+
+if __name__ == '__main__':
+    verify_folded_controls(Path(sys.argv[1]))

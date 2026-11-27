@@ -132,3 +132,9 @@ if cmp -s "screenshots/$LABEL-min-$MIN.png" "screenshots/$LABEL-max-$MAX.png"; t
   exit 1
 fi
 echo "PASS: $LABEL min $MIN% and max $MAX% generated distinct genuine screenshots"
+
+# Keep each original geometry, including the independent inactivity check.
+# The folded case also requires the real-input tour to pass on this same app.
+if [[ "$LABEL" == duo-folded ]]; then
+  python3 .github/scripts/folded_duo_interactions.py "$DATA/Documents/reader-geometry.json"
+fi
