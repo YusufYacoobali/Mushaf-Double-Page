@@ -35,7 +35,7 @@ from a physical Mushaf, with layouts suited to the current device and window.
 
 ## Development and documentation
 
-The current work in this branch is `v7`. For the local Flutter checks:
+Run the local checks for `v9` with Flutter 3.38.1.
 
 ```sh
 flutter pub get
@@ -43,10 +43,7 @@ flutter analyze --no-pub
 flutter test --no-pub
 ```
 
-The [release-check workflow](.github/workflows/flutter-release-checks.yml) runs
-analysis, Flutter tests and QA-script checks on pushes to `v7`. Native audio and
-simulator checks have separate commands/workflows; Flutter test results alone do
-not establish their outcome.
+The maintenance record includes the ordinary-phone rendering commands and the native iOS and Android foldable workflow triggers. [Visual verification on v9](docs/refactoring-backlog.md#visual-verification-on-v9)
 
 - [Audio-following behaviour](docs/audio-vertical-following.md): current
   whole-ayah visibility, single-page policy and page-boundary limitations.
@@ -54,8 +51,7 @@ not establish their outcome.
   ownership, fallback and native validation commands.
 - [iOS playback during UI interaction](docs/ios-pcm-ui-contention.md): native
   thread ownership and verification notes.
-- [Future refactoring backlog](docs/refactoring-backlog.md): prioritised
-  maintenance work, with behaviour-preservation requirements.
+- Completed refactors and remaining maintenance opportunities are listed in the [maintenance record](docs/refactoring-backlog.md).
 
 Versioned validation reports, dated investigations and recorded test totals in
 `docs/` describe their original delivery. Read their branch/date and validation
