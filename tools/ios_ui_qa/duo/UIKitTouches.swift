@@ -6,11 +6,11 @@ private final class CoverTouchObserver: UIGestureRecognizer {
   private let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
 
   static func install(_ window: UIWindow?) {
-    guard ProcessInfo.processInfo.environment["READER_TOUCH_QA"] == "1", let window else { return }
+    guard UIDevice.current.userInterfaceIdiom == .phone, let window else { return }
     // Query the real OS decision. A clear screenshot can precede presentation
     // of the deferred first-launch prompt, even after the Quran is rendered.
-    recordAuthorization()
     guard !(window.gestureRecognizers ?? []).contains(where: { $0 is CoverTouchObserver }) else { return }
+    recordAuthorization()
     let observer = CoverTouchObserver(target: nil, action: nil)
     observer.cancelsTouchesInView = false
     observer.delaysTouchesBegan = false

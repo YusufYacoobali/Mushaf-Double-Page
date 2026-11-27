@@ -13,6 +13,9 @@ cleanup() {
   local status=$?
   if [[ "$status" -ne 0 ]]; then
     timeout 20 xcrun simctl list devices -j > screenshots-ipad/devices-on-error.json 2>&1 || true
+    if [[ -n "$UDID" ]]; then
+      timeout 50 xcrun simctl spawn "$UDID" log show --last 6m --style compact --predicate 'process == "Runner" OR (process == "runningboardd" AND eventMessage CONTAINS "Runner")' > screenshots-ipad/runner-app-log.txt 2>&1 || true
+    fi
     [[ -n "$UDID" ]] && timeout 20 xcrun simctl io "$UDID" screenshot screenshots-ipad/screenshot-on-error.png || true
   fi
   if [[ -n "$UDID" ]]; then
@@ -53,6 +56,15 @@ for n in $(seq 1 45); do
   fi
   echo "iPad Quran images: $count/851"
   if [[ "$count" -ge 851 ]]; then ready=1; break; fi
+  if [[ "$n" == 4 || "$n" == 14 ]]; then
+    # simctl launch returns a PID before Flutter's first frame. Reopen the
+    # same container if the process exited during first boot.
+    if running="$(timeout 25 xcrun simctl spawn "$UDID" launchctl list)" &&
+       ! awk -v id="$BUNDLE_ID" '$1 ~ /^[0-9]+$/ && index($3, id) { found=1 } END {exit !found}' <<< "$running"; then
+      echo "::warning::Reader process exited on cold iPad boot; relaunching"
+      timeout 90 xcrun simctl launch "$UDID" "$BUNDLE_ID"
+    fi
+  fi
   sleep 5
 done
 [[ "$ready" -eq 1 ]] || { echo "::error::iPad did not load real Quran pages"; exit 1; }

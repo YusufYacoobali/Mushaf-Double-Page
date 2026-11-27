@@ -20,3 +20,4 @@ Match the unfolded reference dock state at each endpoint and verify actual folde
 Verify UIKit and Flutter touch coordinates, selected and unselected zoom, and original page geometries.
 Trace clear cover buttons and an ongoing paused recitation across a native unfold and refold.
 Compare screenshots screenshots=15212349918 screenshots-ipad=15214666030
+Verify the actual cover controls after resolving first-launch permission on the disposable simulator.

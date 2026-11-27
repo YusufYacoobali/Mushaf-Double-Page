@@ -117,7 +117,10 @@ class NativeInput:
                 args = ['duoctl', '-d', self.udid, action, *map(str, point)]
                 if end:
                     args += [*map(str, end), '--duration', '.3']
-                subprocess.run(args, check=True, timeout=35)
+                try:
+                    subprocess.run(args, check=True, timeout=35)
+                except subprocess.SubprocessError as error:
+                    self.record(dict(label=label, via=route, error=str(error)))
             def events(name):
                 path = paths[name]
                 if not path.exists():
@@ -148,4 +151,6 @@ class NativeInput:
                         raise RuntimeError(f'{label}: expected one zoom callback, saw {callbacks}')
                 self.use_xctest = route == 'xc'
                 return
+            if native or flutter:
+                raise RuntimeError(f'{label}: partial delivery; inspect the recorded events before retrying')
         raise RuntimeError(f'{label}: no verified touch')

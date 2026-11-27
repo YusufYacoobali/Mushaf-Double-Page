@@ -1,9 +1,6 @@
 name: Review existing simulator artifacts
 
 on:
-  push:
-    branches: [v9]
-    paths: ['.github/duo-touch-reference.request']
   workflow_dispatch:
     inputs:
       source_run_id:
@@ -15,56 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  inspect-failed-input:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Inspect the original screens from the failed input run
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          source_id="$(cat .github/duo-touch-reference.request)"
-          [[ "$source_id" =~ ^[0-9]+$ ]]
-          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$source_id/zip" > reference.zip
-          unzip -q reference.zip -d original
-          python3 -m venv .qa-venv
-          .qa-venv/bin/pip install Pillow
-          if ! command -v tesseract; then sudo apt-get update -qq && sudo apt-get install -y tesseract-ocr; fi
-          .qa-venv/bin/python - <<'PYTHON'
-          from pathlib import Path
-          from PIL import Image
-          import subprocess, json
-          folder = Path('original')
-          for name in ('duo-first-launch-permission', 'duo-after-permission', 'duo-folded-max-100',
-                       'duo-unfolded-wide-max-100', 'last-duo-screen', 'screenshot-on-error'):
-              p = folder / (name + '.png')
-              if not p.exists():
-                  continue
-              image = Image.open(p).convert('RGB')
-              swatch = image.resize((128,128))
-              white = sum(min(pixel) >= 245 for pixel in swatch.getdata()) / (128*128)
-              ocr = subprocess.check_output(['tesseract', str(p), 'stdout', '--psm', '11'], text=True)
-              print(name, image.size, f'near-white={white:.4f}', ocr[:1000])
-              layout = p.with_suffix('.layout.json')
-              if layout.exists():
-                  data = json.loads(layout.read_text())
-                  print('rendered', data['zoom'], data['viewport'], sorted(data['controls']))
-          print('FILES:', [str(p.relative_to(folder)) for p in folder.rglob('*') if p.is_file()][:85])
-          for p in folder.rglob('*'):
-              if p.is_file() and p.name in ('runner-app-log.txt', 'qa-result.txt', 'status.txt', 'duo-notification.json'):
-                  print(p, p.read_text(errors='replace')[-4300:])
-          for f in sorted(folder.glob('*.verification.json')):
-              name = f.name.removesuffix('.verification.json')
-              data = json.loads((folder / (name + '.layout.json')).read_text())
-              sample = Image.open(folder / (name + '.png')).convert('RGB').resize((128,128))
-              white = sum(min(pixel) >= 245 for pixel in sample.getdata()) / (128*128)
-              print('Endpoint', name, 'clear paper', round(white,4), 'expanded', data['navigationExpanded'],
-                    'selection', 'Save ayah' in data['controls'], 'dock', data['navigation'])
-          PYTHON
   package-existing-screenshots:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

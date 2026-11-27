@@ -55,6 +55,13 @@ start_app() {
   echo "Installing on freshly booted Duo $UDID"
   xcrun simctl install "$UDID" "$APP" || return 1
   bash .github/scripts/seed_simulator_reading_page.sh "$UDID" "$BUNDLE_ID" || return 1
+  # Give this disposable reader the same notification decision as a returning
+  # user. The independent native status and screenshot checks still have to pass.
+  if applesimutils --byId "$UDID" --bundle "$BUNDLE_ID" --setPermissions notifications=NO; then
+    xcrun simctl bootstatus "$UDID" -b || return 1
+  else
+    echo "::warning::Preflight unavailable; handle the observed system prompt on screen"
+  fi
   sleep 5
   local n
   for n in 1 2 3 4; do

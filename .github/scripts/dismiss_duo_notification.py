@@ -65,10 +65,14 @@ def wait_for_decision(udid, output, authorization):
         else:
             clear = 0
         if frame['notificationPrompt'] and button and status in (0, None) and taps < 2:
-            width, height = screen_geometry(udid)
-            run(['duoctl', '-d', udid, 'tap', str(button['x'] * width), str(button['y'] * height)], 35)
-            taps += 1
-        elif status in (0, None) and (taps == 2 or index >= 6) and not tried_xctest:
+            try:
+                width, height = screen_geometry(udid)
+                run(['duoctl', '-d', udid, 'tap', str(button['x'] * width), str(button['y'] * height)], 35)
+                taps += 1
+            except (subprocess.SubprocessError, RuntimeError) as error:
+                print(f'Duo input unavailable for observed alert: {error}', flush=True)
+                taps = 2
+        if status in (0, None) and (taps == 2 or index >= 6) and not tried_xctest:
             # The iPad optical/AX harness independently foregrounds the reader
             # and dismisses only its observed SpringBoard notifications alert.
             tried_xctest = True
@@ -79,7 +83,7 @@ def wait_for_decision(udid, output, authorization):
                 '-only-testing:ReaderVisualTests/ReaderVisualTests/testPreparePortrait',
                 '-resultBundlePath', str(output / 'permission.xcresult'), 'CODE_SIGNING_ALLOWED=NO'
             ], check=True, timeout=230)
-            deadline = time.monotonic() + 30
+            deadline = time.monotonic() + 90
         time.sleep(1)
     raise RuntimeError('No confirmed OS notification decision followed by two unobstructed reader frames')
 

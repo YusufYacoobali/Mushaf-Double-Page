@@ -83,7 +83,7 @@ jobs:
           test -d ci-app/Runner.app
       - name: Install Duo controls (no accessibility dependency)
         run: |
-          brew install skarol/tap/duoctl xcodegen tesseract
+          brew install skarol/tap/duoctl xcodegen tesseract wix/brew/applesimutils
           bash .github/scripts/build_ipad_rotation_harness.sh
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install Pillow

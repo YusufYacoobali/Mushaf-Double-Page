@@ -11,15 +11,15 @@ def insert(text, original, replacement):
     return text.replace(original, replacement)
 
 
-native.write_text(insert(native.read_text(), 'super.sceneDidBecomeActive(scene)',
-                         'super.sceneDidBecomeActive(scene)\n    CoverTouchObserver.install(window)') +
+native.write_text(insert(native.read_text(), '    super.layoutSubviews()',
+                         '    super.layoutSubviews()\n    CoverTouchObserver.install(window)') +
                   (folder / 'UIKitTouches.swift').read_text())
 source = reader.read_text()
 for original, replacement in [
     ("import 'dart:async';", "import 'dart:async';\nimport 'dart:convert';\nimport 'package:flutter/gestures.dart';"),
     ('  bool _ready = false;', '  bool _ready = false;\n  _CoverProbe? _touchProbe;'),
     ('    _restoreHighlight(savedHighlight, maxFilePage);',
-     """    if (Platform.environment['READER_TOUCH_QA'] == '1') {
+     """    if (Platform.isIOS && !_isIPad) {
       _touchProbe = _CoverProbe(this, _docDir);
     }
     _restoreHighlight(savedHighlight, maxFilePage);"""),
