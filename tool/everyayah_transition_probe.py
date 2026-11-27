@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate a split-signal native-player probe and measure captured output.
 
-Requires numpy and FFmpeg. No recitation is read or modified. Alignment compares
+Requires numpy and FFmpeg. Original-reference accepts an ordered list of unchanged MP3s. Alignment compares
 known signal landmarks, not amplitude-based silence or Dart event timestamps.
 """
 import argparse
@@ -73,11 +73,40 @@ def generate(directory, rate=44100):
     return manifest
 
 
+def original_reference(directory, files, rate):
+    """Build an independently decoded stereo reference for an ordered real passage."""
+    if not files:
+        raise ValueError('Supply original MP3s in playback order')
+    directory.mkdir(parents=True, exist_ok=True)
+    if any(directory.iterdir()):
+        raise ValueError('Use an empty output directory')
+    parts = []
+    total = 0
+    reference = directory / 'reference.wav'
+    with wave.open(str(reference), 'wb') as out:
+        out.setparams((2, 2, rate, 0, 'NONE', 'not compressed'))
+        for file in files:
+            pcm = subprocess.check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(file),
+                '-map', '0:a:0', '-ar', str(rate), '-ac', '2', '-f', 's16le', '-'])
+            if not pcm or len(pcm) % 4:
+                raise ValueError(f'Incomplete PCM: {file}')
+            frames = len(pcm) // 4
+            parts.append({'file': file.name, 'sha256': hashlib.sha256(file.read_bytes()).hexdigest(),
+                          'decodedFrames': frames, 'startFrame': total})
+            total += frames
+            out.writeframesraw(pcm)
+    manifest = {'parts': parts, 'reference': reference.name,
+                'referenceSha256': hashlib.sha256(reference.read_bytes()).hexdigest()}
+    (directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+
+
 def locate(capture, template):
     """Normalized FFT correlation; returns an interior signal landmark."""
     if len(capture) < len(template):
         raise ValueError('Capture is shorter than its reference')
     template = template - template.mean()
+    if not np.any(template):
+        raise ValueError('Silent landmark cannot establish alignment')
     size = 1 << (len(capture) + len(template) - 2).bit_length()
     dots = np.fft.irfft(np.fft.rfft(capture, size) * np.fft.rfft(template[::-1], size), size)
     dots = dots[len(template) - 1:len(capture)]
@@ -122,15 +151,18 @@ def measure(directory, capture_path, platform, stage):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['generate', 'measure'])
+    parser.add_argument('action', choices=['generate', 'measure', 'original-reference'])
     parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('--originals', nargs='+', type=Path)
     parser.add_argument('--capture', type=Path)
     parser.add_argument('--sample-rate', type=int, choices=[44100, 48000], default=44100)
     parser.add_argument('--platform', choices=['ios', 'android', 'synthetic'])
     parser.add_argument('--stage', choices=['baseline', 'candidate', 'control'])
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
-    if args.action == 'generate':
+    if args.action == 'original-reference':
+        original_reference(args.directory, args.originals, args.sample_rate)
+    elif args.action == 'generate':
         generate(args.directory, args.sample_rate)
     else:
         if not all([args.capture, args.platform, args.stage, args.output]):

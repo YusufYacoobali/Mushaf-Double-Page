@@ -93,6 +93,7 @@ def analyze(path, identity):
     pcm = array('f')
     pcm.frombytes(run(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path), '-map', '0:a:0',
                       '-vn', '-sn', '-dn', '-c:a', 'pcm_f32le', '-f', 'f32le', '-']))
+    pcm_digest = hashlib.sha256(memoryview(pcm).cast('B')).hexdigest()
     if sys.byteorder != 'little':
         pcm.byteswap()
     frames = len(pcm) // channels
@@ -117,7 +118,10 @@ def analyze(path, identity):
     # Explicit integrity check protects the read-only diagnostic contract.
     if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
         raise ValueError(f'Original changed during diagnostic: {path}')
-    return {**identity, 'sha256': digest, 'sampleRate': rate, 'channels': channels,
+    return {**identity, 'sha256': digest, 'codec': stream['codec_name'],
+            'pcmSha256': pcm_digest,
+            'firstFrame': list(pcm[:channels]), 'lastFrame': list(pcm[-channels:]),
+            'sampleRate': rate, 'channels': channels,
             'pcmFrames': frames, 'pcmDurationMs': round(frames * 1000 / rate, 3),
             'containerDurationMs': round(float(probe['format']['duration']) * 1000, 3),
             'edges': edges, 'metadata': {'tags': gapless_tags, 'xing': xing_info(original),
