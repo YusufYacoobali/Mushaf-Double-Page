@@ -3,7 +3,7 @@ run-name: Samsung passport and regular Fold · pages 6–7
 
 on:
   push:
-    branches: [v6, v7]
+    branches: [v6, v7, v9]
     paths:
       - '.github/samsung-foldable-visual.request'
   workflow_dispatch:

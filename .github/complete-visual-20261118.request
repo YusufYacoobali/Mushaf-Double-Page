@@ -7,3 +7,5 @@ Verify centred fitting unfolded landscape spreads and the exact scroll endpoints
 2026-11-19: Run the same native verification on v7 from app source c5947e5f9d8c2016b8860cd9879c753e836a9cc4. Capture all requested pages 6–7 layouts and zoom endpoints freshly; retain strict geometry and screenshot validation.
 
 2026-11-20: Repeat the complete 32-capture verification from latest v7 app source a6ae6a6ee8e0a248447a7afad535cf2d82585cb7. Capture fresh pages 6–7, all existing min/max zoom and posture cases, iPad mini portrait and landscape at 100%, and exact landscape scroll endpoints. Preserve strict source, geometry and screenshot checks.
+
+2026-11-27: Repeat the native visual verification for v9 app source aaac9a66079de274da39f3d676d565c3c0e09352. Capture fresh pages 6–7, the existing Duo and both Android foldable posture/zoom endpoints, iPad mini portrait and landscape at 100%, and exact landscape scroll endpoints. Preserve all source, geometry and original screenshot checks.

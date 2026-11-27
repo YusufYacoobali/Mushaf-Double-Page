@@ -2,7 +2,7 @@ name: Proven Duo and iPad mini visual check
 run-name: Pages 6–7 · Duo endpoints and iPad mini at 100%
 on:
   push:
-    branches: [v6, v7]
+    branches: [v6, v7, v9]
     paths:
       - '.github/complete-visual-20261118.request'
 
