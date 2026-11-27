@@ -97,6 +97,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
 
   bool _isScrollbarVisible = true;
   bool _dockPinned = false;
+  bool _selectionKeptOpenOnUnfold = false;
   Timer? _hideScrollbarTimer;
 
   late RecentSurahHistory _surahHistory;
@@ -307,11 +308,10 @@ class _MyPDFViewerState extends State<MyPDFViewer>
   void _onScreenTap() {
     // Clear the selection independently of whether taps can reveal controls.
     if (_selPage != null) {
-      if (_dockPinned) {
+      if (_dockPinned || _selectionKeptOpenOnUnfold) {
         setState(_forgetAyahSelection);
       } else {
-        setState(_forgetAyahSelection);
-        if (_isScrollbarVisible && !_audioWasActive) _startHideScrollbarTimer();
+        _forgetAyahSelection();
       }
       return;
     }
@@ -367,8 +367,18 @@ class _MyPDFViewerState extends State<MyPDFViewer>
     });
   }
 
+  @override
+  void _forgetAyahSelection() {
+    super._forgetAyahSelection();
+    if (_selectionKeptOpenOnUnfold) {
+      _selectionKeptOpenOnUnfold = false;
+      if (_isScrollbarVisible && !_audioWasActive) _startHideScrollbarTimer();
+    }
+  }
+
   void _highlightAyah(int page, int surah, int ayah) {
     if (!_ayahHighlightingEnabled) return;
+    _selectionKeptOpenOnUnfold = false;
     if (!_controlsArrowOnly) _hideScrollbarTimer?.cancel();
     setState(() {
       _selPage = page;
@@ -493,6 +503,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
           final pinned = layout.foldedDockRegion != null;
           if (_dockPinned != pinned) {
             _dockPinned = pinned;
+            _selectionKeptOpenOnUnfold = !pinned && _selPage != null;
             if (pinned) {
               _hideScrollbarTimer?.cancel();
             } else if (_isScrollbarVisible &&

@@ -14,5 +14,5 @@ Verify centred fitting unfolded landscape spreads and the exact scroll endpoints
 2026-11-27: Verify the v9 reader, translation, audio-controller and storage refactor at app revision b5e6208. Run the existing pages 6–7 posture, zoom and geometry checks.
 
 Verify the permanent folded Duo dock and compare page geometry and original pixels against the preceding successful v9 run.
-Verify folded Duo touch delivery and unfolding controls against the original 32 page geometries.
+Compare both Samsung profiles after scoping the resumed hide timer to an unfolded selection.
 Compare screenshots screenshots-samsung/galaxy-z-fold8=15212646271 screenshots-samsung/galaxy-z-fold8-ultra=15210459848
