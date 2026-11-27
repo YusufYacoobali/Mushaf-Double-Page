@@ -51,6 +51,13 @@ jobs:
               if layout.exists():
                   data = json.loads(layout.read_text())
                   print('rendered', data['zoom'], data['viewport'], sorted(data['controls']))
+          for f in sorted(folder.glob('*.verification.json')):
+              name = f.name.removesuffix('.verification.json')
+              data = json.loads((folder / (name + '.layout.json')).read_text())
+              sample = Image.open(folder / (name + '.png')).convert('RGB').resize((128,128))
+              white = sum(min(pixel) >= 245 for pixel in sample.getdata()) / (128*128)
+              print('Endpoint', name, 'clear paper', round(white,4), 'expanded', data['navigationExpanded'],
+                    'selection', 'Save ayah' in data['controls'], 'dock', data['navigation'])
           PYTHON
   package-existing-screenshots:
     if: github.event_name == 'workflow_dispatch'
