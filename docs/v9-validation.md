@@ -72,7 +72,13 @@ In the iOS 27.1 Duo simulator, the 466 × 678 point folded window reported an 84
 
 The four-device run compared 32 native captures with the previous v9 originals. All page frames matched. Both iPad mini images matched to the precision reported by the comparison, as did 19 of the 20 Samsung images. The remaining Samsung image matched at 99.999%. Three unfolded Duo captures caught the auto-hiding dock in a different state than the reference. [Duo and iPad captures](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46039509707) · [Samsung captures](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46039509710)
 
-Reader widget tests exercised the folded dock with both arrow-only preferences, including selection, bookmarking, zooming, idle time and unfolding. A follow-up native input run and its retry did not register the folded zoom tap or the unfolded landscape swipe. The widget test passed at the coordinates reported by the simulator. Physical-device touch verification remains open. [Follow-up input run](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46042757129)
+### Folded Duo touch delivery and unfolding
+
+The failed native run captured a clear reader before its unconditional permission tap. The tap selected 2:10. The next screenshot, the folded 100% zoom screenshot and the unfolded landscape screenshot all show the system’s “Quran Dual Page” notification prompt. Flutter continued publishing page and button geometry beneath the prompt. The folded image’s near-white fraction fell from 25.18% before the setup tap to below 0.01% at the failed endpoint. [Original failed run](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46042757129) · [Inspection of original PNGs](https://github.com/YusufYacoobali/Mushaf-Double-Page/actions/runs/46052738494)
+
+The Duo harness waits for the OS notification authorization decision and two unobstructed screenshots. It targets the active display in interface points and records the requested point, UIKit window hit test, native touch recipient, Flutter pointer events and zoom callback. It also reads the resulting reader state. These probes are installed only in the disposable simulator build. Native playback checks use the nine original Alafasy recordings for 2:5–13, each matched to the pinned mirror SHA-256 and upstream MD5. [Apple’s reserved-region guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-iphone-duo)
+
+Selecting an ayah or starting playback while the cover dock is pinned now updates the visibility used on unfolding. A selection that held the dock open on unfolding restarts the normal idle timer when cleared. Regression tests start from hidden controls, cover both arrow-only settings, and check the selected verse, page, 95% zoom, playback session, position and native queue load count.
 
 ## Regression results
 

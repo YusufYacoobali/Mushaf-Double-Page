@@ -8,6 +8,7 @@ import 'package:mushaf_two_page/main.dart';
 import 'package:mushaf_two_page/logic/quran_audio_controller.dart';
 import 'audio_test_fixtures.dart';
 import 'package:mushaf_two_page/utils/ayah_rect_index.dart';
+import 'package:mushaf_two_page/utils/reader_geometry_probe.dart';
 import 'package:mushaf_two_page/utils/reader_highlight_preferences.dart';
 import 'package:mushaf_two_page/utils/reader_layout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -270,6 +271,11 @@ void main() {
 
           final session = audio.playbackSessionId;
           await unfold(tester, source);
+          final reader = tester.widget<ReaderGeometryProbe>(
+            find.byType(ReaderGeometryProbe),
+          );
+          expect(reader.focusedPage, 4);
+          expect(reader.zoom, .95);
           expect(page, findsOneWidget);
           if (arrowOnly) {
             expect(find.byTooltip('Open navigation'), findsOneWidget);
@@ -288,6 +294,10 @@ void main() {
             expect(find.byTooltip('Stop audio'), findsOneWidget);
             await audio.stop();
           } else {
+            if (!arrowOnly) {
+              await tester.pump(const Duration(seconds: 11));
+              await tester.pumpAndSettle();
+            }
             expect(find.byTooltip('Save ayah'), findsOneWidget);
             expect(
               (await ReaderHighlightPreferences.load('indopak_tajweed'))?.ayah,
