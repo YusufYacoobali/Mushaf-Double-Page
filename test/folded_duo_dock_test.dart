@@ -97,6 +97,7 @@ void main() {
         });
         SharedPreferences.setMockInitialValues({
           'CurrentPage1': 4,
+          'quran_single_page_scale': 1.0,
           'reader_controls_arrow_only': arrowOnly,
         });
         await ReaderHighlightPreferences.save(
@@ -128,7 +129,7 @@ void main() {
           'divisions': [],
           'coverStrip': {'left': 382, 'top': 0, 'width': 84, 'height': 644},
           'coverObstructions': [
-            {'left': 391, 'top': 0, 'width': 71, 'height': 180},
+            {'left': 382, 'top': 0, 'width': 84, 'height': 82},
           ],
         });
         await tester.pumpAndSettle();
@@ -138,8 +139,15 @@ void main() {
         );
         expect(rail.left, greaterThanOrEqualTo(strip.left));
         expect(rail.right, lessThanOrEqualTo(strip.right));
-        expect(rail.top, greaterThanOrEqualTo(180));
+        expect(rail.top, greaterThanOrEqualTo(82));
         expect(rail.bottom, lessThanOrEqualTo(strip.bottom));
+        expect(find.text('100%'), findsOneWidget);
+        final minus = find.byTooltip('Zoom out');
+        // The native capture also exercises zoom while an ayah is selected.
+        expect(minus.hitTestable(), findsOneWidget);
+        await tester.tapAt(tester.getCenter(minus));
+        await tester.pumpAndSettle();
+        expect(find.text('95%'), findsOneWidget);
         final bookmark = find.byTooltip('Save ayah');
         await tester.ensureVisible(bookmark);
         await tester.pumpAndSettle();
@@ -157,7 +165,7 @@ void main() {
         expect(find.byTooltip('Zoom in').hitTestable(), findsOneWidget);
         await tester.tap(find.byTooltip('Zoom in'));
         await tester.pumpAndSettle();
-        expect(find.text('85%'), findsOneWidget);
+        expect(find.text('100%'), findsOneWidget);
         source.success({
           'width': 669,
           'height': 951,
