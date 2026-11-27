@@ -78,7 +78,6 @@ class TestTransport implements HttpClientAdapter {
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
   late Directory dir;
   late TestTransport transport;
   late AudioRepository repo;

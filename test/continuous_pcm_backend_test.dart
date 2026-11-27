@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart' show ProgressiveAudioSource;
 import 'package:flutter/material.dart';
@@ -301,10 +303,43 @@ void main() {
     },
   );
 
+  for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    test(
+      '$platform only probes eligible recordings and forwards their decisions',
+      () async {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        for (final reciter in quranReciters) {
+          final path = '/audio/${reciter.id}/112:2.mp3';
+          repository.invertedFiles.add(path);
+          repository.stereoChecks.clear();
+          await controller.playPlan(plan(reciter: reciter, to: 3));
+          await flush();
+          final eligible =
+              platform == TargetPlatform.android &&
+              reciter.id == 'abdullah_juhany';
+          expect(
+            repository.stereoChecks,
+            eligible ? [path, '/audio/${reciter.id}/112:3.mp3'] : isEmpty,
+            reason: reciter.id,
+          );
+          expect(native.sources.map((s) => s['polarity']), [
+            eligible ? 'inverted' : null,
+            null,
+          ], reason: reciter.id);
+        }
+      },
+    );
+  }
+
   test(
     'decode failure disposes native output before fallback, preserving cursor and pause',
     () async {
-      final selection = plan(to: 2, count: 4);
+      final selection = plan(
+        to: 2,
+        count: 4,
+        reciter: quranReciters.firstWhere((r) => r.id == 'abdullah_juhany'),
+      );
       repository.invertedFiles.add('/audio/${selection.reciter.id}/112:2.mp3');
       await controller.playPlan(selection);
       await flush();

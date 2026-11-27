@@ -56,9 +56,10 @@ class _DownloadJob {
 /// foreground and offline work to two requests. Only one background request can
 /// run at a time, reserving capacity for upcoming playback recordings.
 class AudioRepository implements AudioRecordingRepository {
-  final _stereo = RecordingStereoProbe();
+  RecordingStereoProbe? _stereo;
   @override
-  Future<bool> needsStereoCorrection(String path) => _stereo.inspect(path);
+  Future<bool> needsStereoCorrection(String path) =>
+      (_stereo ??= RecordingStereoProbe()).inspect(path);
 
   AudioRepository({Dio? dio, Future<Directory> Function()? directory})
     : _dio =
@@ -116,7 +117,7 @@ class AudioRepository implements AudioRecordingRepository {
   @override
   Future<void> invalidate(Reciter reciter, QuranAudioItem item) async {
     final file = await fileFor(reciter, item);
-    _stereo.forget(file.path);
+    _stereo?.forget(file.path);
     if (await file.exists()) await file.delete();
   }
 

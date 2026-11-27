@@ -177,7 +177,7 @@ final class PcmOutput {
                     for buffer in reusable { append(buffer) }
                 } else {
                     var reusable: [AVAudioPCMBuffer] = [], reusableFrames: Int64 = 0
-                    try PcmDecoder.decode(path: path, invert: source["polarity"].map { $0 == "inverted" }, cancelled: { [weak self] in
+                    try PcmDecoder.decode(path: path, cancelled: { [weak self] in
                         guard let self = self else { return true }
                         self.condition.lock(); defer { self.condition.unlock() }
                         return self.cancelled || self.failure != nil

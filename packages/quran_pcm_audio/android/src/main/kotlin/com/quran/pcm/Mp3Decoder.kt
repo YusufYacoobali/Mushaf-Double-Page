@@ -9,7 +9,7 @@ import java.util.concurrent.CancellationException
 
 internal object Mp3Decoder {
     /** One codec output chunk at a time, with backpressure supplied by emit. */
-    fun decode(path: String, cancelled: () -> Boolean, invert: Boolean? = null, emit: (ShortArray) -> Unit) {
+    fun decode(path: String, cancelled: () -> Boolean, invert: Boolean = false, emit: (ShortArray) -> Unit) {
         read(path, cancelled, null, invert, emit)
     }
 
@@ -27,7 +27,7 @@ internal object Mp3Decoder {
 
     // Probe short, separated excerpts through a separate extractor. Seeking the
     // probe must never disturb the primary decoder's bit reservoir or trim.
-    private fun read(path: String, cancelled: () -> Boolean, probe: Double?, invert: Boolean? = null, emit: (ShortArray) -> Unit) {
+    private fun read(path: String, cancelled: () -> Boolean, probe: Double?, invert: Boolean = false, emit: (ShortArray) -> Unit) {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -41,12 +41,10 @@ internal object Mp3Decoder {
             val rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             val channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             fun integer(key: String) = if (format.containsKey(key)) format.getInteger(key) else 0
-            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
-            val restore = probe == null && channels == 2 &&
-                (invert ?: (durationUs >= 900_000 && needsCorrection(path, cancelled)))
             var warmup = rate * 80 / 1000
             var remaining = rate * 400 / 1000
             if (probe != null) {
+                val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
                 require(channels == 2 && durationUs >= 900_000)
                 extractor.seekTo(((durationUs - 480_000) * probe).toLong(), MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
             }
@@ -107,7 +105,7 @@ internal object Mp3Decoder {
                         }
                         val converted = resample.convert(trim.append(samples, end = ended), end = ended)
                         if (converted.isNotEmpty()) {
-                            if (restore) StereoPolarity.restore(converted)
+                            if (invert && channels == 2) StereoPolarity.restore(converted)
                             if (converted.size <= 8192) emit(converted) else {
                                 var offset = 0
                                 while (offset < converted.size) {

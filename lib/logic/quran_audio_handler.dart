@@ -38,18 +38,6 @@ class QuranAudioHandler extends BaseAudioHandler with SeekHandler {
     _sessionSubscriptions.clear();
   }
 
-  // Play the original stereo master as ordinary media. Keep the reader's
-  // interruption and ducking behaviour independent of the content type.
-  static const playbackSession = AudioSessionConfiguration(
-    avAudioSessionCategory: AVAudioSessionCategory.playback,
-    avAudioSessionMode: AVAudioSessionMode.defaultMode,
-    androidAudioAttributes: AndroidAudioAttributes(
-      usage: AndroidAudioUsage.media,
-    ),
-    androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-    androidWillPauseWhenDucked: true,
-  );
-
   static Future<QuranAudioHandler> initialize() async {
     final handler = await AudioService.init(
       builder: () => QuranAudioHandler(QuranAudioController.instance),
@@ -63,7 +51,7 @@ class QuranAudioHandler extends BaseAudioHandler with SeekHandler {
       ),
     );
     final session = await AudioSession.instance;
-    await session.configure(playbackSession);
+    await session.configure(const AudioSessionConfiguration.speech());
     handler.bindSessionEvents(
       becomingNoisy: session.becomingNoisyEventStream,
       interruptions: session.interruptionEventStream,

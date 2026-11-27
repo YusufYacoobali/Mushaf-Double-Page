@@ -3,7 +3,6 @@
 #import "./include/just_audio/IndexedPlayerItem.h"
 #import "./include/just_audio/LoadControl.h"
 #import <AVFoundation/AVFoundation.h>
-#import "StereoAudioMix.h"
 
 @implementation UriAudioSource {
     NSString *_uri;
@@ -46,9 +45,6 @@
         NSURL *fileURL = [NSURL fileURLWithPath:[[uri stringByRemovingPercentEncoding] substringFromIndex:7]];
         AVURLAsset *asset = [AVURLAsset URLAssetWithURL:fileURL options:assetOptions];
         item = [[IndexedPlayerItem alloc] initWithAsset:asset];
-        if ([_options isKindOfClass:[NSDictionary class]] && [_options[@"invertRightChannel"] boolValue]) {
-            JAInstallStereoPolarityMix(item);
-        }
     } else {
         if (_headers) {
             // Use user-agent key if it is the only header and the API is supported.

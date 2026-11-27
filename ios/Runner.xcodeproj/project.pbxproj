@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		94EA10000000000000000002 /* abdullah_juhany.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 94EA20000000000000000002 /* abdullah_juhany.mp3 */; };
-		94EA10000000000000000001 /* abdullah_juhany-112002.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 94EA20000000000000000001 /* abdullah_juhany-112002.mp3 */; };
 		0633B296806A1CFBA0BFB542 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E067EC79EBD3C3E0D9516079 /* Pods_RunnerTests.framework */; };
 		068BD8A0C60C646C12A6EC82 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4A61C82CAD8998BF03C9A1FF /* GoogleService-Info.plist */; };
 		07C58F03B1D36E434CFDEFA2 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0F6E5E816F69BD9112F140DE /* Pods_Runner.framework */; };
@@ -46,8 +44,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		94EA20000000000000000002 /* abdullah_juhany.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "abdullah_juhany.mp3"; path = "../../test/fixtures/bismillah/abdullah_juhany.mp3"; sourceTree = "<group>"; };
-		94EA20000000000000000001 /* abdullah_juhany-112002.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = "abdullah_juhany-112002.mp3"; path = "../../test/fixtures/gapless/abdullah_juhany-112002.mp3"; sourceTree = "<group>"; };
 		0F6E5E816F69BD9112F140DE /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		115D788A66F4C3E2D9E99F2A /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
@@ -111,8 +107,6 @@
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXGroup;
 			children = (
-				94EA20000000000000000002 /* abdullah_juhany.mp3 */,
-				94EA20000000000000000001 /* abdullah_juhany-112002.mp3 */,
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 			);
 			path = RunnerTests;
@@ -264,8 +258,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				94EA10000000000000000002 /* abdullah_juhany.mp3 in Resources */,
-				94EA10000000000000000001 /* abdullah_juhany-112002.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

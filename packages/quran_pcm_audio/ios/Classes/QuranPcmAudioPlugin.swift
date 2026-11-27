@@ -5,7 +5,6 @@ public final class QuranPcmAudioPlugin: NSObject, FlutterPlugin, FlutterStreamHa
     // Flutter callbacks/telemetry stay on main; lifecycle commands run separately.
     // The audio render queue never waits for either Flutter or this command queue.
     private let commands = DispatchQueue(label: "quran.pcm.commands", qos: .userInitiated)
-    private let probes = DispatchQueue(label: "quran.pcm.probe", qos: .userInitiated)
     private let referenceLock = NSLock()
     private var output: PcmOutput?
     private var attached = true
@@ -57,13 +56,6 @@ public final class QuranPcmAudioPlugin: NSObject, FlutterPlugin, FlutterStreamHa
         return nil
     }
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        if call.method == "needsStereoCorrection", let args = call.arguments as? [String: Any], let path = args["path"] as? String {
-            probes.async {
-                let restore = StereoPolarity.needsCorrection(url: URL(fileURLWithPath: path), cancelled: { false })
-                DispatchQueue.main.async { result(restore) }
-            }
-            return
-        }
         guard let args = call.arguments as? [String: Any], let number = args["generation"] as? NSNumber else {
             result(FlutterError(code: "pcm", message: "Invalid command", details: nil)); return
         }
@@ -99,9 +91,7 @@ public final class QuranPcmAudioPlugin: NSObject, FlutterPlugin, FlutterStreamHa
                         DispatchQueue.main.async { result(snapshot) }; return
                     case "enqueue":
                         guard let id = args["id"] as? String, let path = args["path"] as? String else { throw PcmError.invalidCommand }
-                        var source = ["id": id, "path": path]
-                        source["polarity"] = args["polarity"] as? String
-                        try current.enqueue(source)
+                        try current.enqueue(["id": id, "path": path])
                     case "play": try current.setPlaying(true)
                     case "pause": try current.setPlaying(false)
                     case "finish": current.finish()

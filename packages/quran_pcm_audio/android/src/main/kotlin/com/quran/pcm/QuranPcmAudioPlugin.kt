@@ -74,7 +74,7 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
                 val sources = call.argument<List<Map<String, String>>>("sources")!!
                 require(sources.isNotEmpty() && sources.size <= 6)
                 engine = PcmOutput(generation, seconds, call.argument<Number>("seekFrames")!!.toLong())
-                sources.forEach { engine!!.enqueue(it.getValue("id"), it.getValue("path"), it["polarity"]) }
+                sources.forEach { engine!!.enqueue(it.getValue("id"), it.getValue("path"), it["polarity"] == "inverted") }
                 engine!!.start()
                 main.removeCallbacks(tick)
                 if (sink != null) main.post(tick)
@@ -89,7 +89,7 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
                 if (current != null && current.generation == generation) {
                     when (call.method) {
                         "snapshot" -> { result.success(current.snapshot()); return }
-                        "enqueue" -> current.enqueue(call.argument<String>("id")!!, call.argument<String>("path")!!, call.argument<String>("polarity"))
+                        "enqueue" -> current.enqueue(call.argument<String>("id")!!, call.argument<String>("path")!!, call.argument<String>("polarity") == "inverted")
                         "finish" -> current.finish()
                         "play" -> current.setPlaying(true)
                         "pause" -> current.setPlaying(false)
@@ -105,7 +105,7 @@ class QuranPcmAudioPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Even
     }
 }
 
-private data class Source(val id: String, val path: String, val invert: Boolean?)
+private data class Source(val id: String, val path: String, val invert: Boolean)
 private data class Row(val id: String, val start: Long, var decoded: Long = 0, var end: Long? = null)
 
 /** Two non-real-time workers with an eight-second bounded FIFO. The platform's
@@ -134,10 +134,10 @@ internal class PcmOutput(val generation: Long, seconds: Int, private val seek: L
     private var lastPresented = 0L
     private val timestamp = AudioTimestamp()
 
-    fun enqueue(id: String, path: String, polarity: String? = null) = synchronized(lock) {
+    fun enqueue(id: String, path: String, invert: Boolean = false) = synchronized(lock) {
         require(!complete && sources.size + rows.size < 6) { "Native recording queue overflow" }
         require(path.startsWith("/") && id.isNotEmpty())
-        sources.add(Source(id, path, polarity?.let { it == "inverted" }))
+        sources.add(Source(id, path, invert))
         lock.notifyAll()
     }
     fun finish() = synchronized(lock) { complete = true; lock.notifyAll() }
@@ -213,8 +213,8 @@ internal class PcmOutput(val generation: Long, seconds: Int, private val seek: L
         val minimum = AudioTrack.getMinBufferSize(44100, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
         require(minimum > 0) { "PCM output unsupported" }
         val output = AudioTrack.Builder()
-            // Match the neutral media attributes of QuranAudioHandler.playbackSession.
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             .setAudioFormat(AudioFormat.Builder().setSampleRate(44100)
                 .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
             .setTransferMode(AudioTrack.MODE_STREAM)

@@ -34,14 +34,15 @@ class PcmOutputDeviceTest {
     }
     @Test fun stereoCorrectionPreservesEveryFrameOfTheOriginalRecordings() {
         for ((name, affected) in listOf("gapless/abdullah_juhany-112002.mp3" to true,
-                "bismillah/abdullah_juhany.mp3" to false, "gapless/alafasy-112002.mp3" to false)) {
+                "bismillah/abdullah_juhany.mp3" to false)) {
             val path = fixture(name).path
-            assertEquals(name, affected, Mp3Decoder.needsCorrection(path) { false })
+            val invert = Mp3Decoder.needsCorrection(path) { false }
+            assertEquals(name, affected, invert)
             val original = ArrayDeque<ShortArray>()
-            Mp3Decoder.decode(path, { false }, false) { original.addLast(it) }
+            Mp3Decoder.decode(path, { false }) { original.addLast(it) }
             var offset = 0
             var frames = 0
-            Mp3Decoder.decode(path, { false }) { output ->
+            Mp3Decoder.decode(path, { false }, invert) { output ->
                 for (sample in output) {
                     val first = original.first()
                     val raw = first[offset]

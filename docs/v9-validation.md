@@ -1,6 +1,6 @@
 # v9 validation
 
-For the subsequent Samsung speaker investigation, see the [backend waveform comparison and playback-setting change](v9-samsung-audio.md).
+For the subsequent Samsung speaker investigation, see the [Android waveform comparison and scoped polarity correction](v9-samsung-audio.md).
 
 ## Al-Juhany’s premature restart
 

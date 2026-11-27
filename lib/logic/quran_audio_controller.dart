@@ -668,8 +668,9 @@ class QuranAudioController extends ChangeNotifier {
         return source.uri.toString();
       }
       final generation = _session, revision = _revision;
+      final reciter = _plan!.reciter;
       final path = await _repository.recording(
-        _plan!.reciter,
+        reciter,
         entry.item,
         _token,
         urgent: urgent,
@@ -687,7 +688,10 @@ class QuranAudioController extends ChangeNotifier {
               }
             : null,
       );
-      if (generation == _session && ContinuousPcmBackend.supported) {
+      if (generation == _session &&
+          !kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.android &&
+          reciter.id == 'abdullah_juhany') {
         entry.invertRightChannel = await _repository.needsStereoCorrection(
           path,
         );
@@ -696,16 +700,19 @@ class QuranAudioController extends ChangeNotifier {
     }();
   }
 
-  AudioSource _source(_QueueEntry entry, String path) =>
-      entry.source ??= _legacyPreparer != null
-      ? AudioSource.uri(Uri.parse(path), tag: entry.occurrence)
-      : ProgressiveAudioSource(
-          Uri.file(path),
-          options: ProgressiveAudioSourceOptions(
-            invertRightChannel: entry.invertRightChannel,
-          ),
-          tag: entry.occurrence,
-        );
+  AudioSource _source(_QueueEntry entry, String path) {
+    final uri = _legacyPreparer == null ? Uri.file(path) : Uri.parse(path);
+    return entry.source ??= entry.invertRightChannel
+        ? ProgressiveAudioSource(
+            uri,
+            tag: entry.occurrence,
+            options: const ProgressiveAudioSourceOptions(
+              invertRightChannel: true,
+            ),
+          )
+        : AudioSource.uri(uri, tag: entry.occurrence);
+  }
+
   AudioFailure _problem(Object error) => error is AudioFailure
       ? error
       : const AudioFailure(
