@@ -12,6 +12,91 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(PageAyahIndex.load);
 
+  final panel = find.byKey(const ValueKey('surah-juz-panel'));
+
+  Future<void> openPanel(WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => SurahJuzNavigator.show(
+              context: context,
+              mushaf: 'madani',
+              onJumpToPage: (_) {},
+            ),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pump();
+  }
+
+  testWidgets('panel slides and fades over the opening and dismissal frames', (
+    tester,
+  ) async {
+    await openPanel(tester);
+    final width = tester.getSize(find.byType(Navigator)).width;
+    final openLeft = width - tester.getSize(panel).width;
+    final fade = tester.widget<FadeTransition>(
+      find.ancestor(of: panel, matching: find.byType(FadeTransition)).first,
+    );
+    void expectFrame(double progress) {
+      expect(fade.opacity.value, closeTo(progress, .001));
+      expect(
+        tester.getTopLeft(panel).dx,
+        closeTo(openLeft + width * .18 * (1 - progress), .1),
+      );
+    }
+
+    expectFrame(0);
+    for (final t in [.25, .5, .75, 1.0]) {
+      await tester.pump(const Duration(milliseconds: 75));
+      expectFrame(Curves.easeInOut.transform(t));
+    }
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(10, 10)); // Dismiss via the scrim.
+    await tester.pump();
+    expectFrame(1);
+    for (final t in [.75, .5, .25]) {
+      await tester.pump(const Duration(milliseconds: 95));
+      expectFrame(Curves.easeOutCubic.transform(t));
+    }
+    await tester.pump(const Duration(milliseconds: 95));
+    expectFrame(0);
+    await tester.pumpAndSettle();
+    expect(panel, findsNothing);
+  });
+
+  for (final features in [
+    const FakeAccessibilityFeatures(disableAnimations: true),
+    const FakeAccessibilityFeatures(accessibleNavigation: true),
+  ]) {
+    testWidgets('panel opens and dismisses immediately with $features', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue = features;
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await openPanel(tester);
+      final route = ModalRoute.of(tester.element(panel))!;
+      expect(route.animation!.isCompleted, isTrue);
+      expect(
+        tester.getRect(panel).right,
+        tester.getSize(find.byType(Navigator)).width,
+      );
+      expect(route.reverseTransitionDuration, Duration.zero);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump();
+      expect(route.animation!.isDismissed, isTrue);
+      await tester.pumpAndSettle();
+      expect(panel, findsNothing);
+    });
+  }
+
   testWidgets(
     'only the chevron expands quarters and the child supplies its surah',
     (tester) async {

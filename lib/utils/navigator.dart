@@ -18,13 +18,8 @@ class SurahJuzNavigator {
     void Function(int surah, int page)? onJumpToSurah,
   }) {
     final sourceContext = context;
-    showGeneralDialog(
-      context: context,
-      anchorPoint: const Offset(double.maxFinite, 0),
-      barrierDismissible: true,
-      barrierLabel: "Surah and Juz navigation",
-      barrierColor: Colors.black54,
-      transitionDuration: AppMotion.duration(context),
+    final route = _NavigatorPanelRoute(
+      reducedMotion: AppMotion.reduced(context),
       pageBuilder: (context, _, _) => LayoutBuilder(
         builder: (context, constraints) {
           final size = constraints.biggest;
@@ -76,19 +71,68 @@ class SurahJuzNavigator {
           );
         },
       ),
-      transitionBuilder: (context, anim, _, child) {
-        if (AppMotion.reduced(context)) return child;
-        final slide = Tween(
+    );
+    Navigator.of(context, rootNavigator: true).push(route);
+  }
+}
+
+class _NavigatorPanelRoute extends RawDialogRoute<void> {
+  _NavigatorPanelRoute({
+    required bool reducedMotion,
+    required super.pageBuilder,
+  })
+    // The original dialog used AppMotion.enter in both directions.
+    : reverseTransitionDuration = reducedMotion
+           ? Duration.zero
+           : AppMotion.enter,
+       super(
+         transitionDuration: reducedMotion
+             ? Duration.zero
+             : const Duration(milliseconds: 300),
+         anchorPoint: const Offset(double.maxFinite, 0),
+         barrierDismissible: true,
+         barrierLabel: 'Surah and Juz navigation',
+         barrierColor: Colors.black54,
+       );
+
+  @override
+  final Duration reverseTransitionDuration;
+  late final CurvedAnimation _progress;
+
+  @override
+  void install() {
+    super.install();
+    _progress = CurvedAnimation(
+      parent: animation!,
+      curve: Curves.easeInOut,
+      reverseCurve: AppMotion.curve,
+    );
+  }
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (AppMotion.reduced(context)) return child;
+    return FadeTransition(
+      opacity: _progress,
+      child: SlideTransition(
+        position: Tween(
           begin: const Offset(.18, 0),
           end: Offset.zero,
-        ).animate(anim.drive(CurveTween(curve: AppMotion.curve)));
-
-        return FadeTransition(
-          opacity: anim.drive(CurveTween(curve: AppMotion.curve)),
-          child: SlideTransition(position: slide, child: child),
-        );
-      },
+        ).animate(_progress),
+        child: child,
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
   }
 }
 
