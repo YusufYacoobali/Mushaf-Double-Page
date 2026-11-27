@@ -70,6 +70,11 @@ def snapshot(posture="duo-folded", z=1, bottom=False, page=4, centered_book=Fals
         if mode == "single"
         else rect(w - 26, h / 2 - 36, 22, 72)
     )
+    if folded:
+        native.update(coverStrip=rect(w-pad["right"],0,pad["right"],h-34),
+                      coverObstructions=[rect(w-75, 0, 65, 120)])
+    dock = rect(w-68,210,52,270) if folded else tab
+    controls = {"Zoom in": rect(w-58,380,32,32), "Zoom out": rect(w-58,435,32,32)} if folded else {"Open navigation": tab}
     return dict(
         viewport=dict(width=w, height=h),
         pixelRatio=1,
@@ -81,9 +86,9 @@ def snapshot(posture="duo-folded", z=1, bottom=False, page=4, centered_book=Fals
         safeRegions=safe,
         scroll=scroll,
         timestamp="2026-11-19T11:00:02Z" if bottom else "2026-11-19T11:00:01Z",
-        navigation=tab,
-        navigationExpanded=False,
-        controls={"Open navigation": tab},
+        navigation=dock,
+        navigationExpanded=folded,
+        controls=controls,
         readingBounds=reading,
         regions=regions,
         pages=pages,
@@ -120,6 +125,9 @@ class CaptureTests(unittest.TestCase):
         draw = ImageDraw.Draw(image)
         draw.rectangle(capture.bounds(frame["navigation"]), fill="#303030")
         tab = frame["controls"].get("Open navigation")
+        if frame["native"]["closed"]:
+            for label in ("Zoom in", "Zoom out"):
+                draw.ellipse(capture.bounds(frame["controls"][label]), outline="white", width=2)
         if tab:
             x, y = tab["left"] + tab["width"] / 2, tab["top"] + tab["height"] / 2
             draw.line([(x - 4, y + 2), (x, y - 2), (x + 4, y + 2)], fill="white", width=2)
@@ -273,7 +281,7 @@ class CaptureTests(unittest.TestCase):
             "dock trim",
             "double right inset",
             "stale native",
-            "hidden tab",
+            "unexpected tab",
             "wrong zoom",
             "missing page",
             "blank",
@@ -296,8 +304,8 @@ class CaptureTests(unittest.TestCase):
                         r["width"] -= 84
                 if error == "stale native":
                     data["native"]["viewport"]["width"] -= 50
-                if error == "hidden tab":
-                    data["controls"]["Open navigation"]["top"] -= 34
+                if error == "unexpected tab":
+                    data["controls"]["Open navigation"] = copy.copy(data["navigation"])
                 if error == "missing page":
                     data["pages"].clear()
                 self.save(data, blank=error == "blank")
@@ -309,7 +317,7 @@ class CaptureTests(unittest.TestCase):
                     70 if error in ("wrong zoom", "narrow at minimum") else 100,
                     "single",
                     posture="duo-folded",
-                    phase="collapsed",
+                    phase="idle",
                 )
 
     def test_landscape_fit_cap_and_missing_scroll(self):
@@ -342,7 +350,7 @@ class CaptureTests(unittest.TestCase):
                 capture.check_geometry(data, "duo-half-open-book")
 
     def test_nav_mask_is_limited_to_measured_footprint(self):
-        data = snapshot()
+        data = snapshot("duo-unfolded-portrait")
         data.update(
             navigation=rect(0, 550, 382, 94),
             navigationExpanded=True,
@@ -351,7 +359,7 @@ class CaptureTests(unittest.TestCase):
         self.save(data)
         capture.verify(self.png, self.metadata, 100)
         image = Image.open(self.png)
-        ImageDraw.Draw(image).rectangle((0, 0, 381, 5), fill="black")
+        ImageDraw.Draw(image).rectangle((0, 0, data["viewport"]["width"] - 1, 5), fill="black")
         image.save(self.png)
         with self.assertRaisesRegex(AssertionError, "missing paper edge"):
             capture.verify(self.png, self.metadata, 100)

@@ -48,7 +48,9 @@ class ReaderDockOverlay extends StatelessWidget {
     final portraitBand =
         layout.sizing == ReaderPageSizing.portraitHeight && layout.bottomDock;
     return Positioned.fromRect(
-      rect: portraitBand ? layout.usableContentBounds : layout.controlsRegion,
+      rect:
+          layout.foldedDockRegion ??
+          (portraitBand ? layout.usableContentBounds : layout.controlsRegion),
       child: MediaQuery.removePadding(
         context: context,
         removeLeft: true,
@@ -81,12 +83,14 @@ class ReaderDock extends StatelessWidget {
     required this.actions,
     this.contextControls,
     this.geometryKey,
+    this.pinned = false,
   }) : placement =
            placement ??
            (portrait == false ? DockPlacement.side : DockPlacement.bottom);
   final DockPlacement placement;
   bool get portrait => placement == DockPlacement.bottom;
   final bool expanded;
+  final bool pinned;
   final VoidCallback onToggle;
   final AppPalette palette;
   final Widget zoom;
@@ -113,6 +117,16 @@ class ReaderDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (pinned) {
+      return Positioned.fill(
+        child: Center(
+          child: KeyedSubtree(
+            key: geometryKey,
+            child: _contents(context, 1, 0, true),
+          ),
+        ),
+      );
+    }
     final safe = MediaQuery.paddingOf(context);
     final centerSide =
         !portrait &&
@@ -241,8 +255,9 @@ class ReaderDock extends StatelessWidget {
             ),
           )
         : SizedBox(
-            width: 52,
+            width: ReaderLayout.sideDockWidth,
             child: SingleChildScrollView(
+              primary: pinned ? false : null,
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -263,7 +278,7 @@ class ReaderDock extends StatelessWidget {
     final panel = Container(
       key: const ValueKey('reader-navigation-panel'),
       height: portrait ? 56 : null,
-      width: portrait ? null : 52,
+      width: portrait ? null : ReaderLayout.sideDockWidth,
       decoration: decoration,
       foregroundDecoration: BoxDecoration(
         borderRadius: BorderRadius.circular(portrait ? 28 : 23),
@@ -274,6 +289,21 @@ class ReaderDock extends StatelessWidget {
         child: navigation,
       ),
     );
+    if (pinned) {
+      return SingleChildScrollView(
+        primary: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            panel,
+            if (contextControls != null) ...[
+              const SizedBox(height: 6),
+              contextPanel,
+            ],
+          ],
+        ),
+      );
+    }
     if (portrait) {
       return Center(
         child: ConstrainedBox(

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -93,6 +94,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
   int _logicalPage = 1;
 
   bool _isScrollbarVisible = true;
+  bool _dockPinned = false;
   Timer? _hideScrollbarTimer;
 
   late RecentSurahHistory _surahHistory;
@@ -107,7 +109,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
     _audioVerticalFollower = AudioVerticalFollower(
       canFollow: () => _readerVisible && QuranAudioController.instance.audible,
       obstructions: () {
-        if (!_isScrollbarVisible) return const [];
+        if (!_isScrollbarVisible && !_dockPinned) return const [];
         final dock = _readerDockGeometryKey.currentContext?.findRenderObject();
         return dock is RenderBox && dock.hasSize && dock.attached
             ? [
@@ -132,7 +134,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
     // Resolve the native device family before exposing the reader, avoiding
     // a brief two-page iPad layout or a page-mode change after first paint.
     _isIPad = await IosDeviceIdiom.isIPad();
-    if (Platform.isIOS && !_isIPad) {
+    if (defaultTargetPlatform == TargetPlatform.iOS && !_isIPad) {
       _displayRegionSubscription =
           const EventChannel(
             'mushaf_two_page/display_regions',
@@ -291,6 +293,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
 
   void _startHideScrollbarTimer() {
     _hideScrollbarTimer?.cancel();
+    if (_dockPinned) return;
     _hideScrollbarTimer = Timer(const Duration(seconds: 10), () {
       // An explicitly hidden dock stays hidden, but the timer must not remove
       // the playback controls while a recitation is running.
@@ -302,11 +305,15 @@ class _MyPDFViewerState extends State<MyPDFViewer>
   void _onScreenTap() {
     // Clear the selection independently of whether taps can reveal controls.
     if (_selPage != null) {
-      _forgetAyahSelection();
+      if (_dockPinned) {
+        setState(_forgetAyahSelection);
+      } else {
+        _forgetAyahSelection();
+      }
       return;
     }
 
-    if (_controlsArrowOnly) return;
+    if (_controlsArrowOnly || _dockPinned) return;
 
     setState(() {
       _isScrollbarVisible = !_isScrollbarVisible;
@@ -324,7 +331,9 @@ class _MyPDFViewerState extends State<MyPDFViewer>
       final audio = QuranAudioController.instance;
       if (audio.hasActivePlayback) {
         _hideScrollbarTimer?.cancel();
-        if (!_audioWasActive && !_controlsArrowOnly) _isScrollbarVisible = true;
+        if (!_audioWasActive && !_controlsArrowOnly && !_dockPinned) {
+          _isScrollbarVisible = true;
+        }
       } else if (_audioWasActive && _isScrollbarVisible && _selPage == null) {
         _startHideScrollbarTimer();
       }
@@ -362,7 +371,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
       _selPage = page;
       _selSurah = surah;
       _selAyah = ayah;
-      if (!_controlsArrowOnly) _isScrollbarVisible = true;
+      if (!_controlsArrowOnly && !_dockPinned) _isScrollbarVisible = true;
     });
     _persistHighlight();
   }
@@ -379,7 +388,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
           _hideScrollbarTimer?.cancel();
           setState(() {
             _forgetAyahSelection();
-            _isScrollbarVisible = false;
+            if (!_dockPinned) _isScrollbarVisible = false;
           });
           return;
         }
@@ -387,11 +396,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
         return;
       }
     }
-    if (_selPage != null) {
-      _forgetAyahSelection();
-    } else {
-      _onScreenTap();
-    }
+    _onScreenTap();
   }
 
   Future<void> _openSettings() async {
@@ -475,9 +480,24 @@ class _MyPDFViewerState extends State<MyPDFViewer>
             preserveLegacyIPadPortrait: _isIPad,
             foldedCover: !_isIPad && _iosDisplayRegions.closed,
             androidCoverDock: _androidCoverDock,
+            nativeCoverStrip: _iosDisplayRegions.matches(constraints.biggest)
+                ? _iosDisplayRegions.coverStrip
+                : null,
+            coverObstructions: _iosDisplayRegions.coverObstructions,
             iosPhoneWidePortrait:
                 Theme.of(context).platform == TargetPlatform.iOS && !_isIPad,
           );
+          final pinned = layout.foldedDockRegion != null;
+          if (_dockPinned != pinned) {
+            _dockPinned = pinned;
+            if (pinned) {
+              _hideScrollbarTimer?.cancel();
+            } else if (_isScrollbarVisible &&
+                _selPage == null &&
+                !_audioWasActive) {
+              _startHideScrollbarTimer();
+            }
+          }
           _paging!.configure(layout.pageMode);
           _singlePage = layout.singlePage;
           _bottomDock = layout.bottomDock;
@@ -567,7 +587,8 @@ class _MyPDFViewerState extends State<MyPDFViewer>
                               ? null
                               : _buildAyahContextRow(palette)),
                       placement: layout.dockPlacement,
-                      expanded: _isScrollbarVisible,
+                      expanded: pinned || _isScrollbarVisible,
+                      pinned: pinned,
                       onToggle: () {
                         setState(
                           () => _isScrollbarVisible = !_isScrollbarVisible,

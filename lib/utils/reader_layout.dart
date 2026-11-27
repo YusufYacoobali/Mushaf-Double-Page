@@ -21,6 +21,7 @@ class ReaderLayout {
     required this.pageRegions,
     required this.controlsRegion,
     required this.safeRegions,
+    this.foldedDockRegion,
     this.fullWidthPortrait = false,
     this.sizing = ReaderPageSizing.adaptive,
     this.centerSideDock = false,
@@ -36,6 +37,8 @@ class ReaderLayout {
   /// landscapes use [usableContentBounds] as one continuous spread surface.
   final List<Rect> pageRegions;
   final Rect controlsRegion;
+  final Rect? foldedDockRegion;
+  static const double sideDockWidth = 52;
   final List<Rect> safeRegions;
 
   /// Conventional portrait phones retain v4's edge-to-edge page and dock.
@@ -61,6 +64,8 @@ class ReaderLayout {
     bool iosPhoneWidePortrait = false,
     bool foldedCover = false,
     bool androidCoverDock = false,
+    Rect? nativeCoverStrip,
+    List<Rect> coverObstructions = const [],
   }) {
     final regions = safeDisplayRegions(size, padding, displayFeatures);
     final largest = regions.reduce(
@@ -343,6 +348,29 @@ class ReaderLayout {
           ? ReaderPageSizing.regionFit
           : ReaderPageSizing.adaptive,
       controlsRegion: controls,
+      foldedDockRegion:
+          foldedCover &&
+              iosPhoneWidePortrait &&
+              !preserveLegacyIPadPortrait &&
+              nativeCoverStrip != null
+          ? _clearCoverDock(
+              nativeCoverStrip.intersect(
+                Rect.fromLTRB(
+                  safeBounds.right,
+                  safeBounds.top,
+                  size.width,
+                  safeBounds.bottom,
+                ),
+              ),
+              [
+                ...coverObstructions,
+                for (final f in displayFeatures)
+                  if (f.type == DisplayFeatureType.cutout ||
+                      f.type == DisplayFeatureType.hinge)
+                    f.bounds,
+              ],
+            )
+          : null,
       safeRegions: List.unmodifiable(regions),
       fullWidthPortrait: originalPortraitBounds,
       fitPagesToViewport: fitPages,
@@ -359,6 +387,34 @@ class ReaderLayout {
                         f.type == DisplayFeatureType.hinge,
                   )),
     );
+  }
+
+  // Keep the existing rail width. Pick its longest clear vertical interval,
+  // including when the camera or a system control sits halfway down the edge.
+  static Rect? _clearCoverDock(Rect strip, List<Rect> obstructions) {
+    if (strip.width < sideDockWidth || strip.isEmpty) return null;
+    final rail = Rect.fromCenter(
+      center: strip.center,
+      width: sideDockWidth,
+      height: strip.height,
+    );
+    final blocked =
+        obstructions.where(rail.overlaps).map(rail.intersect).toList()
+          ..sort((a, b) => a.top.compareTo(b.top));
+    var top = rail.top;
+    var best = Rect.zero;
+    void consider(double end) {
+      if (end - top > best.height) {
+        best = Rect.fromLTRB(rail.left, top, rail.right, end);
+      }
+    }
+
+    for (final obstacle in blocked) {
+      consider(obstacle.top);
+      top = math.max(top, obstacle.bottom);
+    }
+    consider(rail.bottom);
+    return best.height >= kMinInteractiveDimension ? best : null;
   }
 }
 

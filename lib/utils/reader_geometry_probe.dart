@@ -65,7 +65,9 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
         'right': value.right,
         'bottom': value.bottom,
       };
-      bool? navigationExpanded;
+      bool? navigationExpanded = widget.layout.foldedDockRegion != null
+          ? true
+          : null;
       bool moving = false;
       Map<String, Object?>? scroll;
       void visit(Element element) {
@@ -171,6 +173,12 @@ class _ReaderGeometryProbeState extends State<ReaderGeometryProbe> {
             'height': widget.native.size.height,
           },
           'divisions': widget.native.rawDivisions,
+          if (widget.native.coverStrip case final strip?) ...{
+            'coverStrip': rect(strip),
+            'coverObstructions': widget.native.coverObstructions
+                .map(rect)
+                .toList(),
+          },
           'closed': widget.native.closed,
           'isIPad': widget.isIPad,
         },

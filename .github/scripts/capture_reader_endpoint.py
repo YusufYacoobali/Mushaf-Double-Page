@@ -29,15 +29,6 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
             check_geometry(frame, posture, phase, state)
             if previous:
                 check_pair(previous, frame, phase)
-            if (
-                posture == "duo-folded"
-                and percent == 100
-                and phase == "initial"
-                and not frame["navigationExpanded"]
-            ):
-                tap_tab(frame["controls"]["Open navigation"])
-                time.sleep(0.5)
-                continue
             command = (
                 ["xcrun", "simctl", "io", udid, "screenshot"]
                 if ipad
@@ -109,11 +100,6 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
     raise RuntimeError(f"{png}: no matching stable capture within 35s: {error}")
 
 
-def tap_tab(tab):
-    x, y = tab["left"] + tab["width"] / 2, tab["top"] + tab["height"] / 2
-    subprocess.run(["duoctl", "tap", str(round(x)), str(round(y))], check=True, timeout=30)
-
-
 def swipe_to_bottom(frame):
     # Touch the currently focused leaf. Both leaves share this viewport.
     page = frame["pages"][str(frame["focusedPage"])]
@@ -138,7 +124,7 @@ if __name__ == "__main__":
     parser.add_argument("posture", choices=MODES)
     parser.add_argument("percent", type=int)
     parser.add_argument("after", type=float)
-    parser.add_argument("--phase", choices=["initial", "collapsed", "bottom"], default="initial")
+    parser.add_argument("--phase", choices=["initial", "idle", "bottom"], default="initial")
     parser.add_argument("--before", type=Path)
     parser.add_argument("--state", type=Path)
     parser.add_argument("--udid")
@@ -150,8 +136,10 @@ if __name__ == "__main__":
         if args.phase == "bottom":
             args.after = time.time()
             swipe_to_bottom(read(args.source))
-        # For the folded endpoint, observe the actual ten-second auto-hide.
-        # Sending an input while the tab moves can select the ayah underneath.
+        elif args.phase == "idle":
+            assert args.posture == "duo-folded"
+            # Take another real screenshot after the ordinary ten-second hide timer.
+            time.sleep(11)
     capture(
         args.source,
         args.png,

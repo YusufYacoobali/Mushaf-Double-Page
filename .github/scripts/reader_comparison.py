@@ -9,7 +9,7 @@ rows = [
         "duo-folded",
         ("min-70", "70%"),
         ("max-100", "100%"),
-        ("max-100-collapsed", "100% · tab collapsed"),
+        ("max-100-idle", "100% · after 11 s idle"),
     ),
     ("Unfolded portrait", "duo-unfolded-portrait", ("min-70", "70%"), ("max-100", "100%")),
     (

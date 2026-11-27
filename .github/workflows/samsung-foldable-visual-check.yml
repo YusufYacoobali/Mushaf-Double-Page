@@ -169,3 +169,8 @@ jobs:
           path: samsung-foldable-comparison.png
           retention-days: 14
           if-no-files-found: error
+      - name: Compare originals with the requested v9 baseline
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .qa-venv/bin/python .github/scripts/compare_requested_screenshots.py .github/samsung-foldable-visual.request

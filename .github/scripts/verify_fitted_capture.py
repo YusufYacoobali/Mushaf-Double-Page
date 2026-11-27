@@ -132,23 +132,32 @@ def check_geometry(data, posture, phase="initial", state=None):
     ), "wrong page sizing"
     expanded = data["navigationExpanded"]
     assert isinstance(expanded, bool)
-    tab = data["controls"]["Collapse navigation" if expanded else "Open navigation"]
-    assert data["navigation"] and tab["width"] > 0 and tab["height"] > 0
-    if not expanded:
-        assert same_rect(data["navigation"], tab), "collapsed footprint differs from tab"
+    assert data["navigation"]
+    if posture == "duo-folded":
+        assert expanded and not {"Open navigation", "Collapse navigation"}.intersection(data["controls"]), (
+            "folded dock must stay open without a tab"
+        )
+        l, t, r, b = bounds(data["navigation"])
+        sl, st, sr, sb = bounds(data["native"]["coverStrip"])
+        assert max(sl, bounds(panels[0])[2]) <= l < r <= min(sr, w) and st <= t < b <= sb, (
+            "folded dock leaves the dedicated strip"
+        )
+        for ol, ot, oright, ob in map(bounds, data["native"]["coverObstructions"]):
+            assert r <= ol or l >= oright or b <= ot or t >= ob, "dock overlaps reserved region"
+        for name in ("Zoom in", "Zoom out"):
+            assert name in data["controls"], f"missing {name}"
+    else:
+        tab = data["controls"]["Collapse navigation" if expanded else "Open navigation"]
+        assert tab["width"] > 0 and tab["height"] > 0
+        if not expanded:
+            assert same_rect(data["navigation"], tab), "collapsed footprint differs from tab"
     if mode == "single":
         assert len(panels) == 1
         band = panels[0]
         reading = rect(0, 0, w, h) if posture == "ipad-mini" else rect(band["left"], 0, band["width"], h)
         regions = [reading]
         expected = [dict(reading, top=h * (1 - z) / 2, height=h * z)]
-        if phase == "collapsed":
-            assert not expanded, "navigation must be collapsed"
-        if not expanded and posture == "duo-folded":
-            assert math.isclose(bounds(tab)[2], bounds(band)[2] - 4, abs_tol=0.5), "wrong folded tab right edge"
-            assert math.isclose(tab["top"] + tab["height"] / 2, band["top"] + band["height"] / 2,
-                                abs_tol=0.5), "folded tab is off centre"
-        elif not expanded:
+        if not expanded:
             assert math.isclose(bounds(tab)[3], h - 16, abs_tol=0.5), "wrong collapsed tab bottom"
         assert data["scroll"] is None
     else:
@@ -255,14 +264,14 @@ def check_pair(before, after, phase):
     assert before["pages"].keys() == after["pages"].keys(), "pages changed during capture"
     if phase == "initial":  # min to max
         return
+    if phase == "idle":
+        assert before["navigationExpanded"] and after["navigationExpanded"]
+        assert before["navigation"] == after["navigation"] and before["pages"] == after["pages"]
+        assert before["zoom"] == after["zoom"], "idle changed zoom"
+        return
     assert before["zoom"] == after["zoom"] and before["timestamp"] < after["timestamp"], (
         "stale interaction metadata"
     )
-    if phase == "collapsed":
-        assert before["navigationExpanded"] and not after["navigationExpanded"], (
-            "collapse transition missing"
-        )
-        assert before["pages"] == after["pages"], "collapse moved paper"
     if phase == "bottom":
         distance = after["scroll"]["offset"] - before["scroll"]["offset"]
         assert distance > 0.5 and abs(before["scroll"]["offset"]) <= 0.5, (
@@ -363,15 +372,10 @@ def verify(
             assert mask.getbbox(), f"paper edge fully obscured: page {page}"
             histogram = crop.crop(edge).convert("HSV").getchannel("V").histogram(mask)
             assert sum(histogram[101:]) > sum(histogram) / 2, f"missing paper edge: page {page}"
-    if phase == "collapsed":
-        tab = data["controls"]["Open navigation"]
-        width, height = (22, 72) if posture == "duo-folded" else (72, 24)
-        assert abs(tab["width"] - width) < 0.5 and abs(tab["height"] - height) < 0.5
-        x, y = tab["left"] + tab["width"] / 2, tab["top"] + tab["height"] / 2
-        glyph = image.crop(tuple(round(v * dpr) for v in (x - 6, y - 4, x + 6, y + 4)))
-        assert max(high - low for low, high in glyph.getextrema()) > 30, (
-            "missing visible navigation arrow"
-        )
+    if posture == "duo-folded":
+        # The page texture alone cannot prove the dock was painted in the strip.
+        box = tuple(round(v * dpr) for v in bounds(data["navigation"]))
+        assert max(hi - lo for lo, hi in image.crop(box).getextrema()) > 30, "blank folded dock"
     result = {
         "verified": True,
         "zoom": data["zoom"],

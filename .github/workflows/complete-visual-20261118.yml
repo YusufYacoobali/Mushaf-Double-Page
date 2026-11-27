@@ -140,6 +140,9 @@ jobs:
     needs: [iphone-duo, ipad-mini]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -182,3 +185,8 @@ jobs:
             screenshots-ipad/ipad-mini-landscape.png
           if-no-files-found: error
           retention-days: 14
+      - name: Compare originals with the requested v9 baseline
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .qa-venv/bin/python .github/scripts/compare_requested_screenshots.py .github/complete-visual-20261118.request

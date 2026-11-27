@@ -112,7 +112,7 @@ PY
   python3 .github/scripts/capture_reader_endpoint.py "$source" "$name.png" "$LABEL" "$percent" "$launched_after" \
     --page "$QA_PAGE" --state "$name-state.json" ${pair[@]+"${pair[@]}"} | tee "$name-verification.txt"
   if [[ "$tag" == max && ( "$LABEL" == duo-folded || "$LABEL" == duo-unfolded-wide ) ]]; then
-    local phase=collapsed
+    local phase=idle
     [[ "$LABEL" != duo-unfolded-wide ]] || phase=bottom
     duoctl state > "$name-$phase-state.json"
     python3 .github/scripts/capture_reader_endpoint.py "$source" "$name-$phase.png" "$LABEL" "$percent" "$launched_after" \

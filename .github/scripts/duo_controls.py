@@ -53,7 +53,11 @@ def capture(suffix):
  meta=png.with_suffix('.layout.json');meta.write_text(json.dumps(s,indent=2)+'\n')
  from verify_fitted_capture import verify
  verify(png,meta,round(s['zoom']*100))
-if a.case=='navigation':
+if a.case=='navigation' and state()['native']['closed']:
+ capture('open')
+ time.sleep(11)
+ capture('idle')
+elif a.case=='navigation':
  original=state()['focusedPage']
  if 'Collapse navigation' in state()['controls']:
   ensure_control_change('Collapse navigation',lambda s:'Open navigation' in s['controls'],

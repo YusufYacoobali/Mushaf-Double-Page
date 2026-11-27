@@ -78,7 +78,10 @@ final class ReaderRegionProbe: UIView {
     #if MUSHAF_DUO_SDK
     if #available(iOS 27.1, *) {
       let divisions = reservedRegions(kind: .division, options: .includeInactive)
-      onChange?([
+      func frame(_ rect: CGRect) -> [String: CGFloat] {
+        ["left": rect.minX, "top": rect.minY, "width": rect.width, "height": rect.height]
+      }
+      var event: [String: Any] = [
         "width": bounds.width, "height": bounds.height,
         "closed": hingeClosed,
         "divisions": divisions.map { region in
@@ -86,7 +89,19 @@ final class ReaderRegionProbe: UIView {
            "width": region.frame.width, "height": region.frame.height,
            "active": region.isActive] as [String: Any]
         }
-      ])
+      ]
+      if hingeClosed, let scene = window?.windowScene {
+        let safe = safeAreaLayoutGuide.layoutFrame
+        event["coverStrip"] = frame(CGRect(x: safe.maxX, y: safe.minY,
+                                            width: bounds.maxX - safe.maxX, height: safe.height))
+        var blocked = reservedRegions(kind: .occlusion, options: []).map { $0.frame }
+        blocked += divisions.filter { $0.isActive }.map { $0.frame }
+        if let status = scene.statusBarManager, !status.isStatusBarHidden {
+          blocked.append(convert(status.statusBarFrame, from: scene.coordinateSpace))
+        }
+        event["coverObstructions"] = blocked.filter { !$0.isEmpty }.map(frame)
+      }
+      onChange?(event)
     }
     #endif
   }
