@@ -48,6 +48,8 @@ jobs:
           CFG
           File.write(path, text.sub(marker, marker + override.lines.map { |line| '    ' + line }.join))
           RUBY
+      - name: Install disposable touch diagnostics for the Duo
+        run: python3 tools/ios_ui_qa/duo/install_probes.py
       - name: Build Flutter simulator app (arm64)
         run: FLUTTER_XCODE_ARCHS=arm64 flutter build ios --simulator --debug --no-pub --dart-define=READER_LAYOUT_QA=true
       - name: Archive simulator application with permissions preserved
@@ -81,7 +83,8 @@ jobs:
           test -d ci-app/Runner.app
       - name: Install Duo controls (no accessibility dependency)
         run: |
-          brew install skarol/tap/duoctl
+          brew install skarol/tap/duoctl xcodegen tesseract
+          bash .github/scripts/build_ipad_rotation_harness.sh
           python3 -m venv .qa-venv
           .qa-venv/bin/pip install Pillow
           echo "$PWD/.qa-venv/bin" >> "$GITHUB_PATH"

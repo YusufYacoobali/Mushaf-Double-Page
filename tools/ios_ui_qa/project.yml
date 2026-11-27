@@ -20,7 +20,7 @@ targets:
   ReaderVisualTests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [ReaderVisualTests.swift, ReaderAppIdentity.swift]
+    sources: [ReaderVisualTests.swift, ReaderAppIdentity.swift, DuoInputTests.swift]
     dependencies:
       - target: QAHost
     settings:

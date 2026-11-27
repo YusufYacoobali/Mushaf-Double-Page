@@ -16,4 +16,5 @@ Verify the permanent folded Duo dock and compare page geometry and original pixe
 Compare screenshots screenshots=15212349918 screenshots-ipad=15214666030
 
 Match the unfolded reference dock state at each endpoint and verify actual folded zoom button touches before the idle capture.
+Verify folded Duo touch delivery and unfolding controls against the original 32 page geometries.
 Compare screenshots screenshots=15212349918 screenshots-ipad=15214666030

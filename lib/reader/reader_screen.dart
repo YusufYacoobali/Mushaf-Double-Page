@@ -308,7 +308,8 @@ class _MyPDFViewerState extends State<MyPDFViewer>
       if (_dockPinned) {
         setState(_forgetAyahSelection);
       } else {
-        _forgetAyahSelection();
+        setState(_forgetAyahSelection);
+        if (_isScrollbarVisible && !_audioWasActive) _startHideScrollbarTimer();
       }
       return;
     }
@@ -331,7 +332,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
       final audio = QuranAudioController.instance;
       if (audio.hasActivePlayback) {
         _hideScrollbarTimer?.cancel();
-        if (!_audioWasActive && !_controlsArrowOnly && !_dockPinned) {
+        if (!_audioWasActive && !_controlsArrowOnly) {
           _isScrollbarVisible = true;
         }
       } else if (_audioWasActive && _isScrollbarVisible && _selPage == null) {
@@ -371,7 +372,7 @@ class _MyPDFViewerState extends State<MyPDFViewer>
       _selPage = page;
       _selSurah = surah;
       _selAyah = ayah;
-      if (!_controlsArrowOnly && !_dockPinned) _isScrollbarVisible = true;
+      if (!_controlsArrowOnly) _isScrollbarVisible = true;
     });
     _persistHighlight();
   }

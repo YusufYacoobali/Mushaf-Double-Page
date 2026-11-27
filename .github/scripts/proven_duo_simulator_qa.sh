@@ -101,20 +101,10 @@ if [[ "$ready" != 1 ]]; then
   exit 1
 fi
 export DUOCTL_UDID="$UDID"
-# A clean iOS 27 Duo displays a first-run notification permission alert on
-# top of the actual Quran reader (seen in artifact 14371470393). Dismiss
-# the system alert using a real active-display touch before any captures.
-# The "Don't Allow" button is centred at (120, 385) logical points on the
-# 466 x 678 cover display; this changes ONLY the disposable simulator.
-duoctl screenshot screenshots/duo-first-launch-permission.png || true
-echo "Dismissing first-run iOS notification permission alert"
-duoctl tap 120 385
-sleep 3
-duoctl screenshot screenshots/duo-after-permission.png || true
-# AXe's describe-ui times out on GitHub's iOS 27 Duo simulator even
-# when the app and its 851 real pages are loaded. Never gate screenshots on
-# that unrelated accessibility service.
-sleep 2
+# Target only an observed notification prompt. A blind tap also selects a
+# printed ayah if the permission sheet was already dismissed.
+python3 .github/scripts/dismiss_duo_notification.py "$UDID" screenshots/permission
+export SIMCTL_CHILD_READER_TOUCH_QA=1
 duoctl state > screenshots/duo-initial-state.json
 echo "App launched; 851 Quran images exist. Capturing actual reader renders."
 

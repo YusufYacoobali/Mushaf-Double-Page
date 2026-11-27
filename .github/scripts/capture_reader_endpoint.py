@@ -103,29 +103,10 @@ def capture(source, png, posture, percent, after, phase, before, state, udid, ex
     raise RuntimeError(f"{png}: no matching stable capture within 35s: {error}")
 
 
-def check_folded_zoom_taps(source):
-    # Interact with the real Flutter buttons in the cover strip. Re-read their
-    # positions after each zoom; a page resize can trigger a layout pass.
-    original = read(source)
-    for name, target in [("Zoom out", 0.95), ("Zoom in", 1.0)]:
-        frame = read(source)
-        box = frame["controls"][name]
-        x = round(box["left"] + box["width"] / 2)
-        y = round(box["top"] + box["height"] / 2)
-        subprocess.run(["duoctl", "tap", str(x), str(y)], check=True, timeout=30)
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline:
-            updated = read(source)
-            if abs(updated["zoom"] - target) < 0.001:
-                assert updated["focusedPage"] == original["focusedPage"] and updated["navigationExpanded"]
-                print(f"Cover tap on {name} at ({x}, {y}): rendered zoom {target:.0%}", flush=True)
-                break
-            time.sleep(0.2)
-        else:
-            raise RuntimeError(f"{name} tap in the folded strip did not reach {target:.0%}")
+def swipe_to_bottom(source):
+    from duo_native_input import NativeInput
 
-
-def swipe_to_bottom(frame):
+    frame = read(source)
     # Touch the currently focused leaf. Both leaves share this viewport.
     page = frame["pages"][str(frame["focusedPage"])]
     l, t, r, b = bounds(frame["scroll"]["viewport"])
@@ -135,11 +116,11 @@ def swipe_to_bottom(frame):
     assert l < x < r
     nl, nt, nr, nb = bounds(frame["navigation"])
     assert not (nl <= x <= nr and target <= nb and y >= nt), "gesture intersects dock"
-    subprocess.run(
-        ["duoctl", "swipe", str(x), str(y), str(x), str(target), "--duration", ".3"],
-        check=True,
-        timeout=30,
-    )
+    device = NativeInput(source)
+    try:
+        device.gesture('Scroll focused spread to bottom', [x, y], [x, target])
+    finally:
+        device.close()
 
 
 if __name__ == "__main__":
@@ -160,10 +141,11 @@ if __name__ == "__main__":
         assert args.before and args.state
         if args.phase == "bottom":
             args.after = time.time()
-            swipe_to_bottom(read(args.source))
+            swipe_to_bottom(args.source)
         elif args.phase == "idle":
             assert args.posture == "duo-folded"
-            check_folded_zoom_taps(args.source)
+            from folded_duo_interactions import verify_folded_controls
+            verify_folded_controls(args.source)
             # Take another real screenshot after the ordinary ten-second hide timer.
             time.sleep(11)
     capture(
