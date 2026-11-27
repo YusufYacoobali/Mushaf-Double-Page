@@ -14,30 +14,14 @@ import 'audio_repository.dart';
 import 'audio_playback_backend.dart';
 import '../models/everyayah_pcm_proof.dart';
 
+import 'offline_audio_downloads.dart';
+
+export 'offline_audio_downloads.dart' show AudioDownloadState;
+
 part 'quran_audio_pcm_proof.dart';
+part 'audio_listening_progress.dart';
 
 enum QuranAudioErrorKind { none, connectionRequired, playback }
-
-class AudioDownloadState {
-  const AudioDownloadState({
-    required this.active,
-    required this.completed,
-    required this.total,
-    required this.message,
-    this.fraction,
-  });
-  const AudioDownloadState.idle()
-    : active = false,
-      completed = 0,
-      total = 0,
-      message = '',
-      fraction = null;
-  final bool active;
-  final int completed, total;
-  final String message;
-  final double? fraction;
-  double? get progress => fraction ?? (total == 0 ? null : completed / total);
-}
 
 class _QueueEntry {
   _QueueEntry(this.occurrence) : primarySource = occurrence.item.source;
@@ -86,17 +70,7 @@ class QuranAudioController extends ChangeNotifier {
                : player == null && ContinuousPcmBackend.supported
                ? (() => ContinuousPcmBackend())
                : null) {
-    _tracker = listeningTracker;
-    if (trackJourney) {
-      _tracker = ListeningTracker(
-        onListen: (verse) {
-          unawaited(JourneyStore.recordListen(verse));
-          unawaited(ReadingProgressStore.recordReadingActivity());
-        },
-        onSeconds: (seconds) =>
-            unawaited(JourneyStore.recordTime(listening: seconds)),
-      );
-    }
+    _tracker = trackJourney ? _journeyListeningTracker() : listeningTracker;
     _legacyBackend = JustAudioBackend(_player);
     _bindBackend(_legacyBackend);
   }
@@ -191,7 +165,7 @@ class QuranAudioController extends ChangeNotifier {
   final _pending = <_QueueEntry>[];
   final _omittedIntroductions = <String>{};
   final _deferredFailures = <String, AudioFailure>{};
-  ListeningTracker? _tracker;
+  late final ListeningTracker? _tracker;
   AudioPlaybackPlan? _plan;
   QuranPlaybackCursor? _cursor;
   _QueueEntry? _current, _waiting, _failed;
@@ -199,7 +173,14 @@ class QuranAudioController extends ChangeNotifier {
   String? _error;
   QuranPlaybackPhase _phase = QuranPlaybackPhase.idle;
   AudioDownloadState _download = const AudioDownloadState.idle();
-  AudioDownloadState _offlineDownload = const AudioDownloadState.idle();
+  late final _offline = OfflineAudioDownloads(
+    repository: _repository,
+    retryDelay: retryDelay,
+    resolveIntroduction: resolveIntroduction,
+    resolveItem: _resolvedItem,
+    isOmittedIntroduction: _omittedIntroductions.contains,
+    onChanged: _publish,
+  );
   bool _active = false, _intent = false, _installing = false, _begun = false;
   bool _exhausted = false, _disposed = false;
   bool _starting = false;
@@ -211,8 +192,6 @@ class QuranAudioController extends ChangeNotifier {
   int? _fillRevision;
   int recoveryAttempt = 0;
   CancelToken _token = CancelToken();
-  CancelToken? _offlineToken;
-  bool _offlineNeedsRefresh = false;
   Future<void> _nativeTail = Future.value();
   Timer? _stall;
   Uri? _artwork;
@@ -222,8 +201,8 @@ class QuranAudioController extends ChangeNotifier {
   AudioPlaybackPlan? get plan => _plan;
   QuranPlaybackPhase get phase => _phase;
   AudioDownloadState get downloadState =>
-      _download.active ? _download : _offlineDownload;
-  bool get offlineDownloading => _offlineDownload.active;
+      _download.active ? _download : _offline.state;
+  bool get offlineDownloading => _offline.state.active;
   String? get error => _error;
   QuranAudioErrorKind get errorKind => failure == null
       ? QuranAudioErrorKind.none
@@ -539,23 +518,6 @@ class QuranAudioController extends ChangeNotifier {
     });
   }
 
-  void _trackListening() {
-    if (_pcmActive) {
-      _trackPcmListening();
-      return;
-    }
-    final entry = _current;
-    if (!_begun || entry == null) return;
-    _tracker?.sample(
-      occurrence: entry.occurrence.occurrenceId,
-      verse: '${entry.item.surah}:${entry.item.ayah}',
-      countVerse: !entry.item.isIntroduction,
-      position: _backend.position,
-      duration: _backend.duration,
-      playing: audible && _backend.playing,
-    );
-  }
-
   Future<void> playPlan(AudioPlaybackPlan plan) async {
     cancelDownload();
     _cancelWork();
@@ -744,10 +706,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   Future<void> _repair(_QueueEntry entry) async {
-    if (_offlineToken != null && !_offlineToken!.isCancelled) {
-      cancelDownload();
-      _offlineNeedsRefresh = true;
-    }
+    _offline.interruptForRepair();
     await _repository.invalidate(_plan!.reciter, entry.item);
     _deferredFailures.remove(entry.item.recordingId);
     entry.preparation = null;
@@ -861,10 +820,7 @@ class QuranAudioController extends ChangeNotifier {
             ? QuranPlaybackPhase.preparing
             : QuranPlaybackPhase.paused;
         if (_intent) _startNative(generation, revision);
-        if (_offlineNeedsRefresh) {
-          _offlineNeedsRefresh = false;
-          unawaited(downloadSelection(_plan!));
-        }
+        _offline.resumeAfterRepair(_plan!);
         _publish();
         return;
       } catch (error) {
@@ -884,10 +840,7 @@ class QuranAudioController extends ChangeNotifier {
   }
 
   _QueueEntry _omitIntroduction(_QueueEntry entry) {
-    if (_offlineToken != null && !_offlineToken!.isCancelled) {
-      cancelDownload();
-      _offlineNeedsRefresh = true;
-    }
+    _offline.interruptForRepair();
     final source = entry.primarySource;
     if (source != null) _omittedIntroductions.add(source.id);
     introductionNotice =
@@ -1489,107 +1442,12 @@ class QuranAudioController extends ChangeNotifier {
     _publish();
   }
 
-  Future<void> downloadSelection(AudioPlaybackPlan selection) async {
-    if (_pcmActive && selection.matches(_plan)) return;
-    _offlineToken?.cancel('New offline selection');
-    final token = _offlineToken = CancelToken();
-    final items = <String, QuranAudioItem>{};
-    var unavailable = 0;
-    for (final verse in selection.uniqueVerses()) {
-      if (verse.ayah == 1) {
-        final resolution = resolveIntroduction(selection.reciter, verse.surah);
-        if (resolution.kind == BismillahPolicyKind.unverified) unavailable++;
-        if (resolution.kind == BismillahPolicyKind.separateVerifiedRecording &&
-            resolution.source != null) {
-          items[resolution.source!.id] = QuranAudioItem(
-            surah: verse.surah,
-            source: resolution.source,
-          );
-        }
-      }
-      final item = _resolvedItem(
-        selection.reciter,
-        QuranAudioItem(surah: verse.surah, ayah: verse.ayah),
-      );
-      // A canonical 001001 can also be the numbered Fatihah 1:1 recording.
-      items.putIfAbsent(item.recordingId, () => item);
-    }
-    var done = 0;
-    var failed = 0;
-    try {
-      for (final item in items.values) {
-        if (token.isCancelled) throw token.cancelError!;
-        if (item.isIntroduction &&
-            _omittedIntroductions.contains(item.recordingId)) {
-          failed++;
-          continue;
-        }
-        _offlineDownload = AudioDownloadState(
-          active: true,
-          completed: done,
-          total: items.length,
-          message: 'Saving audio offline · $done/${items.length}',
-        );
-        _publish();
-        var saved = false;
-        for (var attempt = 0; attempt < 4; attempt++) {
-          try {
-            await _repository.recording(
-              selection.reciter,
-              item,
-              token,
-              urgent: false,
-            );
-            saved = true;
-            break;
-          } catch (error) {
-            if (token.isCancelled) throw token.cancelError!;
-            final problem = _problem(error);
-            if (!problem.recoverable || attempt == 3) break;
-            await Future.any([
-              Future<void>.delayed(retryDelay * (1 << attempt)),
-              token.whenCancel.then<void>((_) {}),
-            ]);
-            if (token.isCancelled) throw token.cancelError!;
-          }
-        }
-        if (saved) {
-          done++;
-        } else {
-          failed++;
-        }
-      }
-      if (!token.isCancelled && _offlineToken == token) {
-        _offlineDownload = AudioDownloadState(
-          active: false,
-          completed: done,
-          total: items.length,
-          message: unavailable == 0 && failed == 0
-              ? 'Selection available offline'
-              : 'Offline audio incomplete · $failed recording(s) unavailable'
-                    '${unavailable == 0 ? "" : "; Bismillah unavailable for $unavailable opening(s)"}',
-        );
-      }
-    } catch (error) {
-      if (!token.isCancelled && _offlineToken == token) {
-        _offlineDownload = AudioDownloadState(
-          active: false,
-          completed: done,
-          total: items.length,
-          message: 'Offline saving stopped: $error',
-        );
-      }
-    }
-    _publish();
+  Future<void> downloadSelection(AudioPlaybackPlan selection) {
+    if (_pcmActive && selection.matches(_plan)) return Future.value();
+    return _offline.save(selection);
   }
 
-  void cancelDownload() {
-    _offlineToken?.cancel();
-    _offlineToken = null;
-    _offlineNeedsRefresh = false;
-    _offlineDownload = const AudioDownloadState.idle();
-    _publish();
-  }
+  void cancelDownload() => _offline.cancel();
 
   Future<void> prepareArtwork() async {
     try {
@@ -1606,7 +1464,7 @@ class QuranAudioController extends ChangeNotifier {
     _disposed = true;
     _active = false;
     _token.cancel();
-    _offlineToken?.cancel();
+    _offline.dispose();
     _stall?.cancel();
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());

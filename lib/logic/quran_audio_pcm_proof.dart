@@ -49,19 +49,6 @@ extension _PcmProofPlayback on QuranAudioController {
     _publish();
   }
 
-  void _trackPcmListening() {
-    final row = _pcmRow;
-    if (!_begun || row == null || _installing || !_active) return;
-    _tracker?.sample(
-      occurrence: '$_session:pcm:${row.id}:$_pcmNavigation',
-      verse: '55:${row.ayah}',
-      countVerse: row.ayah != null,
-      position: _pcmRelative(_backend.position),
-      duration: _pcmProof!.time(row.endFrame) - _pcmProof!.time(row.startFrame),
-      playing: audible && _backend.playing,
-    );
-  }
-
   Future<void> _preparePcmProof(int generation, int revision) async {
     _pcmActive = true;
     _pcmLoaded = false;
