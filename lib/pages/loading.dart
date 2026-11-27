@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mushaf_two_page/main.dart';
+import '../reader/reader_screen.dart';
 import 'package:mushaf_two_page/utils/app_palette.dart';
 import '../logic/storage_manager.dart';
 
