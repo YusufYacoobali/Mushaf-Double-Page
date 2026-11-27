@@ -6,6 +6,8 @@ panel and detect the actual 'Don't Allow' button before sending a real touch.
 """
 import argparse
 import json
+import os
+import plistlib
 import shutil
 import subprocess
 import time
@@ -34,12 +36,37 @@ def screen_geometry(udid):
     return width,height
 
 def screenshot(path):
-    run(['duoctl','screenshot',str(path)], 95)
+    display = os.getenv('DUO_PERMISSION_DISPLAY')
+    if display:
+        command = ['xcrun', 'simctl', 'io', os.environ['DUOCTL_UDID'], 'screenshot',
+                   '--display=' + display, str(path)]
+    else:
+        command = ['duoctl', 'screenshot', str(path)]
+    try:
+        run(command, 60)
+    except subprocess.TimeoutExpired:
+        path.unlink(missing_ok=True)
+        run(command, 60)
     if not path.is_file() or path.stat().st_size < 20000:
         raise RuntimeError('No genuine Duo screenshot after capture')
     return inspect_frame(path, dock='bottom')
 
-def wait_for_decision(udid, output, authorization):
+def springboard_denied(udid, bundle):
+    """Read back the per-app decision from the simulator's notification store."""
+    folder = Path.home() / 'Library/Developer/CoreSimulator/Devices' / udid / 'data/Library/BulletinBoard'
+    for name in ('VersionedSectionInfo.plist', 'SectionInfo.plist'):
+        try:
+            store = plistlib.loads((folder / name).read_bytes())
+            section = plistlib.loads(store.get('sectionInfo', store)[bundle])
+            values = section['$objects']
+            if bundle in values and any(isinstance(v, dict) and v.get('allowsNotifications') is False for v in values):
+                return str(folder / name)
+        except (OSError, ValueError, KeyError, TypeError, plistlib.InvalidFileException):
+            continue
+    return None
+
+
+def wait_for_decision(udid, output, authorization, bundle=None):
     # A fresh simulator reports 0 (notDetermined) until SpringBoard accepts a
     # choice. In the failed run the alert first appeared AFTER the setup tap.
     evidence = []
@@ -53,8 +80,13 @@ def wait_for_decision(udid, output, authorization):
         path = output / f'notification-check-{index}.png'
         frame = screenshot(path)
         status = int(authorization.read_text()) if authorization.exists() else None
+        source = 'UNUserNotificationCenter'
+        if status is None and bundle:
+            store = springboard_denied(udid, bundle)
+            if store:
+                source, status = store, 1
         button = frame.get('denyNotification')
-        evidence.append({'status': status, 'screen': path.name, 'nearWhiteFraction': frame['nearWhiteFraction'],
+        evidence.append({'status': status, 'source': source, 'screen': path.name, 'nearWhiteFraction': frame['nearWhiteFraction'],
                          'notificationPrompt': frame['notificationPrompt'], 'button': button})
         (output / 'permission-verification.json').write_text(json.dumps(evidence, indent=2))
         print('Notification check:', evidence[-1], flush=True)
@@ -92,12 +124,13 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('udid')
     p.add_argument('output',type=Path)
+    p.add_argument('--bundle', help='Reader bundle for the SpringBoard decision read-back')
     p.add_argument('--authorization', type=Path, help='OS authorization status from the disposable native probe')
     args = p.parse_args()
     args.output.mkdir(parents=True,exist_ok=True)
     assert shutil.which('duoctl') and shutil.which('tesseract')
     if args.authorization:
-        wait_for_decision(args.udid, args.output, args.authorization)
+        wait_for_decision(args.udid, args.output, args.authorization, args.bundle)
         return
     evidence=[]
     for attempt in range(3):

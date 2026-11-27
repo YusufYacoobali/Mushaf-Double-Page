@@ -14,6 +14,14 @@ diagnose() {
   xcrun simctl list runtimes -j > screenshots/available-runtimes.json 2>&1 || true
   (sysctl hw.memsize; vm_stat; df -h .) > screenshots/runner-resources.txt 2>&1 || true
   if [[ -n "$UDID" ]]; then
+    local data
+    data="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)" || true
+    if [[ -n "$data" && -d "$data/Documents" ]]; then
+      ls -l "$data/Documents" > screenshots/reader-documents.txt
+      for trace in reader-geometry.json duo-hit.json duo-notification.json duo-snapshot.json duo-flutter.jsonl duo-uikit.jsonl; do
+        [[ ! -f "$data/Documents/$trace" ]] || cp "$data/Documents/$trace" screenshots/
+      done
+    fi
     xcrun simctl listapps "$UDID" > screenshots/installed-apps.txt 2>&1 || true
     xcrun simctl spawn "$UDID" log show --last 4m --style compact --predicate 'process == "Runner"' > screenshots/runner-app-log.txt 2>&1 || true
     duoctl state > screenshots/last-duo-state.json 2>&1 || true
@@ -112,10 +120,14 @@ export DUOCTL_UDID="$UDID"
 # Target only an observed notification prompt. A blind tap also selects a
 # printed ayah if the permission sheet was already dismissed.
 data="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
-python3 .github/scripts/dismiss_duo_notification.py "$UDID" screenshots/permission \
+duoctl -d "$UDID" state > screenshots/duo-initial-state.json
+# This display stays active until the first explicit posture command.
+export DUO_PERMISSION_DISPLAY
+DUO_PERMISSION_DISPLAY="$(jq -er '.displayId' screenshots/duo-initial-state.json)"
+python3 .github/scripts/dismiss_duo_notification.py "$UDID" screenshots/permission --bundle "$BUNDLE_ID" \
   --authorization "$data/Documents/duo-notification.json"
 python3 tools/ios_ui_qa/duo/seed_cover_audio.py "$data/Documents" | tee screenshots/cover-audio-sha256.txt
-duoctl state > screenshots/duo-initial-state.json
+unset DUO_PERMISSION_DISPLAY
 echo "App launched; 851 Quran images exist. Capturing actual reader renders."
 
 failures=0
